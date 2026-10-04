@@ -99,7 +99,7 @@ def finalize(night,top=config.TOP_K,runs_dir=config.RUNS_DIR,frame_loader=load_r
                                 params=p,circuit=row['circuit'],code_version=row['code_version'],symbol=s)
                     artifact=folder/f"{row['hash']}-{s}-frozen.json"
                     artifact.write_text(dump(frozen)+'\n')
-                    signal=frozen_signals(cached_states(circuit,holdout,p),p,fitted)
+                    signal=frozen_signals(cached_states(circuit,holdout,p),p,fitted,holdout)
                     result=backtest(holdout,signal,s,p['horizon_bars'])
                     m=result_metrics(result)
                     m['family_ci']=bonferroni_ci(m['inference'],family)

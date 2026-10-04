@@ -1,5 +1,6 @@
 """Purged walk-forward readouts. Frozen fold schedules survive prefix probes."""
 from bisect import insort
+from collections import deque
 import hashlib
 import numpy as np
 import pandas as pd
@@ -39,7 +40,7 @@ def signals_from_predictions(pred, threshold):
     return np.where(pred > threshold, 1, np.where(pred < -threshold, -1, 0)).astype(np.int8)
 
 
-def dan_path(df, X, params, initial=None):
+def dan_path(df, X, params, initial=None, frozen=None):
     """Reward arrives only at an actual next-open trade's closing bar.
 
     Seeded small initial weights break the zero-weight/no-trade fixed point.
@@ -47,8 +48,24 @@ def dan_path(df, X, params, initial=None):
     Reinforcement strengthens the association between the entry pattern and the action
     taken, so the update is lr * side * pattern * reward: a winning short pushes w.s
     further negative and a losing long weakens w.s, with no side-dependent asymmetry.
+
+    Optional loss-averse behaviour, all off by default (the defaults reproduce the neutral path exactly):
+    `loss_aversion` multiplies negative rewards in the weight update; `caution` scales the entry threshold by
+    1 + caution * (drawdown over the last RISK_WINDOW closed trades, in ATR units per trade); `cooldown_bars` blocks entries for that many bars after two
+    consecutive losing trades. Only realised, already-closed trades feed the risk state, so it is causal.
+    `frozen=(w, threshold)` replays the gate with fixed weights and threshold and no learning.
     """
-    w = np.random.default_rng(params['seed']).normal(0, 1e-4, X.shape[1]) if initial is None else initial.copy()
+    aversion = params.get('loss_aversion', 1.0)
+    caution = params.get('caution', 0.0)
+    cooldown = params.get('cooldown_bars', 0)
+    if frozen is not None:
+        w = np.asarray(frozen[0], dtype=float).copy()
+    else:
+        w = np.random.default_rng(params['seed']).normal(0, 1e-4, X.shape[1]) if initial is None else initial.copy()
+    recent = deque(maxlen=config.RISK_WINDOW)
+    drawdown = 0.
+    losing_streak = 0
+    blocked_until = -1
     predictions = np.zeros(len(df)); signal = np.zeros(len(df), dtype=np.int8)
     position = None
     pending = 0
@@ -65,20 +82,33 @@ def dan_path(df, X, params, initial=None):
             entry, price, side, pattern, scale = position
             if i - entry + 1 >= params['horizon_bars'] or end:
                 reward = side * (close[i] - price) / scale
-                w = (1 - config.DAN_DECAY) * w + params['dan_lr'] * side * pattern * reward
+                if frozen is None:
+                    felt = reward * aversion if reward < 0 else reward
+                    w = (1 - config.DAN_DECAY) * w + params['dan_lr'] * side * pattern * felt
+                recent.append(reward)
+                curve = np.cumsum(recent)
+                drawdown = float(max(0., curve.max()) - curve[-1])
+                losing_streak = losing_streak + 1 if reward < 0 else 0
+                if cooldown and losing_streak >= 2:
+                    blocked_until = i + cooldown
                 position = None
         predictions[i] = X[i] @ w
-        if history:
+        if frozen is not None:
+            thr = frozen[1]
+        elif history:
             q = (len(history) - 1) * params['threshold_q']
             lo = int(q); hi = min(lo + 1, len(history) - 1)
             thr = history[lo] + (q - lo) * (history[hi] - history[lo])
         else:
             thr = 0.
-        action = int(signals_from_predictions(predictions[i], thr))
+        action = int(signals_from_predictions(predictions[i], thr * (1 + caution * drawdown / config.RISK_WINDOW)))
+        if i < blocked_until:
+            action = 0
         signal[i] = action
         if position is None and not end:
             pending = action
-        insort(history, abs(predictions[i]))
+        if frozen is None:
+            insort(history, abs(predictions[i]))
     return predictions, signal, w
 
 
@@ -123,6 +153,11 @@ def fit_frozen(df, states, params):
     return dict(coef=model.coef_, intercept=float(model.intercept_), threshold=thr)
 
 
-def frozen_signals(states, params, fitted):
+def frozen_signals(states, params, fitted, df=None):
+    if params.get('readout') == 'dan' and (params.get('caution', 0) or params.get('cooldown_bars', 0)):
+        if df is None:
+            raise ValueError('A risk-gated DAN readout needs the bar frame to replay its drawdown state')
+        return dan_path(df, np.asarray(states[params['readout_from']]), params,
+                        frozen=(fitted['coef'], fitted['threshold']))[1]
     pred = np.asarray(states[params['readout_from']]) @ np.asarray(fitted['coef']) + fitted['intercept']
     return signals_from_predictions(pred, fitted['threshold'])

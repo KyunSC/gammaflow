@@ -67,6 +67,18 @@ Documented implementation choices:
 
 No production-budget search or sealed verification has been run as part of implementation. No production ledger exists.
 
+### Loss-averse DAN options (added after seeing discovery results)
+
+`dan_path` accepts three optional params, all off by default, so the default path is bit-identical to before. They apply to the `dan` readout only; `ridge` ignores them.
+
+- `loss_aversion` (default 1.0) multiplies negative rewards in the weight update.
+- `caution` (default 0.0) scales the entry threshold by `1 + caution * drawdown / RISK_WINDOW`, where drawdown is the peak-to-current drop of cumulative reward (ATR units) over the last `RISK_WINDOW` (50) closed trades. A rolling window is deliberate: an all-time drawdown never recovers for a losing strategy and locks trading out permanently (first attempt: zero trades).
+- `cooldown_bars` (default 0) blocks entries for that many bars after two consecutive losing trades.
+
+A threshold quantile alone cannot shrink risk: `threshold_q` is relative to prior predictions, so scaling the weights does not change the trade count. Only `caution` and `cooldown_bars` reduce exposure after losses. A separate "punishment" weight vector was not added, because with a linear readout it is the same function as `loss_aversion`. Risk-gated rows need the bar frame at freeze/verify time, so `frozen_signals` takes an optional `df` and refuses to run without it.
+
+These options were chosen because the fly trailed the controls, which is a researcher degree of freedom the DSR/family-alpha gates do not count. Treat any result as a lead to preregister. The values are not in `SEARCH_SPACE`, so existing ledger sampling is unchanged.
+
 ### Implementation smoke evidence (not a discovered edge)
 
 Command: `.venv/bin/python -m flybrain.search run --trials 3 --night 2000-01-01 --runs-dir <fresh tmp dir>`, discovery data only (QQQ 61,194 rows / 795 sessions; SPY 61,271 / 796), seed 42, all four circuits on both symbols. Three groups, 12 ledger rows, none rejected, none eligible. All three seeded draws happened to sample the `dan` readout, so nothing here says anything about ridge.

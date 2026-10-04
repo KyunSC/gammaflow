@@ -73,6 +73,67 @@ class ReservoirTests(unittest.TestCase):
             self.assertTrue((signals[signals != 0] == sign).all())
             self.assertGreater(sign * w[0], sign * w0[0])
 
+    def falling(self, n=6, bars=8):
+        df = frame(n=n, bars=bars); df['close'] = 100 - np.arange(len(df)) * .5
+        df['open'] = df.close.shift(1).fillna(df.close.iloc[0]); df['atr_14'] = 1.
+        return df
+
+    def test_loss_aversion_scales_losing_update(self):
+        # One session, one long that loses: the weight step is exactly loss_aversion times larger.
+        df = self.falling(n=1, bars=8); x = np.ones((len(df), 1)); w0 = np.array([.01])
+        step = {}
+        for lam in (1., 3.):
+            p = dict(params(), readout='dan', dan_lr=.1, horizon_bars=100, loss_aversion=lam)
+            _, signals, w = dan_path(df, x, p, initial=w0)
+            self.assertEqual(signals[0], 1)
+            step[lam] = w[0] - (1 - .0001) * w0[0]
+        self.assertLess(step[1.], 0)
+        self.assertAlmostEqual(step[3.] / step[1.], 3.)
+
+    def test_loss_aversion_leaves_wins_alone(self):
+        df = self.falling(n=1, bars=8); x = np.ones((len(df), 1)); w0 = np.array([-.01])
+        out = [dan_path(df, x, dict(params(), readout='dan', dan_lr=.1, horizon_bars=100, loss_aversion=lam), initial=w0)[2]
+               for lam in (1., 5.)]
+        np.testing.assert_array_equal(out[0], out[1])
+
+    def test_caution_blocks_entries_after_losses(self):
+        df = self.falling(); x = np.ones((len(df), 1)); fz = (np.array([.01]), .001)
+        base = dict(params(), readout='dan')
+        neutral = dan_path(df, x, base, frozen=fz)[1]
+        scared = dan_path(df, x, dict(base, caution=1e6), frozen=fz)[1]
+        first_loss = np.flatnonzero(neutral)[0] + 1  # signal bar, then the entry bar closes (horizon 1) and realises it
+        self.assertGreater(np.count_nonzero(neutral), 3)
+        self.assertEqual(np.count_nonzero(scared[first_loss:]), 0)
+        np.testing.assert_array_equal(neutral[:first_loss], scared[:first_loss])
+
+    def test_cooldown_after_two_losses(self):
+        df = self.falling(n=1, bars=40); x = np.ones((len(df), 1)); fz = (np.array([.01]), .001)
+        base = dict(params(), readout='dan')
+        neutral = dan_path(df, x, base, frozen=fz)[1]
+        cooled = dan_path(df, x, dict(base, cooldown_bars=6), frozen=fz)[1]
+        self.assertLess(np.count_nonzero(cooled), np.count_nonzero(neutral))
+        second_loss = np.flatnonzero(neutral)[1] + 1
+        self.assertEqual(np.count_nonzero(cooled[second_loss:second_loss + 6]), 0)
+
+    def test_risk_gate_causal_and_frozen_replay(self):
+        from flybrain.readout import frozen_signals
+        df = frame(n=20, bars=8); p = dict(params(), readout='dan', dan_lr=.1, caution=2., cooldown_bars=3, threshold_q=.5)
+        x = df[['z_x']].to_numpy()
+        a = dan_path(df, x, p)[1]
+        df.loc[60:, 'close'] *= 100
+        np.testing.assert_array_equal(a[:60], dan_path(df, x, p)[1][:60])
+        fitted = dict(coef=np.array([.05]), intercept=0., threshold=.01)
+        with self.assertRaises(ValueError):
+            frozen_signals({'kc': x}, p, fitted)
+        np.testing.assert_array_equal(frozen_signals({'kc': x}, p, fitted, df),
+                                      dan_path(df, x, p, frozen=(fitted['coef'], fitted['threshold']))[1])
+
+    def test_loss_averse_defaults_are_neutral(self):
+        df = frame(n=20, bars=8); x = df[['z_x']].to_numpy(); p = dict(params(), readout='dan', dan_lr=.1)
+        a = dan_path(df, x, p)
+        b = dan_path(df, x, dict(p, loss_aversion=1., caution=0., cooldown_bars=0))
+        for u, v in zip(a, b): np.testing.assert_array_equal(u, v)
+
     def test_frozen_dan_trade_fraction(self):
         from flybrain.readout import fit_frozen, frozen_signals
         df=frame(n=60,bars=20); p=dict(params(),readout='dan',threshold_q=.9,dan_lr=.1)
