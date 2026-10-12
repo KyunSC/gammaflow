@@ -18,6 +18,9 @@ export const AVAILABLE_INDICATORS = [
   { id: 'sr-session', label: 'Session Levels', type: 'sr-session', orMinutes: 30, color: '#ff7043' },
   { id: 'sr-pivots', label: 'Floor Pivots', type: 'sr-pivots', method: 'classic', color: '#ffee58' },
   { id: 'sr-zones', label: 'S/R Zones', type: 'sr-zones', left: 5, tolAtr: 0.25, minScore: 1.5, maxZones: 6, color: '#29b6f6' },
+  // Futures RTH only: drawn from published trade prints (lib/orderFlow.js).
+  { id: 'delta-bubbles', label: 'Delta Bubbles (tick)', type: 'delta-bubbles', minPct: 80, maxRadius: 18, color: '#26a69a' },
+  { id: 'tick-nodes', label: 'POC / HVN / LVN (tick)', type: 'tick-nodes', rows: 80, maxHvn: 3, zones: 'on', zonePct: 70, color: '#ffca28' },
 ]
 
 export const TREND_COLORS = {
@@ -49,6 +52,16 @@ export const EDITABLE_FIELDS_BY_TYPE = {
     { key: 'tolAtr',   label: 'Width (ATR)',    min: 0.05, max: 5,  step: 0.05 },
     { key: 'minScore', label: 'Min score',      min: 0.25, max: 20, step: 0.25 },
     { key: 'maxZones', label: 'Max zones',      min: 1,    max: 20 },
+  ],
+  'delta-bubbles': [
+    { key: 'minPct',    label: 'Min |Δ| percentile', min: 1, max: 99 },
+    { key: 'maxRadius', label: 'Max size (px)',      min: 4, max: 60 },
+  ],
+  'tick-nodes':   [
+    { key: 'rows',   label: 'Rows per session', min: 10, max: 400 },
+    { key: 'maxHvn', label: 'Max HVNs',         min: 1,  max: 10 },
+    { key: 'zones',  label: 'Zones',            options: ['on', 'off'] },
+    { key: 'zonePct', label: 'Zone threshold %', min: 10, max: 95 },
   ],
 }
 

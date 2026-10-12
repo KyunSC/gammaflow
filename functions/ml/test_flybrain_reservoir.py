@@ -168,4 +168,71 @@ class ReservoirTests(unittest.TestCase):
             np.testing.assert_array_equal(np.array(b['kc']), expected)
             self.assertFalse(list(Path(d, 'states').glob('*.tmp')))
 
+    def rising(self, n=1, bars=40):
+        # Every bar opens at the previous close and gains 0.5 ATR: a horizon-1 paper bet always earns +0.5.
+        df = frame(n=n, bars=bars); df['close'] = 100 + np.arange(len(df)) * .5
+        df['open'] = df.close.shift(1).fillna(df.close.iloc[0] - .5); df['atr_14'] = 1.
+        return df
+
+    def test_learning_options_defaults_are_neutral(self):
+        df = frame(n=20, bars=8); x = df[['z_x']].to_numpy(); p = dict(params(), readout='dan', dan_lr=.1)
+        a = dan_path(df, x, p)
+        b = dan_path(df, x, dict(p, shadow=False, dan_rule='hebbian'))
+        for u, v in zip(a, b): np.testing.assert_array_equal(u, v)
+
+    def test_paper_bets_causal(self):
+        df = frame(); x = df[['z_x']].to_numpy()
+        p = dict(params(), readout='dan', dan_lr=.1, horizon_bars=3, shadow=True, dan_rule='delta')
+        a = dan_path(df, x, p)[0]
+        df.loc[100:, ['open', 'close']] *= 100
+        np.testing.assert_array_equal(a[:100], dan_path(df, x, p)[0][:100])
+
+    def test_paper_bets_stay_in_session(self):
+        # Horizon longer than a session: every bet is graded at its own session's close, none at a later bar.
+        df = frame(n=2, bars=4); x = np.ones((len(df), 1))
+        p = dict(params(), readout='dan', dan_lr=.1, horizon_bars=100, shadow=True)
+        stats = {}
+        a = dan_path(df, x, p, stats=stats)[0]
+        self.assertEqual(stats['n'], 6)  # three non-closing bars per session
+        df.loc[4:, ['open', 'close']] *= 100
+        np.testing.assert_array_equal(a[:5], dan_path(df, x, p)[0][:5])
+
+    def test_paper_bets_learn_while_flat(self):
+        df = frame(n=20, bars=8); x = df[['z_x']].to_numpy(); w0 = np.array([.01])
+        p = dict(params(), readout='dan', dan_lr=.1, threshold_q=.999, shadow=True, dan_rule='delta')
+        stats = {}
+        _, signals, w = dan_path(df, x, p, initial=w0, stats=stats)
+        self.assertEqual(stats['n'], 20 * 7)
+        self.assertLess(np.count_nonzero(signals), 20)
+        self.assertNotEqual(w[0], w0[0])
+
+    def test_delta_rule_learns_from_being_wrong(self):
+        df = self.rising(); x = np.ones((len(df), 1))
+        p = dict(params(), readout='dan', dan_lr=.5, shadow=True, dan_rule='delta')
+        stats = {}
+        w = dan_path(df, x, p, initial=np.array([-1.]), stats=stats)[2]
+        self.assertAlmostEqual(w[0], .5, delta=.01)  # wrong-sign start flips, then settles on the outcome
+        self.assertLess(stats['second_half']['mean_abs_err'], stats['first_half']['mean_abs_err'])
+        self.assertEqual(stats['second_half']['hit_rate'], 1.)
+        # The hebbian rule keeps pushing after it is already right.
+        hebb = dan_path(df, x, dict(p, dan_rule='hebbian'), initial=np.array([-1.]))[2]
+        self.assertGreater(hebb[0], 5)
+
+    def test_delta_rule_stable_in_high_dimensions(self):
+        df = frame(n=10, bars=20); x = np.random.default_rng(1).normal(size=(len(df), 2000))
+        p = dict(params(), readout='dan', dan_lr=1., shadow=True, dan_rule='delta')
+        self.assertTrue(np.isfinite(dan_path(df, x, p)[0]).all())
+
+    def test_learning_options_reject_ambiguous_settings(self):
+        df = frame(n=2, bars=4); x = np.ones((len(df), 1)); p = dict(params(), readout='dan')
+        for bad in (dict(loss_aversion=2., dan_rule='delta'), dict(loss_aversion=2., shadow=True), dict(dan_rule='oja')):
+            with self.assertRaises(ValueError):
+                dan_path(df, x, dict(p, **bad))
+
+    def test_oos_signals_reports_paper_bet_learning(self):
+        df = frame(); p = dict(params(), readout='dan', shadow=True, dan_rule='delta'); df.attrs['fold_schedule'] = fold_schedule(df, 1)
+        diagnostics = []
+        oos_signals(df, {'kc': df[['z_x']].to_numpy()}, p, diagnostics)
+        self.assertEqual(diagnostics[0]['learning']['n'], 40 * 7)
+
 if __name__ == '__main__': unittest.main()

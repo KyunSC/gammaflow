@@ -584,6 +584,41 @@ Caveats:
 - **Linear OLS only,** with no quantile regression and no model search. The holdout has not
   been spent on this.
 
+### 6.10 Does the closing print reverse by the next open?
+
+`close_auction_study.py` tests the mechanism behind Hu, Liu & Yu (2021), "Dual trading and price
+discovery at market close" (SSRN 3692785). Passive MOC demand prints into the close, and if it
+moves the price, the next open should take some of it back. The paper's own cross-sectional
+result needs TAQ/TRF off-exchange MOC data and is not tested. The pre-declared spec is in the
+script's docstring. The official close and open come from yfinance, because the Databento ITCH
+1-min bars do not contain the auction cross prints. Dividends are added back on ex-dates, half
+days are dropped, and the 1-min bars cover 1,149 research sessions from 2022-01 to 2026-08.
+
+There are two executions. **moc** decides at 15:55 from bars ending by then and trades the
+official close into the next open. **post** decides after the print and enters at 16:05
+post-market. Each has 6 cells: signal x k in {0.5, 1, 2}. One cell per execution is selected on
+the first 70% of sessions, then scored once on the last 30%, at 1 bp per round trip.
+
+| Symbol | Execution | Selected cell | Holdout n | Holdout net bp/trade [95% CI] | Always long bp/night | Random p | Verdict |
+|---|---|---|---:|---:|---:|---:|---|
+| QQQ | moc  | `dev_pre`, k=2   | 19 | −32.7 [−57.3, 20.4] | 6.9 | 0.83 | FAIL |
+| QQQ | post | `r_close`, k=2   | 20 | −1.0 [−61.6, 50.1]  | 7.1 | 0.54 | FAIL |
+| SPY | moc  | `r_imb`, k=1     | 88 | −1.1 [−14.4, 15.1]  | 4.0 | 0.52 | FAIL |
+| SPY | post | `dev_close`, k=2 | 18 | −23.2 [−68.3, 40.7] | 4.3 | 0.73 | FAIL |
+
+- **No fade survives.** Every selected cell loses to simply holding long overnight on the holdout.
+- **The print is not measurably noisy.** The paper's MSE, E[log(next open / price)²] x 1e4, is
+  the same for the close and for the 15:45-15:59 VWAP: 0.773 vs 0.779 on QQQ and 0.438 vs 0.441 on
+  SPY. The paired difference CI straddles 0 on both. Reversal slopes of the overnight return on
+  the closing deviation are −0.21 (QQQ) and −0.32 (SPY), with CIs spanning roughly −1 to +0.5.
+- **Post-close spill is small.** QQQ's 15:50-close move continues a little into 16:00-16:05
+  (corr 0.15), then nothing after that. SPY shows corr 0.01.
+- **Caveat on selection.** The rule selected the thinnest k=2 cells (~55 discovery trades), so most
+  holdout samples are about 20 trades. All 12 QQQ cells had a positive discovery edge (5-23 bp
+  over drift). Those broader cells were not scored on the holdout, and doing so now would be a
+  second look. Subgroups (closing-window volume share, month/quarter end, opex, gamma regime) are
+  in the JSON. Their holdout cells have under 25 trades each and are not interpretable.
+
 ## 7. Discussion
 
 The finding is a **horizon- and architecture-dependent picture, not a clean universal
@@ -699,6 +734,11 @@ done
 .venv/bin/python gex_vol_study.py --symbol QQQ --perms 0 --rebuild   # one symbol at a time
 .venv/bin/python gex_vol_study.py --symbol SPY --perms 0 --rebuild   # (summary CSV is merged per run)
 .venv/bin/python -m unittest test_greeks test_delta_hedge test_thetadata_gex test_gex_vol_study
+
+# 10. Closing-print reversal (Hu, Liu & Yu 2021) → data/close_auction/, plots/close_auction_<sym>.png
+.venv/bin/python close_auction_study.py --symbol QQQ   # first run caches yfinance daily rows
+.venv/bin/python close_auction_study.py --symbol SPY
+.venv/bin/python -m unittest test_close_auction_study
 ```
 
 All random seeds fixed to `42`. RF results are deterministic; FT-Transformer results have
@@ -721,6 +761,7 @@ functions/ml/
   delta_hedge.py          # Delta-hedged short straddle study with Greek P&L attribution; --frontier: clocks vs delta bands
   plot_delta_hedge.py     # Four-panel summary plot of a delta_hedge.py run; --frontier: cost-vs-risk frontier
   gex_vol_study.py        # Dealer GEX/VEX/CEX vs forward realized vol (walk-forward, session-shift null)
+  close_auction_study.py  # Closing-print fade into the next open (Hu, Liu & Yu 2021); discovery/holdout + controls
   sync_to_azure.py        # Key-less backup of data/<provider>/ to private Azure Blob
   notebooks/eda.ipynb     # Pre-training exploratory analysis
   plots/                  # Tracked PNGs referenced from this README

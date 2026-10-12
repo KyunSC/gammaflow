@@ -79,6 +79,24 @@ A threshold quantile alone cannot shrink risk: `threshold_q` is relative to prio
 
 These options were chosen because the fly trailed the controls, which is a researcher degree of freedom the DSR/family-alpha gates do not count. Treat any result as a lead to preregister. The values are not in `SEARCH_SPACE`, so existing ledger sampling is unchanged.
 
+### Paper-bet feedback and delta-rule DAN (added after seeing discovery results)
+
+Two more `dan_path` options, both off by default (the default path is unchanged):
+
+- `shadow=true`: the fly places a costless paper bet on every non-closing bar, so it gets feedback about 78 times per session instead of only on trades it pays for. A bet on bar i enters at bar i+1's open and is graded with the real-trade hold rule (H bars or session close). Grading happens at the close of that bar, before that bar's prediction. Bets never cross sessions. Real trades still drive the threshold, risk state and backtest, but they no longer update the weights.
+- `dan_rule=delta`: learning from prediction error (normalized LMS, Rescorla–Wagner): `w += lr * pattern * (outcome − pattern·w) / |pattern|²`, where the outcome is the side-free move in ATR units. Normalization keeps it stable across 2,597 KC dimensions. The default hebbian update `lr * side * pattern * reward` cannot tell a wrong bet from a right one: `side * reward` is the side-free move, so a losing long and a winning short on the same bar teach the same thing. It also never stops pushing once the fly is right.
+
+`loss_aversion` needs a signed trade reward, so combining it with either option raises an error. With `shadow` on, each `dan` ledger row records `per_symbol[s].learning`: the number of graded paper bets, the sign hit rate, and mean |outcome − prediction|, overall and for each half of the path. A falling error and a hit rate above 0.5 in the second half mean the fly is learning something. Neither one means it can trade profitably.
+
+These options are not sampled. Fix them for a whole run with `--set`, which all four circuits share so the comparison stays paired. Filter the view with `--where`; deflation still counts the whole ledger:
+
+```sh
+.venv/bin/python -m flybrain.search run --trials 20 --night 2026-10-10 --set readout=dan --set shadow=true --set dan_rule=delta
+.venv/bin/python -m flybrain.search leaderboard --all --where shadow=true --where dan_rule=delta
+```
+
+Like the loss-averse options, these are a researcher degree of freedom chosen after seeing results. Run them in the main ledger so they count toward deflation, and treat any result as a lead to preregister. Changing `readout.py` changes `code_version`, so nights recorded before this change can no longer be finalized. The 2026-10-03 night had no eligible rows.
+
 ### Implementation smoke evidence (not a discovered edge)
 
 Command: `.venv/bin/python -m flybrain.search run --trials 3 --night 2000-01-01 --runs-dir <fresh tmp dir>`, discovery data only (QQQ 61,194 rows / 795 sessions; SPY 61,271 / 796), seed 42, all four circuits on both symbols. Three groups, 12 ledger rows, none rejected, none eligible. All three seeded draws happened to sample the `dan` readout, so nothing here says anything about ridge.

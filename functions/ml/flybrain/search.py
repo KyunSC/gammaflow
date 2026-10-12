@@ -46,8 +46,17 @@ def code_version():
 
 def config_hash(params,circuit,version):
     # Random draws and reporting costs are replicates/metadata, not new configurations.
-    model_params={k:v for k,v in params.items() if k not in ('seed','eval_fee')}
+    # DAN options are only read by the DAN readout, and setting one to its default is a no-op.
+    dan=params.get('readout')=='dan'
+    model_params={k:v for k,v in params.items() if k not in ('seed','eval_fee')
+                  and not (k in config.DAN_OPTIONS and (not dan or v==config.DAN_OPTIONS[k]))}
     return hashlib.sha256(dump(dict(params=model_params,circuit=circuit,code_version=version)).encode()).hexdigest()
+
+
+def trial_identity(row):
+    """Normalized configuration of a ledger row, independent of code version, so legacy rows
+    hashed before normalization match their twins; rows without params keep their stored hash."""
+    return config_hash(row['params'],row.get('circuit'),'') if row.get('params') else row.get('hash')
 
 
 @contextmanager
@@ -80,6 +89,8 @@ def append_record(runs_dir,row,cap=None,rows=None):
     rows=read_ledger(runs_dir) if rows is None else rows
     if len(rows)>=cap: raise ValueError('Lifetime trial cap exhausted')
     if any(r['hash']==row['hash'] for r in rows): raise ValueError('Duplicate configuration hash')
+    if row.get('params') and trial_identity(row) in {trial_identity(r) for r in rows if r.get('params')}:
+        raise ValueError('Duplicate configuration hash')
     root=Path(runs_dir); root.mkdir(parents=True,exist_ok=True)
     durable_write(root/'ledger.jsonl',dump(row)+'\n')
 
@@ -135,7 +146,13 @@ def score_of(per_symbol):
 
 
 def trial_sharpes(rows):
-    return {s:[r['per_symbol'][s]['metrics']['inference']['sr'] for r in rows
+    """Per-symbol Sharpe of each distinct configuration tried; a legacy duplicate counts once."""
+    seen=set(); distinct=[]
+    for r in rows:
+        key=trial_identity(r)
+        if key is None or key not in seen: distinct.append(r)
+        seen.add(key)
+    return {s:[r['per_symbol'][s]['metrics']['inference']['sr'] for r in distinct
                if s in r.get('per_symbol',{}) and r['per_symbol'][s]['metrics']['inference']['sr'] is not None]
             for s in config.SYMBOLS}
 
@@ -190,8 +207,8 @@ def evaluate_variant(kind,params,frames,circuit_factory=build_circuit,check_guar
         stage=time.monotonic()
         states=cached_states(circuit,df,params)
         print(f'  {kind} {symbol}: states ready ({time.monotonic()-stage:.1f}s)',flush=True)
-        model_cache={}
-        signal,fold_id=oos_signals(df,states,params,model_cache=model_cache)
+        model_cache={}; diagnostics=[] if params.get('readout')=='dan' else None
+        signal,fold_id=oos_signals(df,states,params,diagnostics=diagnostics,model_cache=model_cache)
         prepared.append((df,states,signal,circuit))
         if check_guard:
             guard=guard_signals(df,states,signal,circuit,params)
@@ -207,15 +224,40 @@ def evaluate_variant(kind,params,frames,circuit_factory=build_circuit,check_guar
         scored=backtest(oos,signal[first:],symbol,params['horizon_bars'])
         lift=prop_lift(scored,oos,plan,params['seed'],symbol,params['horizon_bars'],eval_fee=eval_fee)
         per_symbol[symbol]=dict(metrics=metrics,prop=lift)
+        if diagnostics: per_symbol[symbol]['learning']=diagnostics[0]['learning']
         print(f"  {kind:7} {symbol}: SR={metrics['inference']['sharpe']:.3f} trades={metrics['n_trades']} P&L={metrics['total_pnl']:.2f} lift={lift['lift']:.3f}",flush=True)
     if evaluation_cache is not None and not guard_only: evaluation_cache[cache_key]=(per_symbol,prepared)
     return per_symbol,None,{'ok':True} if check_guard else None
 
 
+def parse_settings(items):
+    """`key=value` pairs; values are JSON where they parse, otherwise plain strings."""
+    out={}
+    for item in items or []:
+        key,sep,raw=item.partition('=')
+        if not sep: raise ValueError(f'Expected key=value, got {item!r}')
+        try: out[key]=json.loads(raw)
+        except ValueError: out[key]=raw
+    return check_settings(out)
+
+
+def check_settings(settings):
+    unknown=set(settings or {})-set(config.SEARCH_SPACE)-set(config.DAN_OPTIONS)
+    if unknown: raise ValueError(f'Unknown parameters: {sorted(unknown)}')
+    return dict(settings or {})
+
+
+def matches(row,where):
+    p=row.get('params') or {}
+    return all(p.get(k,config.DAN_OPTIONS.get(k))==v for k,v in where.items())
+
+
 def run(trials=config.TRIALS_PER_NIGHT,night=None,seed=42,runs_dir=config.RUNS_DIR,
-        frame_loader=None,evaluator=None,circuit_factory=build_circuit,cap=None,eval_fee=config.EVAL_FEE):
+        frame_loader=None,evaluator=None,circuit_factory=build_circuit,cap=None,eval_fee=config.EVAL_FEE,overrides=None):
+    """`overrides` fix parameters for every group of this run, after sampling and before hashing."""
     night=night or date.today().isoformat(); date.fromisoformat(night)
     if trials<1: raise ValueError('trials must be positive')
+    overrides=check_settings(overrides)
     root=Path(runs_dir); cap=config.MAX_TRIALS_LIFETIME if cap is None else cap
     frame_loader=frame_loader or (lambda s:load_research_frame(s,discovery_only=True))
     evaluator=evaluator or partial(evaluate_variant,evaluation_cache={},eval_fee=eval_fee)
@@ -233,6 +275,7 @@ def run(trials=config.TRIALS_PER_NIGHT,night=None,seed=42,runs_dir=config.RUNS_D
             if len(rows)+len(config.CIRCUITS)>cap: break
             for attempt in range(100):
                 params={k:values[int(rng.integers(len(values)))] for k,values in config.SEARCH_SPACE.items()}
+                params.update(overrides)
                 params['seed']=int(np.random.SeedSequence([seed,group_offset+group]).generate_state(1)[0])
                 hashes=[config_hash(params,k,version) for k in config.CIRCUITS]
                 if not any(h in used for h in hashes): break
@@ -314,7 +357,8 @@ def group_rows(rows):
     for gid,group in complete_groups(rows).items():
         p=group['fly']['params']
         out.append(dict(group_id=gid,night=group['fly']['night'],
-            params={k:p[k] for k in ('gex_off','readout','readout_from','horizon_bars','kc_sparsity','rho','leak','input_gain')},
+            params=dict({k:p[k] for k in ('gex_off','readout','readout_from','horizon_bars','kc_sparsity','rho','leak','input_gain')},
+                        **{k:p.get(k,config.DAN_OPTIONS[k]) for k in ('shadow','dan_rule')}),
             **{metric:{c:dict(median=group_value(group[c],metric),**{s:group_value(group[c],metric,s) for s in config.SYMBOLS})
                        for c in config.CIRCUITS} for metric in ('sharpe','lift')}))
     return out
@@ -339,8 +383,10 @@ def matched_gex_ablation(rows):
     return out
 
 
-def leaderboard(runs_dir=config.RUNS_DIR,all_rows=False):
+def leaderboard(runs_dir=config.RUNS_DIR,all_rows=False,where=None):
+    """`where` restricts the view to matching parameters; deflation still counts the whole ledger."""
     rows=refresh_deflation(read_ledger(runs_dir))
+    if where: rows=[r for r in rows if matches(r,check_settings(where))]
     ranked=sorted((r for r in rows if not r.get('rejected') and (all_rows or r['eligible'])),key=lambda r:r['score'],reverse=True)
     complete=[r for r in rows if r.get('params')]
     return dict(variants=ranked,paired=paired_table(rows),paired_by_symbol={s:paired_table(rows,s) for s in config.SYMBOLS},
@@ -362,12 +408,14 @@ def main():
     for p in cmd.values(): p.add_argument('--runs-dir',type=Path,default=config.RUNS_DIR)
     cmd['run'].add_argument('--trials',type=int,default=config.TRIALS_PER_NIGHT); cmd['run'].add_argument('--night')
     cmd['run'].add_argument('--seed',type=int,default=42); cmd['run'].add_argument('--eval-fee',type=float,default=config.EVAL_FEE)
+    cmd['run'].add_argument('--set',action='append',metavar='KEY=VALUE',help='Fix a parameter for every group of this run')
     cmd['leaderboard'].add_argument('--all',action='store_true')
+    cmd['leaderboard'].add_argument('--where',action='append',metavar='KEY=VALUE',help='Only rows with this parameter value')
     cmd['finalize'].add_argument('--night',required=True); cmd['finalize'].add_argument('--top',type=int,default=config.TOP_K)
     cmd['verify'].add_argument('hash')
     args=parser.parse_args()
-    if args.command=='run': run(args.trials,args.night,args.seed,args.runs_dir,eval_fee=args.eval_fee)
-    elif args.command=='leaderboard': print(dump(leaderboard(args.runs_dir,args.all)))
+    if args.command=='run': run(args.trials,args.night,args.seed,args.runs_dir,eval_fee=args.eval_fee,overrides=parse_settings(args.set))
+    elif args.command=='leaderboard': print(dump(leaderboard(args.runs_dir,args.all,parse_settings(args.where))))
     elif args.command=='status': print(dump(status(args.runs_dir)))
     elif args.command=='finalize':
         from .finalize import finalize

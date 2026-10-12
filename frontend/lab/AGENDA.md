@@ -42,6 +42,10 @@ new families under **Discovered** when a result suggests one.
       both symbols (fade a ≥ 2 ATR 30m move in the first hour). Test the gate, not the grid:
       the same fade with no regime gate, and in short gamma only. If long gamma does not
       beat both on both symbols, the regime story is not what's working. (rehearsal night)
+- [x] **Open as fair value** — fade a stretch from `f:rth_open` toward the 09:30 open, gated
+      long gamma / short gamma / ungated. No gate beat the ungated fade and nothing cleared the
+      noise floor (night 2026-10-08). Only revisit with a new mechanism, e.g. a pin
+      (`gex_concentration` high, dominant strike near the open).
 
 ## Data reference
 
@@ -63,6 +67,7 @@ every RTH bar, so gate on `minutes_since_open` instead.
 | `f:gex_concentration` | Σgex² / (Σ\|gex\|)² — Herfindahl of strike GEX |
 | `f:gex_age_minutes` | minutes since the GEX snapshot used at this bar |
 | `f:minutes_since_open` | 0 at 09:30 ET |
+| `f:rth_open` | the session's 09:30 ET opening print (from raw bars, so present even on days whose 09:30 row was dropped) |
 | `f:hour_sin`, `f:hour_cos` | time-of-day encodings (UTC-based; always < 0 in RTH) |
 | `f:rsi_14`, `f:atr_14`, `f:realized_vol_60m`, `f:volume_zscore_20`, `f:close_vs_sma20`, `f:close_position`, `f:log_return_{5,15,30,60}m`, `f:log_dollar_volume` | baseline features |
 | `ml:pred` | walk-forward OOS RF prediction of the 15m forward log return |

@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test lib/backtest/*.test.mjs",
+    "test": "node --test lib/*.test.mjs lib/backtest/*.test.mjs",
     "backtest:nightly": "node scripts/nightly-backtest.mjs"
   },
   "dependencies": {

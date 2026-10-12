@@ -114,7 +114,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "GEXCalculator"))
 from eval import session_folds, session_ids  # noqa: E402
 from gex_calculator import MIN_IV  # noqa: E402
-from holdout import GAP_SESSIONS, VERIFY_START  # noqa: E402
+from holdout import VERIFY_START, research_sessions  # noqa: E402
 from thetadata_fetch import KEYS, OUT_ROOT as TD_ROOT, contract_keys  # noqa: E402
 
 ET = "America/New_York"
@@ -148,14 +148,6 @@ LEVERAGE = ["ret_30m", "ret_1d", "ret_5d", "neg_ret_30m", "neg_ret_1d", "neg_ret
 
 
 # ---------------------------------------------------------------- pure: sessions and bars
-
-def research_sessions(sessions, verify_start: pd.Timestamp = VERIFY_START,
-                      gap: int = GAP_SESSIONS) -> list[date]:
-    """Sessions split_holdout would keep on the research side: those before verify_start, minus
-    the last `gap` of them."""
-    pre = sorted(d for d in sessions if d < verify_start.date())
-    return pre[:len(pre) - gap] if gap else pre
-
 
 def aggregate_5m(m: pd.DataFrame) -> pd.DataFrame:
     """1-min OHLCV (UTC index) -> 5-min RTH bars stamped at their start, with an ET session date."""

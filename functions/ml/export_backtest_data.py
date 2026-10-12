@@ -64,7 +64,7 @@ DEFAULT_API = "https://azure-market-data.onrender.com"
 
 # Feature columns shipped to the browser. Everything the rule builder, the GEX
 # strategies and the ML strategy can reference.
-EXPORT_FEATURES = FEATURES_BASELINE_PLUS_GEX + ["close_vs_sma20", "minutes_since_open"]
+EXPORT_FEATURES = FEATURES_BASELINE_PLUS_GEX + ["close_vs_sma20", "minutes_since_open", "rth_open"]
 
 # Walk-forward layout for the exported OOS predictions. Bigger test folds than
 # eval.py's default (100) so the ML strategy has enough OOS bars to trade.
@@ -96,6 +96,26 @@ def fetch_bars(api_base: str, symbol: str, period: str, interval: str) -> pd.Dat
         df[col] = df[col].astype(float)
     df["volume"] = df["volume"].fillna(0).astype(float)
     return df[["date", "time", "open", "high", "low", "close", "volume"]].sort_values("date")
+
+
+def add_rth_open(bars: pd.DataFrame) -> pd.DataFrame:
+    """`rth_open`: the session's 09:30 ET opening print, on every bar at or after it.
+
+    Taken from the raw bars before the feature merge, because the merge drops the
+    09:30 bar on days whose first GEX snapshot lands later — the anchor must
+    survive that. NaN on days with no 09:30 bar (never a later bar's open) and on
+    bars before 09:30, so the column is causal. Only the on-grid 09:30:00 bar
+    counts: the endpoint also returns zero-volume quote ticks stamped seconds
+    after a bar start (e.g. 09:30:02), whose price is not the opening print.
+    """
+    et = bars["date"].dt.tz_convert("America/New_York")
+    is_open = (et.dt.hour == 9) & (et.dt.minute == 30) & (et.dt.second == 0)
+    day = et.dt.date
+    opens = bars.loc[is_open, "open"].groupby(day[is_open]).first()
+    out = bars.copy()
+    out["rth_open"] = day.map(opens).astype(float)
+    out.loc[et.dt.hour * 60 + et.dt.minute < 9 * 60 + 30, "rth_open"] = np.nan
+    return out
 
 
 def walk_forward_predictions(df: pd.DataFrame, features: list[str], test_size: int, horizon_bars: int) -> dict:
@@ -214,7 +234,7 @@ def build_symbol(symbol: str, horizon_bars: int, api_base: str, period: str, ski
     logging.info("%s: %d feature rows %s -> %s", symbol, len(feat),
                  feat["date"].min().date(), feat["date"].max().date())
 
-    bars = fetch_bars(api_base, symbol, period, "5m")
+    bars = add_rth_open(fetch_bars(api_base, symbol, period, "5m"))
     logging.info("%s: %d OHLCV bars %s -> %s", symbol, len(bars),
                  bars["date"].min().date(), bars["date"].max().date())
 

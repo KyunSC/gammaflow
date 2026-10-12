@@ -66,6 +66,9 @@ JOBS = {
     # Aggressor-side prints for delta bubbles / exact volume profile (orderflow_backtest.py).
     "nq-trades": Job("trades", "continuous", "continuous", products=("NQ",), whole_window_only=True,
                      every="day", et_window=("09:25", "16:00")),
+    # Same prints for ES; separate job so files land in es-trades/ES (publish_tick_profiles.py --product ES).
+    "es-trades": Job("trades", "continuous", "continuous", products=("ES",), whole_window_only=True,
+                     every="day", et_window=("09:25", "16:00")),
     # Single venue (Nasdaq), but one consistent source from 2022 on; volume features are relative.
     "eq-ohlcv-1m": Job("ohlcv-1m", "raw_symbol", "raw", products=("QQQ", "SPY"), dataset="XNAS.ITCH"),
 }

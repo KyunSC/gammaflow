@@ -54,14 +54,21 @@ def validate(data):
             'completedBarsOnly': True}
 
 
-def atomic_json(path, data):
-    encoded = json.dumps(data, separators=(',', ':'), allow_nan=False).encode()
+def atomic_write(path, data: bytes):
     with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
         temporary = Path(stream.name)
-        stream.write(encoded)
+        stream.write(data)
         stream.flush()
         os.fsync(stream.fileno())
     os.replace(temporary, path)
+
+
+def encode_json(data) -> bytes:
+    return json.dumps(data, separators=(',', ':'), allow_nan=False).encode()
+
+
+def atomic_json(path, data):
+    atomic_write(path, encode_json(data))
 
 
 def publish(source, out):

@@ -1,10 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, CandlestickSeries, LineSeries, HistogramSeries, BarSeries, AreaSeries } from 'lightweight-charts'
 import { DEFAULT_CHART_COLORS } from './chartDefaults'
 import { computeIndicator, TREND_COLORS, resolveIndicator } from './indicators'
 import { computeVolumeProfile, computeValueArea, profileNodes } from '../lib/volumeProfile'
+import { useTickVolume } from '../lib/tickProfile'
+import { deltaBubbles, sessionNodes } from '../lib/orderFlow'
 
 const GEX_COLORS = {
   call_wall: '#00e676',
@@ -41,13 +43,13 @@ function gexLevelPrice(level, gexLevels, useEtfStrike) {
 }
 
 // GEX walls and volume-profile nodes as extra S/R zone candidates.
-function chartExtraLevels(bars, gexLevels, useEtfStrike) {
+function chartExtraLevels(bars, gexLevels, useEtfStrike, tickVolume) {
   const out = []
   for (const level of gexLevels?.levels || []) {
     if (!['call_wall', 'put_wall', 'zero_gamma'].includes(level.label)) continue
     out.push({ price: gexLevelPrice(level, gexLevels, useEtfStrike), source: 'gex', label: GEX_LABELS[level.label] })
   }
-  const nodes = profileNodes(computeVolumeProfile(bars.filter(d => d.volume > 0), 4))
+  const nodes = profileNodes(computeVolumeProfile(bars.filter(d => d.volume > 0), 4, tickVolume))
   if (nodes) {
     out.push({ price: nodes.poc, source: 'vp', label: 'POC' })
     out.push({ price: nodes.vah, source: 'vp', label: 'VAH' })
@@ -57,6 +59,57 @@ function chartExtraLevels(bars, gexLevels, useEtfStrike) {
 }
 
 const ZONE_SIDE_COLORS = { S: '#26a69a', R: '#ef5350' }
+
+// Tick order flow: buy bubbles and the POC take the indicator's color.
+const SELL_BUBBLE_COLOR = '#ef5350'
+const NODE_COLORS = { hvn: '#26c6da', lvn: '#ab47bc' }
+
+const rgba = (hex, a) => {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r},${g},${b},${a})`
+}
+
+const formatDelta = (d) => {
+  const abs = Math.abs(d)
+  const body = abs >= 10_000 ? `${Math.round(abs / 1000)}k` : abs >= 1000 ? `${(abs / 1000).toFixed(1)}k` : String(abs)
+  return `${d > 0 ? '+' : '-'}${body}`
+}
+
+// Sizes an overlay canvas to the container, reallocating only when the CSS size
+// or devicePixelRatio changed, and returns a cleared context in CSS pixels.
+function fitCanvas(canvas, container) {
+  const dpr = window.devicePixelRatio || 1
+  const w = container.clientWidth
+  const h = container.clientHeight
+  const fit = `${w}x${h}@${dpr}`
+  if (canvas.dataset.fit !== fit) {
+    canvas.width = w * dpr
+    canvas.height = h * dpr
+    canvas.style.width = w + 'px'
+    canvas.style.height = h + 'px'
+    canvas.dataset.fit = fit
+  }
+  const ctx = canvas.getContext('2d')
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, w, h)
+  return ctx
+}
+
+// The chart's plotting pane within the container (excludes the price and time axes).
+function paneBox(container) {
+  const w = container.clientWidth
+  const h = container.clientHeight
+  const pane = container.querySelector('table td canvas')
+  if (!pane) return { left: 0, right: w, top: 0, bottom: h }
+  const paneRect = pane.getBoundingClientRect()
+  const containerRect = container.getBoundingClientRect()
+  return {
+    left: Math.max(0, paneRect.left - containerRect.left),
+    right: Math.min(w, paneRect.right - containerRect.left),
+    top: Math.max(0, paneRect.top - containerRect.top),
+    bottom: Math.min(h, paneRect.bottom - containerRect.top),
+  }
+}
 
 function shiftToTimezone(utcEpoch, tz) {
   if (tz === 'UTC') return utcEpoch
@@ -259,6 +312,12 @@ export default function CandlestickChart({
   const vpPopupRef = useRef(null)
   const vpDrawRef = useRef(null)
   const dataRef = useRef([])
+  // Exact futures volume-at-price for bars covered by published tick data.
+  const tickVolume = useTickVolume(symbol, data)
+  // Shared by the chart, volume profile and order flow; rebuilt only when data changes.
+  const parsedData = useMemo(() => parseChartData(data || [], timezone), [data, timezone])
+  // Only sr-zones reads tick volume, so its arrival shouldn't rebuild the chart otherwise.
+  const srTickVolume = activeIndicators.includes('sr-zones') ? tickVolume : null
   const savedRangeRef = useRef(null)
 
   // Load saved chart range from localStorage on first mount
@@ -281,6 +340,7 @@ export default function CandlestickChart({
   const srPriceLinesRef = useRef([])
   const srCanvasRef = useRef()
   const [srZones, setSrZones] = useState(null)
+  const orderFlowCanvasRef = useRef()
   // Latest fast/slow EMA of the trend-logic indicator on the most recent bar.
   // Lets the live-tick handler recolor the developing candle without rerunning
   // the full EMA pass on every 3s tick.
@@ -297,17 +357,9 @@ export default function CandlestickChart({
       setVpData(null)
       return
     }
-    const bars = (data || [])
-      .map(d => ({
-        open: Number(d.open),
-        high: Number(d.high),
-        low: Number(d.low),
-        close: Number(d.close),
-        volume: Number(d.volume),
-      }))
-      .filter(d => !isNaN(d.open) && !isNaN(d.volume) && d.volume > 0)
-    setVpData(computeVolumeProfile(bars, vpTicksPerRow))
-  }, [activeIndicators, data, vpTicksPerRow])
+    const bars = parsedData.filter(d => d.volume > 0)
+    setVpData(computeVolumeProfile(bars, vpTicksPerRow, tickVolume))
+  }, [activeIndicators, parsedData, vpTicksPerRow, tickVolume])
 
   // Draw volume profile on canvas overlay
   useEffect(() => {
@@ -325,29 +377,8 @@ export default function CandlestickChart({
     const drawProfile = () => {
       const container = chartContainerRef.current
       if (!container) return
-      const dpr = window.devicePixelRatio || 1
-      canvas.width = container.clientWidth * dpr
-      canvas.height = container.clientHeight * dpr
-      canvas.style.width = container.clientWidth + 'px'
-      canvas.style.height = container.clientHeight + 'px'
-      const ctx = canvas.getContext('2d')
-      ctx.scale(dpr, dpr)
-      ctx.clearRect(0, 0, container.clientWidth, container.clientHeight)
-
-      // Find chart plotting area boundaries from the inner canvas element
-      const chartPane = container.querySelector('table td canvas')
-      let chartLeft = 0
-      let chartRight = container.clientWidth
-      let chartTop = 0
-      let chartBottom = container.clientHeight
-      if (chartPane) {
-        const paneRect = chartPane.getBoundingClientRect()
-        const containerRect = container.getBoundingClientRect()
-        chartLeft = Math.max(0, paneRect.left - containerRect.left)
-        chartRight = Math.min(container.clientWidth, paneRect.right - containerRect.left)
-        chartTop = Math.max(0, paneRect.top - containerRect.top)
-        chartBottom = Math.min(container.clientHeight, paneRect.bottom - containerRect.top)
-      }
+      const ctx = fitCanvas(canvas, container)
+      const { left: chartLeft, right: chartRight, top: chartTop, bottom: chartBottom } = paneBox(container)
 
       const maxBarWidth = (chartRight - chartLeft) * 0.15
       const { buckets, maxVol } = vpData
@@ -373,19 +404,18 @@ export default function CandlestickChart({
         const isPOC = bucket === pocBucket
         const inVA = va && i >= va.lo && i <= va.hi
         const hex = isPOC ? vpColorsRef.current.poc : (inVA ? vpColorsRef.current.bar : vpColorsRef.current.nonVa)
-        const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16)
 
         if (isPOC) {
-          ctx.fillStyle = `rgba(${r},${g},${b},0.5)`
-          ctx.strokeStyle = `rgba(${r},${g},${b},0.8)`
+          ctx.fillStyle = rgba(hex, 0.5)
+          ctx.strokeStyle = rgba(hex, 0.8)
           ctx.lineWidth = 1
         } else if (inVA) {
-          ctx.fillStyle = `rgba(${r},${g},${b},0.5)`
-          ctx.strokeStyle = `rgba(${r},${g},${b},0.7)`
+          ctx.fillStyle = rgba(hex, 0.5)
+          ctx.strokeStyle = rgba(hex, 0.7)
           ctx.lineWidth = 0.5
         } else {
-          ctx.fillStyle = `rgba(${r},${g},${b},0.2)`
-          ctx.strokeStyle = `rgba(${r},${g},${b},0.4)`
+          ctx.fillStyle = rgba(hex, 0.2)
+          ctx.strokeStyle = rgba(hex, 0.4)
           ctx.lineWidth = 0.5
         }
         ctx.fillRect(x, Math.min(yTop, yBottom), barWidth, Math.max(barHeight, 1))
@@ -398,14 +428,14 @@ export default function CandlestickChart({
     vpDrawRef.current = drawProfile
     drawProfile()
 
-    const sub = chart.timeScale().subscribeVisibleLogicalRangeChange(drawProfile)
+    chart.timeScale().subscribeVisibleLogicalRangeChange(drawProfile)
     chart.subscribeCrosshairMove(drawProfile)
     const resizeObs = new ResizeObserver(drawProfile)
     resizeObs.observe(chartContainerRef.current)
     chartContainerRef.current.addEventListener('wheel', drawProfile, { passive: true })
 
     return () => {
-      sub && chart.timeScale().unsubscribeVisibleLogicalRangeChange(drawProfile)
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(drawProfile)
       chart.unsubscribeCrosshairMove(drawProfile)
       resizeObs.disconnect()
       chartContainerRef.current?.removeEventListener('wheel', drawProfile)
@@ -427,28 +457,8 @@ export default function CandlestickChart({
     const drawZones = () => {
       const container = chartContainerRef.current
       if (!container) return
-      const dpr = window.devicePixelRatio || 1
-      canvas.width = container.clientWidth * dpr
-      canvas.height = container.clientHeight * dpr
-      canvas.style.width = container.clientWidth + 'px'
-      canvas.style.height = container.clientHeight + 'px'
-      const ctx = canvas.getContext('2d')
-      ctx.scale(dpr, dpr)
-      ctx.clearRect(0, 0, container.clientWidth, container.clientHeight)
-
-      const chartPane = container.querySelector('table td canvas')
-      let chartLeft = 0
-      let chartRight = container.clientWidth
-      let chartTop = 0
-      let chartBottom = container.clientHeight
-      if (chartPane) {
-        const paneRect = chartPane.getBoundingClientRect()
-        const containerRect = container.getBoundingClientRect()
-        chartLeft = Math.max(0, paneRect.left - containerRect.left)
-        chartRight = Math.min(container.clientWidth, paneRect.right - containerRect.left)
-        chartTop = Math.max(0, paneRect.top - containerRect.top)
-        chartBottom = Math.min(container.clientHeight, paneRect.bottom - containerRect.top)
-      }
+      const ctx = fitCanvas(canvas, container)
+      const { left: chartLeft, right: chartRight, top: chartTop, bottom: chartBottom } = paneBox(container)
 
       const maxScore = Math.max(...srZones.zones.map(z => z.score), 1)
       ctx.save()
@@ -462,13 +472,12 @@ export default function CandlestickChart({
         const xStart = z.firstTime != null ? chart.timeScale().timeToCoordinate(z.firstTime) : null
         const x = xStart == null ? chartLeft : Math.max(chartLeft, xStart)
         const hex = ZONE_SIDE_COLORS[z.side]
-        const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16)
         const alpha = 0.08 + 0.22 * Math.min(1, z.score / maxScore)
         const y = Math.min(yTop, yBottom)
         const h = Math.max(Math.abs(yBottom - yTop), 1)
-        ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`
+        ctx.fillStyle = rgba(hex, alpha)
         ctx.fillRect(x, y, chartRight - x, h)
-        ctx.strokeStyle = `rgba(${r},${g},${b},${Math.min(1, alpha * 2.5)})`
+        ctx.strokeStyle = rgba(hex, Math.min(1, alpha * 2.5))
         ctx.lineWidth = 0.5
         ctx.strokeRect(x, y, chartRight - x, h)
       }
@@ -477,14 +486,14 @@ export default function CandlestickChart({
 
     drawZones()
 
-    const sub = chart.timeScale().subscribeVisibleLogicalRangeChange(drawZones)
+    chart.timeScale().subscribeVisibleLogicalRangeChange(drawZones)
     chart.subscribeCrosshairMove(drawZones)
     const resizeObs = new ResizeObserver(drawZones)
     resizeObs.observe(chartContainerRef.current)
     chartContainerRef.current.addEventListener('wheel', drawZones, { passive: true })
 
     return () => {
-      sub && chart.timeScale().unsubscribeVisibleLogicalRangeChange(drawZones)
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(drawZones)
       chart.unsubscribeCrosshairMove(drawZones)
       resizeObs.disconnect()
       chartContainerRef.current?.removeEventListener('wheel', drawZones)
@@ -710,7 +719,6 @@ export default function CandlestickChart({
     const mainSeries = seriesRef.current
     if (!chart || !mainSeries) return
 
-    const parsedData = parseChartData(data, timezone)
     dataRef.current = parsedData
 
     const isLineType = ['line', 'square-line', 'line-shaded', 'line-gradient', 'square-line-shaded', 'square-line-gradient'].includes(chartType)
@@ -790,7 +798,7 @@ export default function CandlestickChart({
       const indicator = resolveIndicator(indId, indicatorOverrides)
       if (!indicator) continue
       const context = indId === 'sr-zones'
-        ? { extraLevels: chartExtraLevels(parsedData, gexLevels, gexUseEtfStrike) }
+        ? { extraLevels: chartExtraLevels(parsedData, gexLevels, gexUseEtfStrike, srTickVolume) }
         : undefined
       const result = indId === 'trend-logic' ? trendResult : computeIndicator(indicator, parsedData, context)
       if (!result) continue
@@ -909,7 +917,217 @@ export default function CandlestickChart({
         chart.timeScale().fitContent()
       }
     }
-  }, [data, activeIndicators, indicatorOverrides, gexLevels, gexUseEtfStrike, chartType, timezone, upColor, downColor, borderUpColor, borderDownColor])
+  }, [parsedData, activeIndicators, indicatorOverrides, gexLevels, gexUseEtfStrike, chartType, upColor, downColor, borderUpColor, borderDownColor, srTickVolume])
+
+  // Delta bubbles and per-session POC/HVN/LVN, from trade prints only.
+  const showBubbles = activeIndicators.includes('delta-bubbles')
+  const showNodes = activeIndicators.includes('tick-nodes')
+  const orderFlow = useMemo(() => {
+    if (!tickVolume || (!showBubbles && !showNodes)) return null
+    const bubbleInd = resolveIndicator('delta-bubbles', indicatorOverrides)
+    const nodeInd = resolveIndicator('tick-nodes', indicatorOverrides)
+    return {
+      bubbles: showBubbles ? deltaBubbles(parsedData, tickVolume, { minPct: bubbleInd.minPct }) : null,
+      buyColor: bubbleInd.color,
+      maxRadius: bubbleInd.maxRadius,
+      sessions: showNodes
+        ? sessionNodes(parsedData, tickVolume, { rows: nodeInd.rows, maxHvn: nodeInd.maxHvn, zonePct: nodeInd.zonePct })
+        : [],
+      showZones: nodeInd.zones !== 'off',
+      pocColor: nodeInd.color,
+    }
+  }, [parsedData, tickVolume, showBubbles, showNodes, indicatorOverrides])
+
+  // Declared after the chart is created so a rebuilt chart is the one subscribed to.
+  useEffect(() => {
+    const canvas = orderFlowCanvasRef.current
+    const chart = chartRef.current
+    const series = seriesRef.current
+    if (!canvas || !chart || !series || !orderFlow) {
+      if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
+      return
+    }
+    // Crosshair point, relative to the pane.
+    let pointer = null
+    // Pane box, re-measured only on layout changes (resize, scroll, zoom).
+    let box = null
+    // Bubbles drawn by the last paint ({x, y, r, b}), the one hovered then, and
+    // the price range it was drawn at: a crosshair move repaints only when the
+    // hovered bubble or the price scale (e.g. dragged) changed since.
+    let hits = []
+    let hovered = null
+    let paintedRange = null
+    let frame = 0
+
+    const priceRangeKey = () => {
+      const r = series.priceScale().getVisibleRange()
+      return r ? `${r.from}:${r.to}` : ''
+    }
+    const hitAt = (p) => {
+      if (!p || !box) return null
+      const px = box.left + p.x, py = box.top + p.y
+      let hit = null
+      for (const h of hits) if ((px - h.x) ** 2 + (py - h.y) ** 2 <= h.r * h.r) hit = h
+      return hit
+    }
+
+    const drawOrderFlow = () => {
+      frame = 0
+      const container = chartContainerRef.current
+      if (!container) return
+      const ctx = fitCanvas(canvas, container)
+      if (!box) box = paneBox(container)
+      const { left: chartLeft, right: chartRight, top: chartTop, bottom: chartBottom } = box
+      paintedRange = priceRangeKey()
+      hits = []
+
+      // Chart coordinates are relative to the pane, which sits inside the
+      // container's padding; this canvas covers the whole container.
+      const timeScale = chart.timeScale()
+      const xAt = (time) => {
+        const x = timeScale.timeToCoordinate(time)
+        return x === null ? null : chartLeft + x
+      }
+      const yAt = (price) => {
+        const y = series.priceToCoordinate(price)
+        return y === null ? null : chartTop + y
+      }
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(chartLeft, chartTop, chartRight - chartLeft, chartBottom - chartTop)
+      ctx.clip()
+      ctx.font = '10px sans-serif'
+
+      // Each session's nodes span its own bars; the latest session's carry on
+      // to the right edge, since price tends to come back to them.
+      const lastSession = orderFlow.sessions.length - 1
+      orderFlow.sessions.forEach((s, si) => {
+        const x1 = xAt(s.startTime)
+        const x2 = xAt(s.endTime)
+        if (x1 === null || x2 === null) return
+        // Zones sit behind the lines, translucent.
+        if (orderFlow.showZones) {
+          ctx.lineWidth = 0.5
+          ctx.setLineDash([])
+          for (const z of s.zones) {
+            const yHi = yAt(z.hi), yLo = yAt(z.lo)
+            if (yHi === null || yLo === null) continue
+            const c = z.kind === 'poc' ? orderFlow.pocColor : NODE_COLORS[z.kind]
+            const top = Math.min(yHi, yLo)
+            const h = Math.max(1, Math.abs(yLo - yHi))
+            ctx.fillStyle = rgba(c, 0.14)
+            ctx.fillRect(x1, top, x2 - x1, h)
+            ctx.strokeStyle = rgba(c, 0.4)
+            ctx.strokeRect(x1, top, x2 - x1, h)
+            if (si === lastSession && x2 < chartRight) {
+              ctx.fillStyle = rgba(c, 0.06)
+              ctx.fillRect(x2, top, chartRight - x2, h)
+            }
+          }
+        }
+        const lines = [
+          ...s.lvn.map(price => ({ price, label: 'LVN', color: NODE_COLORS.lvn, width: 1, dash: [4, 3] })),
+          ...s.hvn.map(price => ({ price, label: 'HVN', color: NODE_COLORS.hvn, width: 1, dash: [] })),
+          { price: s.poc, label: 'POC', color: orderFlow.pocColor, width: 2, dash: [] },
+        ]
+        for (const l of lines) {
+          const y = yAt(l.price)
+          if (y === null) continue
+          ctx.strokeStyle = l.color
+          ctx.lineWidth = l.width
+          ctx.setLineDash(l.dash)
+          ctx.beginPath()
+          ctx.moveTo(x1, y)
+          ctx.lineTo(x2, y)
+          ctx.stroke()
+          if (si === lastSession && x2 < chartRight) {
+            ctx.strokeStyle = rgba(l.color, 0.45)
+            ctx.setLineDash([2, 4])
+            ctx.beginPath()
+            ctx.moveTo(x2, y)
+            ctx.lineTo(chartRight, y)
+            ctx.stroke()
+          }
+          ctx.fillStyle = l.color
+          ctx.fillText(l.label, Math.max(chartLeft, x1) + 2, y - 3)
+        }
+      })
+      ctx.setLineDash([])
+
+      // Bubble area tracks |delta|, so radius goes with its square root.
+      if (orderFlow.bubbles) {
+        const { bubbles, maxAbs } = orderFlow.bubbles
+        const minR = 3
+        const maxR = Math.max(minR, orderFlow.maxRadius || 18)
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        for (const b of bubbles) {
+          const x = xAt(b.time)
+          const y = yAt(b.price)
+          if (x === null || y === null) continue
+          const r = minR + (maxR - minR) * Math.sqrt(Math.abs(b.delta) / maxAbs)
+          const hex = b.delta > 0 ? orderFlow.buyColor : SELL_BUBBLE_COLOR
+          ctx.beginPath()
+          ctx.arc(x, y, r, 0, Math.PI * 2)
+          ctx.fillStyle = rgba(hex, 0.35)
+          ctx.fill()
+          ctx.strokeStyle = rgba(hex, 0.9)
+          ctx.lineWidth = 1
+          ctx.stroke()
+          if (r >= 12) {
+            ctx.fillStyle = '#fff'
+            ctx.fillText(formatDelta(b.delta), x, y)
+          }
+          hits.push({ x, y, r, b })
+        }
+        ctx.textAlign = 'start'
+        ctx.textBaseline = 'alphabetic'
+      }
+      const hover = hitAt(pointer)
+      hovered = hover?.b ?? null
+      if (hover) {
+        const text = `Δ ${formatDelta(hover.b.delta)}  ·  vol ${hover.b.volume.toLocaleString()}  @ ${hover.b.price.toFixed(2)}`
+        ctx.font = '11px sans-serif'
+        const w = ctx.measureText(text).width + 12
+        const bx = Math.min(hover.x + hover.r + 6, chartRight - w)
+        const by = Math.max(chartTop, hover.y - 10)
+        ctx.fillStyle = 'rgba(20,20,40,0.92)'
+        ctx.fillRect(bx, by, w, 20)
+        ctx.fillStyle = '#eee'
+        ctx.fillText(text, bx + 6, by + 14)
+      }
+      ctx.restore()
+    }
+
+    // At most one paint per frame, however many triggers fire.
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(drawOrderFlow)
+    }
+    const relayout = () => {
+      box = null
+      schedule()
+    }
+    const onCrosshairMove = (param) => {
+      pointer = param.point ?? null
+      if ((hitAt(pointer)?.b ?? null) !== hovered || priceRangeKey() !== paintedRange) schedule()
+    }
+
+    drawOrderFlow()
+
+    chart.timeScale().subscribeVisibleLogicalRangeChange(relayout)
+    chart.subscribeCrosshairMove(onCrosshairMove)
+    const resizeObs = new ResizeObserver(relayout)
+    resizeObs.observe(chartContainerRef.current)
+    chartContainerRef.current.addEventListener('wheel', relayout, { passive: true })
+
+    return () => {
+      cancelAnimationFrame(frame)
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(relayout)
+      chart.unsubscribeCrosshairMove(onCrosshairMove)
+      resizeObs.disconnect()
+      chartContainerRef.current?.removeEventListener('wheel', relayout)
+    }
+  }, [orderFlow, chartType, bgColor, timezone])
 
   // Merge the live tick into the developing bar via mainSeries.update().
   // Deliberately depends ONLY on livePrice so a tick doesn't re-run setData
@@ -1177,7 +1395,7 @@ export default function CandlestickChart({
           const rangeBars = dataRef.current.filter(b => b.time >= tMin && b.time <= tMax && b.volume > 0)
 
           if (rangeBars.length > 0) {
-            const vpResult = computeVolumeProfile(rangeBars, 4)
+            const vpResult = computeVolumeProfile(rangeBars, 4, tickVolume)
             if (vpResult) {
               const { buckets: vpBuckets, maxVol: vpMaxVol } = vpResult
               const pocBucket = vpBuckets.reduce((max, b) => b.volume > max.volume ? b : max, vpBuckets[0])
@@ -1250,7 +1468,7 @@ export default function CandlestickChart({
     renderFnRef.current = renderDrawings
     renderDrawings()
 
-    const sub = chart.timeScale().subscribeVisibleLogicalRangeChange(renderDrawings)
+    chart.timeScale().subscribeVisibleLogicalRangeChange(renderDrawings)
     const resizeObs = new ResizeObserver(renderDrawings)
     resizeObs.observe(chartContainerRef.current)
     const container = chartContainerRef.current
@@ -1258,12 +1476,12 @@ export default function CandlestickChart({
     container.addEventListener('mousemove', renderDrawings, { passive: true })
 
     return () => {
-      sub && chart.timeScale().unsubscribeVisibleLogicalRangeChange(renderDrawings)
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(renderDrawings)
       resizeObs.disconnect()
       container.removeEventListener('wheel', renderDrawings)
       container.removeEventListener('mousemove', renderDrawings)
     }
-  }, [drawings, previewPoint, drawingTool])
+  }, [drawings, previewPoint, drawingTool, tickVolume])
 
   const getPointFromEvent = (e) => {
     const chart = chartRef.current
@@ -1632,6 +1850,18 @@ export default function CandlestickChart({
           }}
         />
       )}
+      {(showBubbles || showNodes) && (
+        <canvas
+          ref={orderFlowCanvasRef}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            pointerEvents: 'none',
+            zIndex: 2,
+          }}
+        />
+      )}
       <canvas
         ref={drawCanvasRef}
         onClick={handleDrawingClick}
@@ -1754,6 +1984,13 @@ export default function CandlestickChart({
               style={{ width: 60, opacity: vaEnabled ? 1 : 0.4 }}
             />
             <span style={{ fontSize: '0.8rem', color: '#aaa', minWidth: 30 }}>{Math.round(vaPct * 100)}%</span>
+          </div>
+          <div className="drawing-edit-header" style={{ marginTop: 8 }}>
+            <span style={{ fontSize: '0.8rem', color: '#aaa' }}>
+              {vpData?.exactShare > 0
+                ? `Source: ${Math.round(vpData.exactShare * 100)}% tick prints, rest est. from bars`
+                : 'Source: estimated from OHLC bars'}
+            </span>
           </div>
           <div className="drawing-edit-header" style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: '0.85rem', color: '#ccc' }}>Ticks/Row</span>

@@ -11,6 +11,7 @@ const nextConfig = {
       { source: '/api/historical/:path+', destination: `${apiUrl}/api/historical/:path+` },
       { source: '/api/historical', destination: `${apiUrl}/api/historical` },
       { source: '/api/gamma', destination: `${apiUrl}/api/gamma` },
+      { source: '/api/volume-profile/:path+', destination: `${apiUrl}/api/volume-profile/:path+` },
     ]
   },
 }

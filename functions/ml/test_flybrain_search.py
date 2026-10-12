@@ -19,6 +19,23 @@ class SearchTests(unittest.TestCase):
                          config_hash(dict(p,seed=999,eval_fee=.01),'fly','v'))
         self.assertNotEqual(config_hash(p,'fly','v'),config_hash(dict(p,rho=1.1),'fly','v'))
 
+    def test_configuration_identity_ignores_inert_dan_options(self):
+        from flybrain.search import config_hash, trial_sharpes
+        ridge=dict(params(),readout='ridge'); dan=dict(params(),readout='dan')
+        # A default-valued override is a no-op.
+        self.assertEqual(config_hash(dict(dan,shadow=False),'fly','v'),config_hash(dan,'fly','v'))
+        # The ridge readout never reads DAN options.
+        self.assertEqual(config_hash(dict(ridge,dan_rule='delta'),'fly','v'),config_hash(ridge,'fly','v'))
+        self.assertNotEqual(config_hash(dict(dan,dan_rule='delta'),'fly','v'),config_hash(dan,'fly','v'))
+        # Legacy rows that differ only in inert options are one trial for deflation.
+        per={s:dict(metrics=dict(inference=dict(sr=.1))) for s in config.SYMBOLS}
+        rows=[dict(hash='a',params=ridge,circuit='fly',per_symbol=per),
+              dict(hash='b',params=dict(ridge,shadow=True),circuit='fly',per_symbol=per)]
+        self.assertTrue(all(v==[.1] for v in trial_sharpes(rows).values()))
+        with tempfile.TemporaryDirectory() as d:
+            append_record(d,rows[0])
+            with self.assertRaisesRegex(ValueError,'Duplicate'): append_record(d,rows[1])
+
     def test_group_seeds_are_distinct_and_reproducible(self):
         def evaluator(*args,**kwargs): return {},'test',None
         outputs=[]
@@ -56,6 +73,24 @@ class SearchTests(unittest.TestCase):
             _,rejected,guard=evaluate_variant('none',p,{'QQQ':df},circuit_factory=lambda *a:None,check_guard=True)
         self.assertEqual(rejected,'lookahead')
         self.assertFalse(guard['ok'])
+
+    def test_run_overrides_fix_parameters_and_hash(self):
+        from flybrain.search import parse_settings, matches
+        settings=parse_settings(['readout="dan"','shadow=true','dan_rule=delta'])
+        self.assertEqual(settings,dict(readout='dan',shadow=True,dan_rule='delta'))
+        for bad in (['seed=1'],['bogus=1'],['shadow']):
+            with self.assertRaises(ValueError): parse_settings(bad)
+        evaluator=lambda *a,**k:({},'test',None)
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as e:
+            fixed=run(2,'2000-01-01',42,d,frame_loader=lambda s:frame(),evaluator=evaluator,overrides=settings)
+            plain=run(2,'2000-01-01',42,e,frame_loader=lambda s:frame(),evaluator=evaluator)
+        self.assertTrue(all(r['params']['shadow'] and r['params']['readout']=='dan' for r in fixed))
+        self.assertFalse({r['hash'] for r in fixed}&{r['hash'] for r in plain})
+        # Legacy rows without the option match its neutral default.
+        self.assertTrue(matches(plain[0],dict(shadow=False,dan_rule='hebbian')))
+        self.assertFalse(matches(plain[0],dict(shadow=True)))
+        with self.assertRaises(ValueError):
+            run(1,'2000-01-01',42,d,frame_loader=lambda s:frame(),evaluator=evaluator,overrides=dict(bogus=1))
 
     def test_finalize_guards_before_holdout(self):
         from unittest.mock import patch

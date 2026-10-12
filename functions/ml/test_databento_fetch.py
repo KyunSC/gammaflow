@@ -1,6 +1,7 @@
 """Offline checks: never instantiate a real client or read credentials."""
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -30,6 +31,13 @@ class FetchTests(unittest.TestCase):
         job = fetch.JOBS['fut-bbo-1s']
         self.assertEqual(fetch.request_span(job, '2026-03-06', '2026-03-07')[0].hour, 14)
         self.assertEqual(fetch.request_span(job, '2026-03-09', '2026-03-10')[0].hour, 13)
+
+    def test_es_trades_mirrors_nq_trades(self):
+        es, nq = fetch.JOBS['es-trades'], fetch.JOBS['nq-trades']
+        self.assertEqual(es.products, ('ES',))
+        self.assertEqual(replace(es, products=nq.products), nq)
+        lo, hi = fetch.request_span(es, '2026-07-06', '2026-07-07')
+        self.assertEqual((lo.isoformat(), hi.isoformat()), ('2026-07-06T13:25:00+00:00', '2026-07-06T20:00:00+00:00'))
 
     def test_interrupted_request_cannot_spend_twice(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(fetch, 'OUT_ROOT', Path(tmp)):

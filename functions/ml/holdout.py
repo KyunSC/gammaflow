@@ -12,6 +12,7 @@ Only `final_verify.py` touches `verify`.
 """
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,14 @@ from eval import session_ids
 
 VERIFY_START = pd.Timestamp("2026-08-24", tz="America/New_York")  # a Monday
 GAP_SESSIONS = 5  # one trading week
+
+
+def research_sessions(sessions, verify_start: pd.Timestamp = VERIFY_START,
+                      gap: int = GAP_SESSIONS) -> list[date]:
+    """Sessions split_holdout would keep on the research side: those before verify_start, minus
+    the last `gap` of them."""
+    pre = sorted(d for d in sessions if d < verify_start.date())
+    return pre[:len(pre) - gap] if gap else pre
 
 
 def split_holdout(

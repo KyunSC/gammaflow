@@ -39,3 +39,4 @@ frontend/lab/runs/
 
 # Flybrain: private research ledgers, frozen models, and reports
 functions/ml/flybrain/runs/
+API_Server/tick-profiles/

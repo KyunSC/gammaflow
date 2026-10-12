@@ -1,9 +1,10 @@
 /**
- * Volume profile approximated from OHLCV bars (no tick data). Used by the
- * chart's profile overlay and by the S/R zone scorer.
+ * Volume profile for the chart's overlay and the S/R zone scorer. Bars with
+ * exact trade-print volume (futures RTH, via lib/tickProfile.js) contribute
+ * that directly; all others are approximated from OHLCV.
  */
 
-const TICK_SIZE = 0.25 // ES/NQ futures tick size
+export const TICK_SIZE = 0.25 // ES/NQ futures tick size
 
 // Wilder-smoothed ATR, first bar falls back to H-L.
 function wilderAtr(bars, period = 14) {
@@ -27,7 +28,7 @@ function wilderAtr(bars, period = 14) {
 
 // Convolve with a normalized Gaussian kernel (±3σ), edge-padded so mass at the
 // extremes isn't attenuated.
-function gaussianSmooth1D(values, sigma) {
+export function gaussianSmooth1D(values, sigma) {
   if (sigma <= 0 || values.length === 0) return values.slice()
   const half = Math.max(1, Math.ceil(3 * sigma))
   const kernel = new Array(2 * half + 1)
@@ -54,12 +55,31 @@ function gaussianSmooth1D(values, sigma) {
   return out
 }
 
-// OHLC-weighted volume distribution. With only bar data (no ticks), we spread
+// Most of a bar's exact volume must trade inside the bar it is credited to.
+// When it doesn't, the tick feed and the chart are on different contracts
+// (around rolls the whole range is shifted by the calendar spread), so the bar
+// falls back to the approximation rather than plotting a phantom node. Prints
+// merely past one end are kept: yfinance bars sometimes lose a real wick.
+export function exactFits(exact, lIdx, hIdx, price) {
+  const tol = Math.max(8, Math.round((price * 0.0003) / TICK_SIZE))
+  let inside = 0, total = 0
+  for (let k = 0; k < exact.vols.length; k++) {
+    const idx = exact.lo + k
+    total += exact.vols[k]
+    if (idx >= lIdx - tol && idx <= hIdx + tol) inside += exact.vols[k]
+  }
+  return total > 0 && inside >= total / 2
+}
+
+// OHLC-weighted volume distribution. For bars without exact prints we spread
 // each bar's volume across its price range using a dynamic body-vs-wick weight,
 // with a uniform fallback for sprint bars that almost certainly never traded
-// evenly across the range. Returns the render-bucket contract the overlay
-// expects: { buckets: [{priceBottom, priceTop, volume}], maxVol }.
-export function computeVolumeProfile(intradayData, ticksPerRow = 4) {
+// evenly across the range. `exactByUtc` (Map<bar utc, {lo, vols}>) supplies
+// real volume-at-price for the bars it covers; bars need `utc` to match.
+// Returns the render-bucket contract the overlay expects:
+// { buckets: [{priceBottom, priceTop, volume}], maxVol, exactShare }, where
+// exactShare is the fraction of profile volume that came from real prints.
+export function computeVolumeProfile(intradayData, ticksPerRow = 4, exactByUtc = null) {
   if (!intradayData || intradayData.length === 0) return null
 
   const tickSize = TICK_SIZE
@@ -79,8 +99,10 @@ export function computeVolumeProfile(intradayData, ticksPerRow = 4) {
   const atr = wilderAtr(bars, atrPeriod)
   const snapIdx = (price) => Math.round(price / tickSize)
 
-  // Per-tick accumulator keyed by absolute tick index.
+  // Per-tick accumulators keyed by absolute tick index. Only the approximation
+  // is smoothed later; exact volume is plotted as traded.
   const tickProfile = new Map()
+  const exactProfile = new Map()
   const addTick = (idx, v) => {
     if (v <= 0) return
     tickProfile.set(idx, (tickProfile.get(idx) || 0) + v)
@@ -99,6 +121,14 @@ export function computeVolumeProfile(intradayData, ticksPerRow = 4) {
     const cIdx = snapIdx(bar.close)
     const volume = bar.volume
     const rangeTicks = hIdx - lIdx
+
+    const exact = exactByUtc?.get(bar.utc)
+    if (exact && exactFits(exact, lIdx, hIdx, bar.close)) {
+      for (let k = 0; k < exact.vols.length; k++) {
+        if (exact.vols[k] > 0) exactProfile.set(exact.lo + k, (exactProfile.get(exact.lo + k) || 0) + exact.vols[k])
+      }
+      continue
+    }
 
     // Single-tick / collapsed bar.
     if (rangeTicks <= 0) {
@@ -151,11 +181,11 @@ export function computeVolumeProfile(intradayData, ticksPerRow = 4) {
     }
   }
 
-  if (tickProfile.size === 0) return null
+  if (tickProfile.size === 0 && exactProfile.size === 0) return null
 
   // Aggregate per-tick volumes into render-bucket grid.
   let minTickIdx = Infinity, maxTickIdx = -Infinity
-  for (const k of tickProfile.keys()) {
+  for (const k of [...tickProfile.keys(), ...exactProfile.keys()]) {
     if (k < minTickIdx) minTickIdx = k
     if (k > maxTickIdx) maxTickIdx = k
   }
@@ -168,15 +198,22 @@ export function computeVolumeProfile(intradayData, ticksPerRow = 4) {
   for (const [tickIdx, v] of tickProfile) {
     rawVolumes[bucketOf(tickIdx) - minBucketIdx] += v
   }
+  const exactVolumes = new Array(numBuckets).fill(0)
+  let exactTotal = 0
+  for (const [tickIdx, v] of exactProfile) {
+    exactVolumes[bucketOf(tickIdx) - minBucketIdx] += v
+    exactTotal += v
+  }
 
-  // Smoothing sigma is specified in ticks; rescale to bucket units.
+  // Smoothing sigma is specified in ticks; rescale to bucket units. It only
+  // masks the approximation's bucketing artifacts, so exact volume skips it.
   const smoothed = gaussianSmooth1D(rawVolumes, smoothingSigmaTicks / ticksPerRow)
 
   const buckets = new Array(numBuckets)
   let maxVol = 0
   for (let i = 0; i < numBuckets; i++) {
     const priceBottom = (minBucketIdx + i) * bucketSize
-    const volume = smoothed[i]
+    const volume = smoothed[i] + exactVolumes[i]
     if (volume > maxVol) maxVol = volume
     buckets[i] = {
       priceBottom,
@@ -184,7 +221,8 @@ export function computeVolumeProfile(intradayData, ticksPerRow = 4) {
       volume,
     }
   }
-  return { buckets, maxVol }
+  const total = buckets.reduce((acc, b) => acc + b.volume, 0)
+  return { buckets, maxVol, exactShare: total > 0 ? exactTotal / total : 0 }
 }
 
 export function computeValueArea(buckets, pct = 0.7) {

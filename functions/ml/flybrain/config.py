@@ -31,3 +31,5 @@ SEARCH_SPACE = dict(rho=[0.5, 0.8, 0.95, 1.1], leak=[0.1, 0.3, 0.6, 1.0], input_
     ridge_lambda=[1.0, 10.0, 100.0], dan_lr=[1e-3, 1e-2], horizon_bars=[1, 3, 6, 12],
     threshold_q=[0.60, 0.75, 0.90], gex_off=[False, True], hemisphere=['right'])
 CIRCUITS = ['fly', 'shuffle', 'random', 'none']
+# Post-hoc DAN readout options: not sampled, set per run with `search run --set`. Values are the neutral defaults.
+DAN_OPTIONS = dict(shadow=False, dan_rule='hebbian', loss_aversion=1.0, caution=0.0, cooldown_bars=0)

@@ -40,7 +40,7 @@ def signals_from_predictions(pred, threshold):
     return np.where(pred > threshold, 1, np.where(pred < -threshold, -1, 0)).astype(np.int8)
 
 
-def dan_path(df, X, params, initial=None, frozen=None):
+def dan_path(df, X, params, initial=None, frozen=None, stats=None):
     """Reward arrives only at an actual next-open trade's closing bar.
 
     Seeded small initial weights break the zero-weight/no-trade fixed point.
@@ -54,10 +54,32 @@ def dan_path(df, X, params, initial=None, frozen=None):
     1 + caution * (drawdown over the last RISK_WINDOW closed trades, in ATR units per trade); `cooldown_bars` blocks entries for that many bars after two
     consecutive losing trades. Only realised, already-closed trades feed the risk state, so it is causal.
     `frozen=(w, threshold)` replays the gate with fixed weights and threshold and no learning.
+
+    Optional learning-signal options, also off by default:
+    `shadow=True` places a costless paper bet on every non-closing bar i. It enters at bar i+1's open and is graded
+    with the real-trade hold rule (H bars or session close) before that bar's prediction, so the fly gets feedback on
+    every bar instead of only on trades it takes. Real trades then feed only the risk state, not the weights.
+    `dan_rule='delta'` learns from prediction error (normalized LMS / Rescorla-Wagner):
+    w += lr * pattern * (outcome - pattern.w) / |pattern|^2, where outcome is the side-free move in ATR units.
+    The hebbian rule's side * reward is the same side-free move, so it cannot tell a wrong bet from a right one.
+    Pass a dict as `stats` to receive paper-bet hit rate and error, overall and per half of the path.
     """
     aversion = params.get('loss_aversion', 1.0)
     caution = params.get('caution', 0.0)
     cooldown = params.get('cooldown_bars', 0)
+    shadow = bool(params.get('shadow', False))
+    rule = params.get('dan_rule', 'hebbian')
+    if rule not in ('hebbian', 'delta'):
+        raise ValueError(f'Unknown dan_rule: {rule}')
+    if aversion != 1.0 and (shadow or rule == 'delta'):
+        raise ValueError('loss_aversion needs a signed trade reward; it is undefined for paper bets and the delta rule')
+
+    def learn(w, pattern, outcome):
+        if rule == 'delta':
+            err = outcome - pattern @ w
+            return (1 - config.DAN_DECAY) * w + params['dan_lr'] * pattern * err / (1e-8 + pattern @ pattern)
+        return (1 - config.DAN_DECAY) * w + params['dan_lr'] * pattern * outcome
+
     if frozen is not None:
         w = np.asarray(frozen[0], dtype=float).copy()
     else:
@@ -73,18 +95,26 @@ def dan_path(df, X, params, initial=None, frozen=None):
     atr = df.atr_14.to_numpy() if 'atr_14' in df else np.ones(len(df))
     history = []
     ends = df.session_end.to_numpy(bool) if 'session_end' in df else np.r_[sid[:-1] != sid[1:], True]
+    paper = deque()  # (signal bar, pattern, scale, prediction at signal time), oldest first
+    graded = []  # (prediction at signal time, outcome)
     for i in range(len(df)):
         end = bool(ends[i])
         if pending and i and sid[i] == sid[i - 1]:
             position = (i, op[i], pending, X[i - 1].copy(), max(float(atr[i - 1]), 1e-8))
         pending = 0
+        # Paper bets queued within this session; each entered at its signal bar + 1, so i > signal bar.
+        while paper and (i - paper[0][0] >= params['horizon_bars'] or end):
+            bar, pattern, scale, guess = paper.popleft()
+            outcome = (close[i] - op[bar + 1]) / scale
+            w = learn(w, pattern, outcome)
+            graded.append((guess, outcome))
         if position is not None:
             entry, price, side, pattern, scale = position
             if i - entry + 1 >= params['horizon_bars'] or end:
                 reward = side * (close[i] - price) / scale
-                if frozen is None:
+                if frozen is None and not shadow:
                     felt = reward * aversion if reward < 0 else reward
-                    w = (1 - config.DAN_DECAY) * w + params['dan_lr'] * side * pattern * felt
+                    w = learn(w, pattern, side * felt)
                 recent.append(reward)
                 curve = np.cumsum(recent)
                 drawdown = float(max(0., curve.max()) - curve[-1])
@@ -93,6 +123,8 @@ def dan_path(df, X, params, initial=None, frozen=None):
                     blocked_until = i + cooldown
                 position = None
         predictions[i] = X[i] @ w
+        if shadow and frozen is None and not end:
+            paper.append((i, X[i], max(float(atr[i]), 1e-8), predictions[i]))
         if frozen is not None:
             thr = frozen[1]
         elif history:
@@ -109,7 +141,20 @@ def dan_path(df, X, params, initial=None, frozen=None):
             pending = action
         if frozen is None:
             insort(history, abs(predictions[i]))
+    if stats is not None:
+        stats.update(paper_bet_stats(graded))
     return predictions, signal, w
+
+
+def paper_bet_stats(graded):
+    """Is the fly getting less wrong? Sign hit rate and |outcome - prediction|, overall and per half of the path."""
+    def summary(rows):
+        rows = np.asarray(rows, dtype=float).reshape(-1, 2)
+        called = rows[(rows[:, 0] != 0) & (rows[:, 1] != 0)]
+        return dict(n=len(rows), hit_rate=float(np.mean(np.sign(called[:, 0]) == np.sign(called[:, 1]))) if len(called) else None,
+                    mean_abs_err=float(np.mean(np.abs(rows[:, 1] - rows[:, 0]))) if len(rows) else None)
+    half = len(graded) // 2
+    return dict(summary(graded), first_half=summary(graded[:half]), second_half=summary(graded[half:]))
 
 
 def oos_signals(df, states, params, diagnostics=None, model_cache=None):
@@ -118,7 +163,10 @@ def oos_signals(df, states, params, diagnostics=None, model_cache=None):
     signal = np.zeros(len(df), dtype=np.int8)
     fold_id = np.full(len(df), -1, dtype=int)
     if params['readout'] == 'dan':
-        _, all_signals, _ = dan_path(df, X, params)
+        learning = {} if diagnostics is not None and params.get('shadow') else None
+        _, all_signals, _ = dan_path(df, X, params, stats=learning)
+        if learning is not None:
+            diagnostics.append(dict(learning=learning))
         for k, (_, te) in enumerate(folds):
             signal[te], fold_id[te] = all_signals[te], k
         return signal, fold_id

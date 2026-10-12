@@ -12,6 +12,7 @@ without explicit approval of a quote.
 | `fut-ohlcv-1m` | ohlcv-1m | `ES.FUT`, `NQ.FUT` (every outright) | month | ~$1.74 |
 | `fut-bbo-1s` | bbo-1s, 09:25–16:00 ET | `ES.v.0`, `NQ.v.0` | weekday | < ~$23 (quoted over full days) |
 | `nq-mbo` | mbo (L3) | `NQ.v.0` | month, explicit dates only | ~$235 full window; pilot first |
+| `es-trades` | trades, 09:25–16:00 ET | `ES.v.0` | weekday, explicit dates only | ~$35.72 for 2026-04-24 → 2026-08-15 |
 
 Outright 1m bars keep the futures–index basis roll-aware when mapping the
 provider's index/ETF GEX levels onto ES/NQ. `nq-mbo` is deferred until cheaper
@@ -22,6 +23,17 @@ synthetic order-book snapshot lives.
 .venv/bin/python functions/ml/databento_fetch.py fut-ohlcv-1m fut-bbo-1s          # free quote
 .venv/bin/python functions/ml/databento_fetch.py fut-ohlcv-1m fut-bbo-1s \
   --download --max-cost 25                                                         # needs approval
+```
+
+`es-trades` buys the same 81 RTH sessions already held for `nq-trades`, so
+ES gets the exact volume profile and order flow; it writes to `es-trades/ES`,
+which `publish_tick_profiles.py --product ES` reads by default.
+
+```sh
+.venv/bin/python functions/ml/databento_fetch.py es-trades --start 2026-04-24 --end 2026-08-15   # free quote
+.venv/bin/python functions/ml/databento_fetch.py es-trades --start 2026-04-24 --end 2026-08-15 \
+  --download --max-cost 40                                                         # needs approval
+.venv/bin/python functions/ml/publish_tick_profiles.py --product ES
 ```
 
 All dates are exclusive at end. The default window (2026-04-24 → 2026-09-24)
