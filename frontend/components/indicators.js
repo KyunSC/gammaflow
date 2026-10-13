@@ -1,5 +1,9 @@
 import { atr } from '../lib/backtest/series'
 import { sessionLevels, floorPivots, zoneSeries, buildZones, isIntraday, PIVOT_KEYS, PIVOT_METHODS } from '../lib/levels'
+import { TICK_SOURCE } from '../lib/tickProfile'
+
+// Order flow runs on simulated prints outside local dev (lib/tickProfile.js).
+const PRINTS_TAG = TICK_SOURCE === 'real' ? 'tick' : 'Simulated'
 
 export const AVAILABLE_INDICATORS = [
   { id: 'sma20', label: 'SMA 20', type: 'sma', period: 20, color: '#ff9800' },
@@ -18,9 +22,9 @@ export const AVAILABLE_INDICATORS = [
   { id: 'sr-session', label: 'Session Levels', type: 'sr-session', orMinutes: 30, color: '#ff7043' },
   { id: 'sr-pivots', label: 'Floor Pivots', type: 'sr-pivots', method: 'classic', color: '#ffee58' },
   { id: 'sr-zones', label: 'S/R Zones', type: 'sr-zones', left: 5, tolAtr: 0.25, minScore: 1.5, maxZones: 6, color: '#29b6f6' },
-  // Futures RTH only: drawn from published trade prints (lib/orderFlow.js).
-  { id: 'delta-bubbles', label: 'Delta Bubbles (tick)', type: 'delta-bubbles', minPct: 80, maxRadius: 18, color: '#26a69a' },
-  { id: 'tick-nodes', label: 'POC / HVN / LVN (tick)', type: 'tick-nodes', rows: 80, maxHvn: 3, zones: 'on', zonePct: 70, color: '#ffca28' },
+  // Futures RTH only: drawn from trade prints, real or simulated (lib/orderFlow.js).
+  { id: 'delta-bubbles', label: `Delta Bubbles (${PRINTS_TAG})`, type: 'delta-bubbles', minPct: 80, maxRadius: 18, color: '#26a69a' },
+  { id: 'tick-nodes', label: `POC / HVN / LVN (${PRINTS_TAG})`, type: 'tick-nodes', rows: 80, maxHvn: 3, zones: 'on', zonePct: 70, color: '#ffca28' },
 ]
 
 export const TREND_COLORS = {

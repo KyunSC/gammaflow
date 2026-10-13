@@ -3,9 +3,18 @@
  * The backend only answers bars that published tick data fully covers (RTH
  * sessions, see functions/ml/publish_tick_profiles.py); every other bar keeps
  * the OHLC approximation in volumeProfile.js.
+ *
+ * The real prints are licensed, so they are only used when the build sets
+ * NEXT_PUBLIC_TICK_SOURCE=real (dev.sh does). Every other build, including
+ * production, shows simulated prints from lib/syntheticTickProfile.js and never
+ * calls the API.
  */
 import { useEffect, useMemo, useState } from 'react'
 import { TICK_SIZE } from './volumeProfile'
+import { synthesizeTickVolume } from './syntheticTickProfile'
+
+// Inlined by Next at build time; anything but 'real' means simulated.
+export const TICK_SOURCE = process.env.NEXT_PUBLIC_TICK_SOURCE === 'real' ? 'real' : 'synthetic'
 
 const coverageCache = new Map() // symbol -> { promise: Promise<[[start, end], ...]>, at }
 const barsCache = new Map() // symbol|runs -> Promise<Map<utc, {lo, vols, deltas}>>
@@ -95,10 +104,10 @@ function fetchBars(symbol, runs) {
   return barsCache.get(key)
 }
 
-const barUtc = (d) => (/^\d+$/.test(String(d.time)) ? Number(d.time) : NaN)
+export const barUtc = (d) => (/^\d+$/.test(String(d.time)) ? Number(d.time) : NaN)
 
 // Most common gap between consecutive bars: the chart's interval, ignoring session gaps.
-function barStep(utc) {
+export function barStep(utc) {
   const counts = new Map()
   let best = 0
   let bestN = 0
@@ -115,6 +124,17 @@ function barStep(utc) {
 }
 
 /**
+ * Per-bar volume-at-price for the chart's raw bars: real prints or simulated
+ * ones, depending on TICK_SOURCE (fixed per build, so the hook never changes).
+ */
+export const useTickVolume = TICK_SOURCE === 'real' ? useRealTickVolume : useSyntheticTickVolume
+
+// Simulated prints derived from the bars themselves; the API is never called.
+function useSyntheticTickVolume(symbol, data) {
+  return useMemo(() => synthesizeTickVolume(symbol, data), [symbol, data])
+}
+
+/**
  * Exact per-bar volume for the chart's raw bars: Map<utc bar start, {lo, vols, deltas}>
  * where vols[k] is the volume at tick index lo + k and deltas[k] its buy-minus-
  * sell aggressor volume (null when the session has no side data). null until loaded or when
@@ -124,7 +144,7 @@ function barStep(utc) {
  * for still match, so an interval or symbol switch falls back to the
  * approximation at once instead of applying another interval's volumes.
  */
-export function useTickVolume(symbol, data) {
+function useRealTickVolume(symbol, data) {
   const [state, setState] = useState({ key: null, sig: null, map: null })
   const { utc, sig } = useMemo(() => {
     const utc = (data || []).map(barUtc).filter(Number.isFinite).sort((a, b) => a - b)

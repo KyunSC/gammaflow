@@ -37,7 +37,7 @@ class TickProfileTests {
         writeDay(nq, """
                 {"v":1,"minutes":[[%d,400,3,0,0,3],[%d,402,1,0,4],[%d,399,7]],"delta":[[-1,0,0,3],[1,0,-2],[7]]}
                 """.formatted(T0, T0 + 60, T0 + 120));
-        service = new TickProfileService(directory.toString());
+        service = new TickProfileService(directory.toString(), true);
         mvc = MockMvcBuilders.standaloneSetup(new VolumeProfileController(service))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
@@ -84,7 +84,7 @@ class TickProfileTests {
         writeDay(directory.resolve("NQ"), """
                 {"v":1,"minutes":[[%d,400,3]]}
                 """.formatted(T0));
-        var bars = new TickProfileService(directory.toString()).bars("NQ", List.of(new long[]{T0, 60, 1}));
+        var bars = new TickProfileService(directory.toString(), true).bars("NQ", List.of(new long[]{T0, 60, 1}));
         assertArrayEquals(new long[]{T0, 400, 3}, bars.get(0).volume());
         assertNull(bars.get(0).delta());
     }
@@ -100,7 +100,7 @@ class TickProfileTests {
 
     @Test void answersOnlyTheNewestSessionsWhenTooManyAreRequested() throws Exception {
         int n = TickProfileService.MAX_SESSIONS + 5;
-        var service = new TickProfileService(publishDailySessions(directory, n).toString());
+        var service = new TickProfileService(publishDailySessions(directory, n).toString(), true);
         var bars = service.bars("ES", oneBarPerSession(n));
         assertEquals(TickProfileService.MAX_SESSIONS, bars.size());
         // Sessions 0..4 are dropped; the rest answer in request order with their own volume.
@@ -111,7 +111,7 @@ class TickProfileTests {
     }
 
     @Test void multiSessionRequestsReadEachSessionsOwnRows() throws Exception {
-        var service = new TickProfileService(publishDailySessions(directory, 8).toString());
+        var service = new TickProfileService(publishDailySessions(directory, 8).toString(), true);
         var bars = service.bars("ES", oneBarPerSession(8));
         assertEquals(8, bars.size());
         for (int i = 0; i < 8; i++) assertArrayEquals(new long[]{T0 + i * 86_400L, 400, i + 1}, bars.get(i).volume());
@@ -123,7 +123,7 @@ class TickProfileTests {
     @Test void aMissingSessionFileIsUnavailable() throws Exception {
         publishDailySessions(directory, 3);
         Files.delete(directory.resolve("ES/2026-07-06-2.json.gz"));
-        var service = new TickProfileService(directory.toString());
+        var service = new TickProfileService(directory.toString(), true);
         var e = assertThrows(MarketDataException.class,
                 () -> service.bars("ES", oneBarPerSession(3)));
         assertEquals("Tick profile session missing", e.getMessage());
@@ -143,6 +143,18 @@ class TickProfileTests {
                 .andExpect(jsonPath("$.bars[2][1]").value(399))
                 .andExpect(jsonPath("$.deltas.length()").value(3))
                 .andExpect(jsonPath("$.deltas[2][0]").value(7));
+    }
+
+    @Test void aDisabledServiceServesNothingEvenWhenPublished() throws Exception {
+        var disabled = new TickProfileService(directory.toString(), false);
+        assertTrue(disabled.index("NQ").isEmpty());
+        assertTrue(disabled.bars("NQ", List.of(new long[]{T0, 60, 3})).isEmpty());
+        var off = MockMvcBuilders.standaloneSetup(new VolumeProfileController(disabled))
+                .setControllerAdvice(new GlobalExceptionHandler()).build();
+        off.perform(get("/api/volume-profile/coverage").param("symbol", "NQ=F"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.sessions").isEmpty());
+        off.perform(get("/api/volume-profile/bars").param("symbol", "NQ=F").param("runs", T0 + ":60:3"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.bars").isEmpty());
     }
 
     @Test void rejectsBadInput() throws Exception {

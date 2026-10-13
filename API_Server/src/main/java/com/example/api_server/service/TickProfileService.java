@@ -39,7 +39,9 @@ import tools.jackson.databind.json.JsonMapper;
  * functions/ml/publish_tick_profiles.py. Location is a local folder or an https
  * prefix (a container SAS query string is kept at the end of each file URL).
  * Session files are immutable, so they are cached until evicted; the index is
- * re-read every few minutes so newly published sessions show up.
+ * re-read every few minutes so newly published sessions show up. The prints are
+ * licensed data, so the service answers nothing unless tickprofile.enabled is set
+ * (local runs only; production never serves them).
  */
 @Service
 public class TickProfileService {
@@ -62,6 +64,7 @@ public class TickProfileService {
     /** Sessions answered per request (the newest); bars in older ones are left to the caller. */
     public static final int MAX_SESSIONS = 120;
 
+    private final boolean enabled;
     private final String base;
     private final String query;
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
@@ -72,7 +75,9 @@ public class TickProfileService {
             .expireAfterAccess(Duration.ofHours(6)).maximumSize(200).build();
     private final ExecutorService loader = Executors.newFixedThreadPool(6);
 
-    public TickProfileService(@Value("${tickprofile.location:./tick-profiles}") String location) {
+    public TickProfileService(@Value("${tickprofile.location:./tick-profiles}") String location,
+                              @Value("${tickprofile.enabled:false}") boolean enabled) {
+        this.enabled = enabled;
         int q = location.indexOf('?');
         this.base = (q < 0 ? location : location.substring(0, q)).replaceAll("/+$", "");
         this.query = q < 0 ? "" : location.substring(q);
@@ -83,8 +88,9 @@ public class TickProfileService {
         loader.shutdownNow();
     }
 
-    /** Published sessions for a futures root (e.g. "NQ"), or empty when none are published. */
+    /** Published sessions for a futures root (e.g. "NQ"), or empty when none are published or disabled. */
     public Optional<Index> index(String product) {
+        if (!enabled) return Optional.empty();
         return indexes.get(product, p -> read(p + "/index.json").map(this::parseIndex));
     }
 

@@ -5,7 +5,7 @@ import { createChart, CandlestickSeries, LineSeries, HistogramSeries, BarSeries,
 import { DEFAULT_CHART_COLORS } from './chartDefaults'
 import { computeIndicator, TREND_COLORS, resolveIndicator } from './indicators'
 import { computeVolumeProfile, computeValueArea, profileNodes } from '../lib/volumeProfile'
-import { useTickVolume } from '../lib/tickProfile'
+import { TICK_SOURCE, useTickVolume } from '../lib/tickProfile'
 import { deltaBubbles, sessionNodes } from '../lib/orderFlow'
 
 const GEX_COLORS = {
@@ -312,7 +312,7 @@ export default function CandlestickChart({
   const vpPopupRef = useRef(null)
   const vpDrawRef = useRef(null)
   const dataRef = useRef([])
-  // Exact futures volume-at-price for bars covered by published tick data.
+  // Futures volume-at-price per bar: real prints locally, simulated elsewhere (lib/tickProfile.js).
   const tickVolume = useTickVolume(symbol, data)
   // Shared by the chart, volume profile and order flow; rebuilt only when data changes.
   const parsedData = useMemo(() => parseChartData(data || [], timezone), [data, timezone])
@@ -1086,7 +1086,7 @@ export default function CandlestickChart({
       const hover = hitAt(pointer)
       hovered = hover?.b ?? null
       if (hover) {
-        const text = `Δ ${formatDelta(hover.b.delta)}  ·  vol ${hover.b.volume.toLocaleString()}  @ ${hover.b.price.toFixed(2)}`
+        const text = `Δ ${formatDelta(hover.b.delta)}  ·  vol ${hover.b.volume.toLocaleString()}  @ ${hover.b.price.toFixed(2)}${TICK_SOURCE === 'real' ? '' : '  ·  simulated'}`
         ctx.font = '11px sans-serif'
         const w = ctx.measureText(text).width + 12
         const bx = Math.min(hover.x + hover.r + 6, chartRight - w)
@@ -1988,7 +1988,9 @@ export default function CandlestickChart({
           <div className="drawing-edit-header" style={{ marginTop: 8 }}>
             <span style={{ fontSize: '0.8rem', color: '#aaa' }}>
               {vpData?.exactShare > 0
-                ? `Source: ${Math.round(vpData.exactShare * 100)}% tick prints, rest est. from bars`
+                ? TICK_SOURCE === 'real'
+                  ? `Source: ${Math.round(vpData.exactShare * 100)}% tick prints, rest est. from bars`
+                  : `Source: ${Math.round(vpData.exactShare * 100)}% simulated prints (demo), rest est. from bars`
                 : 'Source: estimated from OHLC bars'}
             </span>
           </div>
