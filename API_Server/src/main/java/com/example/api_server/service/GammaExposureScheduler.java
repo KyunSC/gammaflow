@@ -25,6 +25,12 @@ import java.util.List;
  *
  * The instance is kept warm by UptimeRobot pinging /health during market
  * hours, so the scheduler reliably fires (per the hosting note in CLAUDE.md).
+ *
+ * Also takes the one post-close snapshot at 16:10 ET that the Python
+ * ScheduledGammaExposurePostclose function used to take: by then the
+ * 10-min-delayed Yahoo feed has caught up to the 16:00 ET settlement. The
+ * cron is pinned to America/New_York, so unlike the Python dual-UTC cron it
+ * needs no DST window check.
  */
 @Component
 public class GammaExposureScheduler {
@@ -57,6 +63,23 @@ public class GammaExposureScheduler {
         }
 
         logger.info("ScheduledGammaExposure started");
+        computeAll();
+        logger.info("ScheduledGammaExposure completed");
+    }
+
+    @Scheduled(cron = "0 10 16 * * MON-FRI", zone = "America/New_York")
+    public void runPostclose() {
+        if (!enabled) {
+            return;
+        }
+        // Deliberately not gated on isMarketOpen(): that is false after 16:00
+        // ET, which is why the regular cadence never covered this snapshot.
+        logger.info("ScheduledGammaExposurePostclose started");
+        computeAll();
+        logger.info("ScheduledGammaExposurePostclose completed");
+    }
+
+    private void computeAll() {
         for (String etfSymbol : GammaExposureComputeService.GEX_PAIRS.keySet()) {
             try {
                 GammaExposureComputeService.GexResult result = computeService.fetchAndCompute(etfSymbol);
@@ -74,7 +97,6 @@ public class GammaExposureScheduler {
                 logger.error("Error computing gamma exposure for {}: {}", etfSymbol, ex.getMessage(), ex);
             }
         }
-        logger.info("ScheduledGammaExposure completed");
     }
 
     @Transactional("supabaseTransactionManager")
