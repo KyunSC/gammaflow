@@ -1,7 +1,31 @@
 {
   "permissions": {
-    "additionalDirectories": [
-      "/Users/sunnychen/Developper/PersonalProjects/azure-market-data/frontend/app/ticker"
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npm test:*)",
+      "Bash(npm run build)",
+      "Bash(node --test:*)",
+      "Bash(./mvnw test:*)",
+      "Bash(./mvnw -Dtest:*)",
+      "Bash(mvn test:*)",
+      "Bash(mvn -Dtest:*)",
+      "Bash(python3 -m unittest:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
     ]
   }
 }
