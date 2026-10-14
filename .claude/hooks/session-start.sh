@@ -15,8 +15,10 @@ cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}"
 
 # Python: Azure Functions tests and the lightweight functions/ml research tests.
 # Deliberately omits the heavy training deps (torch, rtdl, shap, jupyter); install
-# those on demand from functions/ml/requirements.txt.
-pip install --quiet --disable-pip-version-check \
+# those on demand from functions/ml/requirements.txt. `python3 -m pip` so the packages
+# land in the interpreter the tests run under; PIP_BREAK_SYSTEM_PACKAGES lets it install
+# into a PEP 668 "externally managed" system Python in the throwaway container.
+PIP_BREAK_SYSTEM_PACKAGES=1 python3 -m pip install --quiet --disable-pip-version-check \
   numpy pandas scipy pyarrow pytz python-dotenv scikit-learn matplotlib psycopg2-binary \
   yfinance databento thetadata
 
