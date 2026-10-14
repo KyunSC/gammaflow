@@ -86,8 +86,18 @@ annualize over 365 days of 1440 minutes, crypto benchmark candles are dated in U
 and intraday crypto strategies mark their daily close at the last bar ending within
 30 minutes of 00:00 UTC. Crypto-vs-crypto comparisons use every calendar day at
 365/yr; any equity leg restricts common dates to weekdays at 252/yr, and an equity
-strategy is not penalized for lacking weekend marks. Live crypto backtests need
-the ingester's `TICKER_LIST` to include the symbols. The existing equity-panel ghost remains the traded asset's own buy-and-hold.
+strategy is not penalized for lacking weekend marks.
+
+Live crypto bars come from the API server's `runCrypto` job, which every five
+minutes around the clock fetches five days of 1m/5m/1h bars and writes only from
+the newest stored bar on (so downtime is backfilled without rewriting old rows),
+plus 1d bars at 00:10 UTC, for `app.ingestion.crypto-tickers` (default `BTC-USD,ETH-USD,SOL-USD`). Rows
+written before that job existed cover only the equity window, so the Dataset
+panel shows the share of 24/7 bars present and the longest gap whenever a crypto
+dataset is below 98% coverage: annualized metrics assume a full calendar, and
+returns that straddle gaps overstate the number of independent bars.
+
+The existing equity-panel ghost remains the traded asset's own buy-and-hold.
 
 ```sh
 python3 -m unittest discover -s functions/tests -p test_backtest_publish.py

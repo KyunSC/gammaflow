@@ -3,6 +3,7 @@
 import { useBacktest } from '../../lib/backtest/store'
 import { getStrategy, strategiesForPlane, FAMILIES } from '../../lib/backtest/strategies'
 import { LIVE_SYMBOLS, LIVE_PERIODS, LIVE_INTERVALS } from '../../lib/backtest/datasets'
+import { COVERAGE_WARN } from '../../lib/backtest/markets'
 import Panel from './Panel'
 
 /**
@@ -106,6 +107,8 @@ function Section({ title, children, right }) {
   )
 }
 
+const fmtGap = (seconds) => seconds >= 86400 ? `${(seconds / 86400).toFixed(1)}d` : seconds >= 3600 ? `${Math.round(seconds / 3600)}h` : `${Math.round(seconds / 60)}m`
+
 function DatasetSection({ plane, setPlane }) {
   const liveSymbol = useBacktest((s) => s.liveSymbol)
   const livePeriod = useBacktest((s) => s.livePeriod)
@@ -175,6 +178,7 @@ function DatasetSection({ plane, setPlane }) {
         {(dataset.cached || researchIndex?.cached) && <> · Offline cached data (up to 24 hours old)</>}
         {dataset.quality?.predictionValidation === 'legacy-unverified' && <> · Legacy model predictions; training overlap has not been verified.</>}
         {dataset.plane === 'live' && <> · Exploratory snapshot; shared links reload current history.</>}
+        {dataset.coverage && dataset.coverage.share < COVERAGE_WARN && <span className="text-amber"> · Only {Math.round(dataset.coverage.share * 100)}% of 24/7 bars present (longest gap {fmtGap(dataset.coverage.maxGapSeconds)}); annualised metrics assume a full crypto calendar.</span>}
       </p>}
       {plane === 'research' && dataset?.plane === 'research' && dataset.ml && (
         <p className="mt-1 text-[10px] leading-snug text-dim">

@@ -93,13 +93,49 @@ public class MarketDataIngestionService {
             logger.info("Intraday: no active symbols (market closed and no futures)");
             return;
         }
-
-        List<String[]> intervals = List.of(
+        ingestIntervals(active, List.of(
                 new String[]{"1m", "1d"},
                 new String[]{"5m", "1d"},
                 new String[]{"1h", "5d"}
-        );
+        ));
+    }
 
+    /**
+     * Crypto trades 24/7, so this runs around the clock. Yahoo's
+     * {@code range=1d} for a {@code *-USD} symbol is only the current UTC day,
+     * and a sleeping server misses ticks, so each run fetches 5 days and
+     * writes only from the newest stored bar on: a gap left by downtime is
+     * backfilled on the next tick without re-upserting thousands of 1m rows
+     * every five minutes. The newest stored bar is rewritten because it may
+     * have been stored while still forming.
+     */
+    public void ingestCryptoIntraday(List<String> tickers) {
+        for (String[] iv : CRYPTO_INTERVALS) {
+            String interval = iv[0];
+            for (String symbol : tickers) {
+                try {
+                    List<OhlcBar> bars = fetchBars(symbol, interval, iv[1], true);
+                    if (bars.isEmpty()) {
+                        logger.warn("No {} data for {}", interval, symbol);
+                        continue;
+                    }
+                    LocalDateTime from = historicalRepo.findMaxDateBySymbolAndIntervalType(symbol, interval);
+                    int saved = upsertBars(symbol, interval, bars, from);
+                    logger.info("Saved {} rows of {} data for {}", saved, interval, symbol);
+                } catch (Exception ex) {
+                    logger.error("Error fetching {} for {}: {}", interval, symbol, ex.getMessage());
+                }
+            }
+        }
+    }
+
+    static final List<String[]> CRYPTO_INTERVALS = List.of(
+            new String[]{"1m", "5d"},
+            new String[]{"5m", "5d"},
+            new String[]{"1h", "5d"}
+    );
+
+    private void ingestIntervals(List<String> active, List<String[]> intervals) {
         for (String[] iv : intervals) {
             String interval = iv[0];
             String range = iv[1];
@@ -142,6 +178,13 @@ public class MarketDataIngestionService {
     // --- internals ---
 
     private void upsertBars(String symbol, String interval, List<OhlcBar> bars) {
+        upsertBars(symbol, interval, bars, null);
+    }
+
+    /** Sanitizes every bar in order (the sanitizer needs the preceding
+     *  closes) but writes only bars at or after {@code from} when given. */
+    private int upsertBars(String symbol, String interval, List<OhlcBar> bars, LocalDateTime from) {
+        int written = 0;
         LocalDateTime fetchedAt = LocalDateTime.now(ZoneOffset.UTC);
         boolean shouldSanitize = SANITIZE_INTERVALS.contains(interval);
         List<Double> recentCloses = new ArrayList<>();
@@ -159,16 +202,19 @@ public class MarketDataIngestionService {
                         bar.open, clean.open, bar.high, clean.high, bar.low, clean.low);
             }
 
-            historicalRepo.upsertBar(
-                    symbol,
-                    bar.timestamp,
-                    interval,
-                    round2(clean.open),
-                    round2(clean.high),
-                    round2(clean.low),
-                    round2(clean.close),
-                    bar.volume,
-                    fetchedAt);
+            if (from == null || !bar.timestamp.isBefore(from)) {
+                historicalRepo.upsertBar(
+                        symbol,
+                        bar.timestamp,
+                        interval,
+                        round2(clean.open),
+                        round2(clean.high),
+                        round2(clean.low),
+                        round2(clean.close),
+                        bar.volume,
+                        fetchedAt);
+                written++;
+            }
 
             prevClose = clean.close;
             recentCloses.add(clean.close);
@@ -176,6 +222,7 @@ public class MarketDataIngestionService {
                 recentCloses.remove(0);
             }
         }
+        return written;
     }
 
     // --- Yahoo fetch ---

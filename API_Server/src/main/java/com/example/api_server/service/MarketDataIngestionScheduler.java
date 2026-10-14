@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,6 +25,10 @@ import java.util.List;
  *   <li>{@link #runGlobex()} — every 5 min, 22:00–23:55 UTC, Sun. Replaces
  *       {@code ScheduledDataIngestionGlobex}. Only futures get fetched since
  *       equity markets are closed.</li>
+ *   <li>{@link #runCrypto()} — every 5 min, around the clock, for
+ *       {@code app.ingestion.crypto-tickers}. Crypto trades 24/7 and the
+ *       backtester annualises it on a 365-day calendar, so bars stored only
+ *       in the equity window would leave nights and weekends missing.</li>
  * </ul>
  *
  * The Azure {@code TICKER_LIST} env var should be trimmed to the original
@@ -44,14 +49,17 @@ public class MarketDataIngestionScheduler {
 
     private final MarketDataIngestionService service;
     private final List<String> tickers;
+    private final List<String> cryptoTickers;
     private final boolean enabled;
 
     public MarketDataIngestionScheduler(
             MarketDataIngestionService service,
             @Value("${app.ingestion.tickers:IWM,RTY=F,DIA,YM=F}") String tickersCsv,
+            @Value("${app.ingestion.crypto-tickers:BTC-USD,ETH-USD,SOL-USD}") String cryptoCsv,
             @Value("${app.scheduler.ingestion.enabled:true}") boolean enabled) {
         this.service = service;
         this.tickers = parseTickers(tickersCsv);
+        this.cryptoTickers = parseTickers(cryptoCsv);
         this.enabled = enabled;
     }
 
@@ -80,6 +88,24 @@ public class MarketDataIngestionScheduler {
         service.ingestPrices(tickers, false);
         service.ingestIntraday(tickers, false);
         logger.info("Ingestion (Globex) completed");
+    }
+
+    @Scheduled(cron = "0 */5 * * * *", zone = "UTC")
+    public void runCrypto() {
+        if (!enabled || cryptoTickers.isEmpty()) return;
+        logger.info("Ingestion (crypto) started — tickers={}", cryptoTickers);
+        service.ingestCryptoIntraday(cryptoTickers);
+        if (shouldFetchCryptoDaily(ZonedDateTime.now(ZoneOffset.UTC))) {
+            logger.info("Triggering crypto daily-bar refresh (00:10 UTC)");
+            service.ingestDaily(cryptoTickers);
+        }
+        logger.info("Ingestion (crypto) completed");
+    }
+
+    /** Yahoo closes crypto daily candles at 00:00 UTC; refresh once just
+     *  after, so yesterday's candle is stored final. */
+    public static boolean shouldFetchCryptoDaily(ZonedDateTime nowUtc) {
+        return nowUtc.getHour() == 0 && nowUtc.getMinute() >= 10 && nowUtc.getMinute() < 15;
     }
 
     private static boolean isWeekday() {

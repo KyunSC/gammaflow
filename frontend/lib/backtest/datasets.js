@@ -11,7 +11,7 @@
  * ask where its bars came from.
  */
 
-import { CRYPTO_SYMBOLS, calendarFor } from './markets'
+import { CRYPTO_SYMBOLS, calendarFor, calendarCoverage } from './markets'
 
 const NA = Number.NaN
 export const ENGINE_VERSION = '2'
@@ -126,6 +126,7 @@ export async function loadLiveDataset({ symbol, period, interval, signal }) {
   ds.start = ds.time[0] * 1000
   ds.end = ds.time[ds.n - 1] * 1000
   ds.note = 'Live plane — DB-backed OHLCV. No historical GEX.'
+  ds.coverage = calendarCoverage(ds.time, interval, symbol)
   return ds
 }
 
