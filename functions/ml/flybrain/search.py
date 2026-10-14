@@ -91,7 +91,8 @@ def append_record(runs_dir,row,cap=None,rows=None):
     rows=read_ledger(runs_dir) if rows is None else rows
     if len(rows)>=cap: raise ValueError('Lifetime trial cap exhausted')
     if any(r['hash']==row['hash'] for r in rows): raise ValueError('Duplicate configuration hash')
-    if row.get('params') and trial_identity(row) in {trial_identity(r) for r in rows if r.get('params')}:
+    # A seed replicate deliberately repeats a recorded configuration; its hash carries the seed instead.
+    if row.get('params') and not row.get('replicate_of') and trial_identity(row) in {trial_identity(r) for r in rows if r.get('params')}:
         raise ValueError('Duplicate configuration hash')
     root=Path(runs_dir); root.mkdir(parents=True,exist_ok=True)
     durable_write(root/'ledger.jsonl',dump(row)+'\n')
@@ -163,7 +164,8 @@ def deflate_row(row,srs):
     row=clean(row)
     for s,r in row.get('per_symbol',{}).items():
         r['dsr']=deflated_sharpe(r['metrics']['inference'],srs[s])
-    row['eligible']=not row.get('rejected') and len(row.get('per_symbol',{}))==len(config.SYMBOLS) and all(eligible_symbol(r) for r in row['per_symbol'].values())
+    # Replicates are never eligible, so a lucky seed cannot be picked from them for finalize.
+    row['eligible']=not row.get('rejected') and not row.get('replicate_of') and len(row.get('per_symbol',{}))==len(config.SYMBOLS) and all(eligible_symbol(r) for r in row['per_symbol'].values())
     return row
 
 
@@ -322,6 +324,75 @@ def run(trials=config.TRIALS_PER_NIGHT,night=None,seed=42,runs_dir=config.RUNS_D
     return refresh_deflation(rows)
 
 
+def replicate(group,seeds,night,seed=0,runs_dir=config.RUNS_DIR,frame_loader=None,evaluator=None,
+              circuit_factory=build_circuit,cap=None,eval_fee=None):
+    """Rerun one recorded group's exact parameters under `seeds` new seeds, all four circuits paired.
+
+    The seed sets the input projection, DAN initial weights, control rewiring and prop-control draws, so a
+    lead that only holds for one seed is luck rather than a configuration. Replicates spend lifetime slots
+    but are never eligible; deflation already counts a configuration once whatever its seed. Every variant
+    is lookahead-guarded.
+    """
+    night=night or date.today().isoformat(); date.fromisoformat(night)
+    if seeds<1: raise ValueError('seeds must be positive')
+    root=Path(runs_dir); cap=config.MAX_TRIALS_LIFETIME if cap is None else cap
+    frame_loader=frame_loader or (lambda s:load_research_frame(s,discovery_only=True))
+    with ledger_lock(root):
+        rows=read_ledger(root)
+        if (root/'nights'/night/'finalize.lock').exists(): raise ValueError('Night already finalized')
+        source=[r for r in rows if r['group_id'].startswith(group) and not r.get('replicate_of') and r.get('params')]
+        ids={r['group_id'] for r in source}
+        if len(ids)!=1: raise ValueError(f'Expected one recorded group matching {group!r}, found {len(ids)}')
+        source_id=ids.pop(); source_params=source[0]['params']
+        eval_fee=source[0].get('eval_fee',config.EVAL_FEE) if eval_fee is None else eval_fee
+        evaluator=evaluator or partial(evaluate_variant,evaluation_cache={},eval_fee=eval_fee)
+        frames={s:frame_loader(s) for s in config.SYMBOLS}
+        version=code_version(); srs=trial_sharpes(rows)
+        group_offset=len({r['group_id'] for r in rows})
+        taken={(trial_identity(r),r['params']['seed']) for r in rows if r.get('params')}
+        done=draw=0
+        while done<seeds and len(rows)+len(config.CIRCUITS)<=cap:
+            params=dict(source_params,seed=int(np.random.SeedSequence([seed,draw]).generate_state(1)[0])); draw+=1
+            if any((trial_identity(dict(params=params,circuit=k)),params['seed']) in taken for k in config.CIRCUITS): continue
+            hashes=[hashlib.sha256(f"{config_hash(params,k,version)}|seed={params['seed']}".encode()).hexdigest() for k in config.CIRCUITS]
+            group_id=hashlib.sha256(dump(hashes).encode()).hexdigest()[:16]
+            start=time.monotonic()
+            for kind,h in zip(config.CIRCUITS,hashes):
+                base=dict(id=len(rows)+1,hash=h,group_id=group_id,night=night,circuit=kind,params=params,code_version=version,
+                          eval_fee=eval_fee,run_seed=seed,group_index=group_offset+done,replicate_of=source_id)
+                try:
+                    per,rejected,guard=evaluator(kind,params,frames,circuit_factory=circuit_factory,check_guard=True)
+                    row=deflate_row(dict(base,per_symbol=per,score=score_of(per),eligible=False,rejected=rejected,guard=guard,
+                                         created_at=datetime.now(timezone.utc).isoformat()),srs)
+                    append_record(root,row,cap,rows=rows); rows.append(row)
+                except (Exception, KeyboardInterrupt) as exc:
+                    if not any(r['hash']==h for r in read_ledger(root)):
+                        failed=dict(base,per_symbol={},score=None,eligible=False,rejected='error:'+type(exc).__name__,
+                            created_at=datetime.now(timezone.utc).isoformat())
+                        try: append_record(root,failed,cap)
+                        except ValueError: pass
+                    raise
+            done+=1
+            print(f'Replicate {group_id} of {source_id} (seed {params["seed"]}): {time.monotonic()-start:.2f}s; lifetime {len(rows)}/{cap}',flush=True)
+    return refresh_deflation(rows)
+
+
+def replicate_summary(rows):
+    """Per replicated group: every seed's circuits side by side, and fly-minus-control over the replicate seeds."""
+    out={}
+    for source in sorted({r['replicate_of'] for r in rows if r.get('replicate_of')}):
+        reps=[r for r in rows if r.get('replicate_of')==source]
+        def values(row,s):
+            v=row['per_symbol'][s]; m=v['metrics']; p=v['prop']
+            return dict(sharpe=m['inference']['sharpe'],pnl=m['total_pnl'],trades=m['n_trades'],
+                        p_pass_eval=p.get('p_pass_eval'),p_payout=p.get('p_payout'),e_take=p.get('e_take'))
+        seeds=[dict(seed=g['fly']['params']['seed'],**{c:{s:values(g[c],s) for s in config.SYMBOLS} for c in config.CIRCUITS})
+               for g in complete_groups(reps).values()]
+        out[source]=dict(seeds=len(seeds),rejected=sorted(r['rejected'] for r in reps if r.get('rejected')),per_seed=seeds,
+                         paired=paired_table(reps),paired_by_symbol={s:paired_table(reps,s) for s in config.SYMBOLS})
+    return out
+
+
 def complete_groups(rows):
     groups={}
     for r in rows:
@@ -392,12 +463,15 @@ def leaderboard(runs_dir=config.RUNS_DIR,all_rows=False,where=None):
     """`where` restricts the view to matching parameters; deflation still counts the whole ledger."""
     rows=refresh_deflation(read_ledger(runs_dir))
     if where: rows=[r for r in rows if matches(r,check_settings(where))]
+    # Replicates repeat recorded configurations, so they stay out of the paired study and get their own section.
+    replicates=[r for r in rows if r.get('replicate_of')]; rows=[r for r in rows if not r.get('replicate_of')]
     ranked=sorted((r for r in rows if not r.get('rejected') and (all_rows or r['eligible'])),key=lambda r:r['score'],reverse=True)
     complete=[r for r in rows if r.get('params')]
     return dict(variants=ranked,paired=paired_table(rows),paired_by_symbol={s:paired_table(rows,s) for s in config.SYMBOLS},
                 groups=group_rows(rows),
                 gex_ablation=dict(strata={str(off):paired_table([r for r in complete if r['params']['gex_off']==off]) for off in (False,True)},
-                                  matched=matched_gex_ablation(rows)))
+                                  matched=matched_gex_ablation(rows)),
+                replicates=replicate_summary(replicates))
 
 
 def status(runs_dir=config.RUNS_DIR):
@@ -409,17 +483,22 @@ def status(runs_dir=config.RUNS_DIR):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='command',required=True)
-    cmd={name:sub.add_parser(name) for name in ('run','leaderboard','status','finalize','verify')}
+    cmd={name:sub.add_parser(name) for name in ('run','replicate','leaderboard','status','finalize','verify')}
     for p in cmd.values(): p.add_argument('--runs-dir',type=Path,default=config.RUNS_DIR)
     cmd['run'].add_argument('--trials',type=int,default=config.TRIALS_PER_NIGHT); cmd['run'].add_argument('--night')
     cmd['run'].add_argument('--seed',type=int,default=42); cmd['run'].add_argument('--eval-fee',type=float,default=config.EVAL_FEE)
     cmd['run'].add_argument('--set',action='append',metavar='KEY=VALUE',help='Fix a parameter for every group of this run')
+    cmd['replicate'].add_argument('group',help='Recorded group id (or unique prefix) whose parameters are rerun')
+    cmd['replicate'].add_argument('--seeds',type=int,required=True); cmd['replicate'].add_argument('--night')
+    cmd['replicate'].add_argument('--seed',type=int,default=0,help='Seeds new parameter seeds; ones already recorded are skipped')
+    cmd['replicate'].add_argument('--eval-fee',type=float,help="Defaults to the source group's fee")
     cmd['leaderboard'].add_argument('--all',action='store_true')
     cmd['leaderboard'].add_argument('--where',action='append',metavar='KEY=VALUE',help='Only rows with this parameter value')
     cmd['finalize'].add_argument('--night',required=True); cmd['finalize'].add_argument('--top',type=int,default=config.TOP_K)
     cmd['verify'].add_argument('hash')
     args=parser.parse_args()
     if args.command=='run': run(args.trials,args.night,args.seed,args.runs_dir,eval_fee=args.eval_fee,overrides=parse_settings(args.set))
+    elif args.command=='replicate': replicate(args.group,args.seeds,args.night,args.seed,args.runs_dir,eval_fee=args.eval_fee)
     elif args.command=='leaderboard': print(dump(leaderboard(args.runs_dir,args.all,parse_settings(args.where))))
     elif args.command=='status': print(dump(status(args.runs_dir)))
     elif args.command=='finalize':

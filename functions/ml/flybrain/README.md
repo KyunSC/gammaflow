@@ -111,6 +111,16 @@ Three execution options apply to every readout and are off by default, so the pl
 
 The trailing max loss, profit target and consistency rules stay in the account replay (`prop.run_prop`). They decide whether an account passes or is breached, not whether a bar can be traded. Like the other post-hoc options, these count toward deflation, and changing `engine.py` changes `code_version`.
 
+### Seed replicates (added after seeing discovery results)
+
+A group's `seed` sets the PN input projection, the DAN's initial weights, the control rewiring and the prop-control draws. A configuration that only does well under one seed is luck. `replicate` reruns one recorded group's exact parameters under new seeds, with all four circuits per seed so each replicate stays paired:
+
+```sh
+.venv/bin/python -m flybrain.search replicate 6a18fb9b --seeds 10 --seed 20261015 --night 2026-10-15 --eval-fee 90
+```
+
+Replicates spend lifetime slots, but they are never eligible, so a lucky seed can't be picked from them for finalize. The row hash adds the seed to the configuration hash. Deflation is unchanged, because it already counts each configuration once whatever its seed. Every replicate variant is lookahead-guarded. Seeds already in the ledger for that configuration are skipped, so repeated calls with the same `--seed` keep drawing new ones. `leaderboard` keeps replicates out of the paired study and lists them under `replicates`, with every seed's circuits side by side and fly-minus-control CIs over the replicate seeds. Fix the decision rule before running replicates, because they reuse the discovery data.
+
 ### Paper-bet feedback and delta-rule DAN (added after seeing discovery results)
 
 Two more `dan_path` options, both off by default (the default path is unchanged):

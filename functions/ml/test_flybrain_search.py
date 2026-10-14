@@ -326,4 +326,36 @@ class SearchTests(unittest.TestCase):
             out=finalize('2000-01-01',1,d,frame_loader=loader)
             self.assertEqual(out['variants'],[])
 
+    def test_replicates_rerun_seeds_spend_budget_and_are_never_eligible(self):
+        from unittest import mock
+        from flybrain.search import replicate, leaderboard, status
+        def evaluator(kind,p,frames,check_guard=False,**kwargs):
+            self.assertTrue(check_guard)
+            m,_,_=self.signals(0,False)
+            return {s:dict(metrics=m,prop=dict(lift=0.,lift_ci=[-.1,.1])) for s in config.SYMBOLS},None,dict(ok=True)
+        with tempfile.TemporaryDirectory() as d:
+            source=run(1,'2000-01-01',42,d,frame_loader=lambda s:frame(),evaluator=evaluator,eval_fee=90.)
+            gid=source[0]['group_id']
+            rows=replicate(gid[:6],2,'2000-01-02',7,d,frame_loader=lambda s:frame(),evaluator=evaluator)
+            reps=[r for r in rows if r.get('replicate_of')]
+            self.assertEqual(len(reps),8); self.assertEqual({r['replicate_of'] for r in reps},{gid})
+            seeds={r['params']['seed'] for r in reps}
+            self.assertEqual(len(seeds),2); self.assertNotIn(source[0]['params']['seed'],seeds)
+            strip=lambda p:{k:v for k,v in p.items() if k!='seed'}
+            self.assertTrue(all(strip(r['params'])==strip(source[0]['params']) and r['eval_fee']==90. for r in reps))
+            self.assertEqual(len({r['hash'] for r in rows}),12)
+            # Rerunning with the same seed skips recorded seeds instead of repeating them.
+            again=replicate(gid,1,'2000-01-02',7,d,frame_loader=lambda s:frame(),evaluator=evaluator)
+            self.assertEqual(len({r['params']['seed'] for r in again if r.get('replicate_of')}),3)
+            self.assertEqual(status(d)['trials'],16)
+            with mock.patch('flybrain.search.eligible_symbol',return_value=True):
+                rows=refresh_deflation(read_ledger(d))
+            self.assertTrue(all(r['eligible'] for r in rows if not r.get('replicate_of')))
+            self.assertFalse(any(r['eligible'] for r in rows if r.get('replicate_of')))
+            board=leaderboard(d,True)
+            self.assertEqual([g['group_id'] for g in board['groups']],[gid])
+            self.assertEqual(board['replicates'][gid]['seeds'],3)
+            with self.assertRaisesRegex(ValueError,'one recorded group'):
+                replicate('zz',1,'2000-01-02',7,d,frame_loader=lambda s:frame(),evaluator=evaluator)
+
 if __name__=='__main__': unittest.main()
