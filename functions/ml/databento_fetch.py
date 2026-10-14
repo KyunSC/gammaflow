@@ -71,6 +71,11 @@ JOBS = {
                      every="day", et_window=("09:25", "16:00")),
     # Single venue (Nasdaq), but one consistent source from 2022 on; volume features are relative.
     "eq-ohlcv-1m": Job("ohlcv-1m", "raw_symbol", "raw", products=("QQQ", "SPY"), dataset="XNAS.ITCH"),
+    # Pre-2022 bars as fresh out-of-sample data (amt_nq_confirm.py). A separate folder, so the studies
+    # that glob eq-ohlcv-1m (build_dataset, gex_vol, close_auction, lucid_orb, amt_lucid) keep their
+    # inputs and their discovery / holdout splits unchanged.
+    "eq-ohlcv-1m-early": Job("ohlcv-1m", "raw_symbol", "raw", products=("QQQ",), whole_window_only=True,
+                             dataset="XNAS.ITCH"),
 }
 
 
