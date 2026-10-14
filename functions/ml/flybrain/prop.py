@@ -201,7 +201,9 @@ def random_entry_signal(df,trades,seed):
     return signal,entry_holds
 
 
-def prop_lift(result,df,plan,seed,symbol,max_hold,eval_fee=config.EVAL_FEE):
+def prop_lift(result,df,plan,seed,symbol,max_hold,eval_fee=config.EVAL_FEE,exits=None):
+    """Controls take random entries in the fly's realized hold slots under the same exits; a bracket or the daily loss
+    limit can close a control trade early or skip it, so only the plain exit keeps counts and holds exact."""
     from .engine import backtest
     opts=dict(plan=plan,seed=seed,keep_attempts=False,replay_history=False)
     nan=dict(p_pass_eval=math.nan,p_payout=math.nan,e_take=math.nan,lift=math.nan,lift_ci=[math.nan,math.nan])
@@ -211,9 +213,10 @@ def prop_lift(result,df,plan,seed,symbol,max_hold,eval_fee=config.EVAL_FEE):
     controls=[]
     for k in range(config.CONTROL_SEEDS):
         signal,holds=random_entry_signal(df,result.trades,seed+k+1)
-        control=backtest(df,signal,symbol,max_hold,entry_holds=holds)
-        assert len(control.trades)==len(result.trades)
-        assert sorted(t['hold'] for t in control.trades)==sorted(t['hold'] for t in result.trades)
+        control=backtest(df,signal,symbol,max_hold,entry_holds=holds,exits=exits)
+        if exits is None:
+            assert len(control.trades)==len(result.trades)
+            assert sorted(t['hold'] for t in control.trades)==sorted(t['hold'] for t in result.trades)
         replay=run_prop(control,**opts)['bootstrap']
         controls.append(replay['passRate'])
     if not np.isfinite(controls).all():

@@ -32,4 +32,7 @@ SEARCH_SPACE = dict(rho=[0.5, 0.8, 0.95, 1.1], leak=[0.1, 0.3, 0.6, 1.0], input_
     threshold_q=[0.60, 0.75, 0.90], gex_off=[False, True], hemisphere=['right'])
 CIRCUITS = ['fly', 'shuffle', 'random', 'none']
 # Post-hoc DAN readout options: not sampled, set per run with `search run --set`. Values are the neutral defaults.
-DAN_OPTIONS = dict(shadow=False, dan_rule='hebbian', loss_aversion=1.0, caution=0.0, cooldown_bars=0)
+DAN_OPTIONS = dict(shadow=False, dan_rule='hebbian', loss_aversion=1.0, win_reward=1.0, entry_reward=0.0, caution=0.0, cooldown_bars=0)
+# Execution options for any readout, also set per run: `rr` > 0 adds an ATR bracket (stop `stop_atr` ATR, target rr times that)
+# that holds until stop, target or session close; `lucid_dll` enforces the Lucid daily loss limit inside the trading.
+EXEC_OPTIONS = dict(rr=0.0, stop_atr=1.0, lucid_dll=False)

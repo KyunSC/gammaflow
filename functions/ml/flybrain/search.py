@@ -16,7 +16,7 @@ from .connectome import build_circuit
 from .features import load_research_frame
 from .reservoir import cached_states, run_reservoir, pack_sessions
 from .readout import fold_schedule, oos_signals
-from .engine import backtest
+from .engine import backtest, exit_rule
 from .stats import sharpe_inference, deflated_sharpe, break_even_cost
 from .prop import resolve_plan, prop_lift
 
@@ -48,8 +48,10 @@ def config_hash(params,circuit,version):
     # Random draws and reporting costs are replicates/metadata, not new configurations.
     # DAN options are only read by the DAN readout, and setting one to its default is a no-op.
     dan=params.get('readout')=='dan'
+    # Execution options apply to every readout; at their defaults they are no-ops too, and stop_atr only matters with rr.
     model_params={k:v for k,v in params.items() if k not in ('seed','eval_fee')
-                  and not (k in config.DAN_OPTIONS and (not dan or v==config.DAN_OPTIONS[k]))}
+                  and not (k in config.DAN_OPTIONS and (not dan or v==config.DAN_OPTIONS[k]))
+                  and not (k in config.EXEC_OPTIONS and (v==config.EXEC_OPTIONS[k] or (k=='stop_atr' and not params.get('rr',0))))}
     return hashlib.sha256(dump(dict(params=model_params,circuit=circuit,code_version=version)).encode()).hexdigest()
 
 
@@ -215,17 +217,19 @@ def evaluate_variant(kind,params,frames,circuit_factory=build_circuit,check_guar
             if not guard['ok']: return {},'lookahead',guard
         if guard_only: continue
         print(f'  {kind} {symbol}: readout/guard ready ({time.monotonic()-stage:.1f}s)',flush=True)
-        result=backtest(df,signal,symbol,params['horizon_bars'])
+        exits=exit_rule(params)
+        result=backtest(df,signal,symbol,params['horizon_bars'],exits=exits)
         metrics=result_metrics(result,fold_id)
-        metrics['break_even']=break_even_cost(df,signal,symbol,params['horizon_bars'])
+        metrics['break_even']=break_even_cost(df,signal,symbol,params['horizon_bars'],exits=exits)
         # Prop replay uses only the stitched OOS period, including genuinely flat OOS days.
         first=int(np.flatnonzero(fold_id>=0)[0])
         oos=df.iloc[first:].reset_index(drop=True)
-        scored=backtest(oos,signal[first:],symbol,params['horizon_bars'])
-        lift=prop_lift(scored,oos,plan,params['seed'],symbol,params['horizon_bars'],eval_fee=eval_fee)
+        scored=backtest(oos,signal[first:],symbol,params['horizon_bars'],exits=exits)
+        lift=prop_lift(scored,oos,plan,params['seed'],symbol,params['horizon_bars'],eval_fee=eval_fee,exits=exits)
         per_symbol[symbol]=dict(metrics=metrics,prop=lift)
         if diagnostics: per_symbol[symbol]['learning']=diagnostics[0]['learning']
-        print(f"  {kind:7} {symbol}: SR={metrics['inference']['sharpe']:.3f} trades={metrics['n_trades']} P&L={metrics['total_pnl']:.2f} lift={lift['lift']:.3f}",flush=True)
+        print(f"  {kind:7} {symbol}: SR={metrics['inference']['sharpe']:.3f} trades={metrics['n_trades']} P&L={metrics['total_pnl']:.2f} lift={lift['lift']:.3f} "
+              f"lucid pass={lift.get('p_pass_eval',math.nan):.3f} payout={lift.get('p_payout',math.nan):.3f} take={lift.get('e_take',math.nan):.0f}",flush=True)
     if evaluation_cache is not None and not guard_only: evaluation_cache[cache_key]=(per_symbol,prepared)
     return per_symbol,None,{'ok':True} if check_guard else None
 
@@ -242,14 +246,15 @@ def parse_settings(items):
 
 
 def check_settings(settings):
-    unknown=set(settings or {})-set(config.SEARCH_SPACE)-set(config.DAN_OPTIONS)
+    unknown=set(settings or {})-set(config.SEARCH_SPACE)-set(config.DAN_OPTIONS)-set(config.EXEC_OPTIONS)
     if unknown: raise ValueError(f'Unknown parameters: {sorted(unknown)}')
     return dict(settings or {})
 
 
 def matches(row,where):
     p=row.get('params') or {}
-    return all(p.get(k,config.DAN_OPTIONS.get(k))==v for k,v in where.items())
+    defaults={**config.DAN_OPTIONS,**config.EXEC_OPTIONS}
+    return all(p.get(k,defaults.get(k))==v for k,v in where.items())
 
 
 def run(trials=config.TRIALS_PER_NIGHT,night=None,seed=42,runs_dir=config.RUNS_DIR,

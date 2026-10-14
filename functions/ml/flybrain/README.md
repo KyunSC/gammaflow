@@ -79,6 +79,38 @@ A threshold quantile alone cannot shrink risk: `threshold_q` is relative to prio
 
 These options were chosen because the fly trailed the controls, which is a researcher degree of freedom the DSR/family-alpha gates do not count. Treat any result as a lead to preregister. The values are not in `SEARCH_SPACE`, so existing ledger sampling is unchanged.
 
+### Reward shaping: entry and win rewards (added after seeing discovery results)
+
+Two more `dan_path` options, both off by default (the default path is unchanged). Together with `loss_aversion`, they let a trade's entry and a win feel strongly good, and a loss feel strongly bad:
+
+- `win_reward` (default 1.0) multiplies positive rewards in the weight update. It is the mirror of `loss_aversion`.
+- `entry_reward` (default 0.0) is a fixed reward in ATR units. When a trade opens, before that bar's prediction, it is applied to the entry pattern in the direction taken: `w += lr * side * pattern * entry_reward`. The trade is still graded normally when it closes.
+
+```sh
+.venv/bin/python -m flybrain.search run --trials 20 --night 2026-10-13 --set readout=dan --set entry_reward=0.5 --set win_reward=3 --set loss_aversion=3
+```
+
+`entry_reward` rewards the act of trading, not the outcome. It pushes the readout toward whichever side the fly just took, so it reinforces itself: the fly grows more confident and stickier in its current direction. It does not mainly make the fly trade more often, because the entry threshold is a quantile of prior |predictions| and rescales with the weights. Losses must outweigh the accumulated entry rewards before a direction is unlearned. Like `loss_aversion`, both options need a signed trade reward, so combining either one with `shadow` or `dan_rule=delta` raises an error. The frozen readout does no learning, so neither option affects frozen replay.
+
+These are also a researcher degree of freedom chosen after seeing results. Run them in the main ledger so they count toward deflation. Changing `readout.py` changes `code_version`, so nights recorded before this change can no longer be finalized.
+
+### Bracket exits and the Lucid daily loss limit (added after seeing discovery results)
+
+Three execution options apply to every readout and are off by default, so the plain exit (hold `horizon_bars`, or until the session close) is unchanged:
+
+- `rr` (default 0, off) adds an ATR bracket: a stop `stop_atr` × ATR away from the entry bar's open and a target `rr` times further, both sized from the previous bar's `atr_14`. The trade holds until the stop, the target, or the session close, so `horizon_bars` no longer sets the hold. Fix it with `--set` so groups don't differ only in an unused value. A gap through a level fills at the open. A bar that touches both levels fills the stop, because 5-minute bars can't show which came first. Every exit pays the usual slippage.
+- `stop_atr` (default 1.0) only matters with `rr`.
+- `lucid_dll=true` enforces the plan's daily loss limit ($1,200 on LucidFlex 50K) inside the trading. An open position is flattened where the session's P&L reaches −DLL, and the session takes no more entries. The account replay already froze a day at the DLL. This also stops the fly trading, and learning from trades, that a funded account wouldn't allow.
+
+`dan_path` applies the same exits with the same scaled prices and dollar ledger as the backtest, so the DAN's reward is the actual fill. Prop-lift controls trade random entries under the same exits, capped at the fly's realized hold slots. A bracket or the DLL can close a control trade early or skip it, so only the plain exit keeps the control's trade count and holds exact. Use `--eval-fee 90` (the plan's price) so the reported Lucid take is net of the evaluation fee. Each run prints the Lucid eval pass rate, payout probability and expected take per symbol.
+
+```sh
+.venv/bin/python -m flybrain.search run --trials 20 --night 2026-10-14 --eval-fee 90 --set readout=dan --set horizon_bars=12 \
+  --set entry_reward=0.5 --set win_reward=3 --set loss_aversion=3 --set rr=2 --set stop_atr=1 --set lucid_dll=true
+```
+
+The trailing max loss, profit target and consistency rules stay in the account replay (`prop.run_prop`). They decide whether an account passes or is breached, not whether a bar can be traded. Like the other post-hoc options, these count toward deflation, and changing `engine.py` changes `code_version`.
+
 ### Paper-bet feedback and delta-rule DAN (added after seeing discovery results)
 
 Two more `dan_path` options, both off by default (the default path is unchanged):

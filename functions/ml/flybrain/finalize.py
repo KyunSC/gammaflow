@@ -8,7 +8,7 @@ from .connectome import build_circuit
 from .features import load_research_frame, split_discovery_holdout
 from .reservoir import cached_states
 from .readout import fit_frozen, frozen_signals
-from .engine import backtest
+from .engine import backtest, exit_rule
 from .prop import resolve_plan, prop_lift
 from .stats import bonferroni_ci, break_even_cost
 from .search import (ledger_lock, read_ledger, refresh_deflation, complete_groups, dump, durable_write, result_metrics,
@@ -100,11 +100,12 @@ def finalize(night,top=config.TOP_K,runs_dir=config.RUNS_DIR,frame_loader=load_r
                     artifact=folder/f"{row['hash']}-{s}-frozen.json"
                     artifact.write_text(dump(frozen)+'\n')
                     signal=frozen_signals(cached_states(circuit,holdout,p),p,fitted,holdout)
-                    result=backtest(holdout,signal,s,p['horizon_bars'])
+                    exits=exit_rule(p)
+                    result=backtest(holdout,signal,s,p['horizon_bars'],exits=exits)
                     m=result_metrics(result)
                     m['family_ci']=bonferroni_ci(m['inference'],family)
-                    m['break_even']=break_even_cost(holdout,signal,s,p['horizon_bars'])
-                    prop=prop_lift(result,holdout,plan,p['seed'],s,p['horizon_bars'],eval_fee=row.get('eval_fee',p.get('eval_fee',config.EVAL_FEE)))
+                    m['break_even']=break_even_cost(holdout,signal,s,p['horizon_bars'],exits=exits)
+                    prop=prop_lift(result,holdout,plan,p['seed'],s,p['horizon_bars'],eval_fee=row.get('eval_fee',p.get('eval_fee',config.EVAL_FEE)),exits=exits)
                     outcome['per_symbol'][s]=dict(metrics=m,prop=prop,verdict=verdict(m,row['per_symbol'][s]['dsr']['dsr'],prop),
                         frozen_file=artifact.name,frozen_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
                 passed=sum(v['verdict']=='CANDIDATE' for v in outcome['per_symbol'].values())

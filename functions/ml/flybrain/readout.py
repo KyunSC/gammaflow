@@ -8,6 +8,7 @@ from sklearn.linear_model import Ridge
 from build_dataset import compute_target, TARGET_COL
 from eval import session_folds
 from . import config
+from .engine import exit_rule, costs, bracket, exit_fill, daily_floor
 
 
 def fold_schedule(df, horizon):
@@ -41,13 +42,18 @@ def signals_from_predictions(pred, threshold):
 
 
 def dan_path(df, X, params, initial=None, frozen=None, stats=None):
-    """Reward arrives only at an actual next-open trade's closing bar.
+    """Reward arrives at an actual next-open trade's closing bar (and, optionally, at its entry).
 
     Seeded small initial weights break the zero-weight/no-trade fixed point.
     The reward is signed ETF points divided by entry ATR. No future target is used.
     Reinforcement strengthens the association between the entry pattern and the action
     taken, so the update is lr * side * pattern * reward: a winning short pushes w.s
     further negative and a losing long weakens w.s, with no side-dependent asymmetry.
+
+    Optional reward shaping, all off by default (the defaults reproduce the neutral path exactly):
+    `win_reward` multiplies positive rewards in the weight update; `entry_reward` is a fixed reward, in ATR units,
+    applied to the entry pattern in the direction taken when a trade opens, before that bar's prediction. It rewards
+    trading itself, not the outcome, so it reinforces whatever side the fly just took.
 
     Optional loss-averse behaviour, all off by default (the defaults reproduce the neutral path exactly):
     `loss_aversion` multiplies negative rewards in the weight update; `caution` scales the entry threshold by
@@ -63,16 +69,23 @@ def dan_path(df, X, params, initial=None, frozen=None, stats=None):
     w += lr * pattern * (outcome - pattern.w) / |pattern|^2, where outcome is the side-free move in ATR units.
     The hebbian rule's side * reward is the same side-free move, so it cannot tell a wrong bet from a right one.
     Pass a dict as `stats` to receive paper-bet hit rate and error, overall and per half of the path.
+
+    Execution options (`rr`, `stop_atr`, `lucid_dll`; see `engine.exit_rule`) close real trades exactly as the backtest
+    does: at an ATR bracket's stop or target, at the Lucid daily-loss floor, or at the session close, and a session
+    that hits the daily loss limit takes no more entries. The reward is then the fill's move in entry-ATR units.
     """
     aversion = params.get('loss_aversion', 1.0)
+    win = params.get('win_reward', 1.0)
+    entry_reward = params.get('entry_reward', 0.0)
     caution = params.get('caution', 0.0)
     cooldown = params.get('cooldown_bars', 0)
     shadow = bool(params.get('shadow', False))
     rule = params.get('dan_rule', 'hebbian')
     if rule not in ('hebbian', 'delta'):
         raise ValueError(f'Unknown dan_rule: {rule}')
-    if aversion != 1.0 and (shadow or rule == 'delta'):
-        raise ValueError('loss_aversion needs a signed trade reward; it is undefined for paper bets and the delta rule')
+    if (aversion != 1.0 or win != 1.0 or entry_reward != 0.0) and (shadow or rule == 'delta'):
+        raise ValueError('loss_aversion, win_reward and entry_reward need a signed trade reward; '
+                         'they are undefined for paper bets and the delta rule')
 
     def learn(w, pattern, outcome):
         if rule == 'delta':
@@ -80,6 +93,17 @@ def dan_path(df, X, params, initial=None, frozen=None, stats=None):
             return (1 - config.DAN_DECAY) * w + params['dan_lr'] * pattern * err / (1e-8 + pattern @ pattern)
         return (1 - config.DAN_DECAY) * w + params['dan_lr'] * pattern * outcome
 
+    exits = exit_rule(params)
+    if exits:
+        # Same scaled prices and dollar ledger as engine.backtest, so fills and the daily-loss floor match it bit for bit.
+        from .prop import resolve_plan
+        fx, qty, slip, fee = costs(df.attrs['symbol'])
+        O, H, L, C = (df[c].to_numpy(float) * fx for c in ('open', 'high', 'low', 'close'))
+        if exits['rr'] and 'atr_14' not in df:
+            raise ValueError('A bracket exit needs atr_14')
+        A = df.atr_14.to_numpy(float) * fx if exits['rr'] else None
+        cash = day_base = float(resolve_plan()['startBalance'])
+        stop = target = blocked = None
     if frozen is not None:
         w = np.asarray(frozen[0], dtype=float).copy()
     else:
@@ -99,8 +123,16 @@ def dan_path(df, X, params, initial=None, frozen=None, stats=None):
     graded = []  # (prediction at signal time, outcome)
     for i in range(len(df)):
         end = bool(ends[i])
+        if exits and (i == 0 or sid[i] != sid[i - 1]):
+            day_base = cash
         if pending and i and sid[i] == sid[i - 1]:
             position = (i, op[i], pending, X[i - 1].copy(), max(float(atr[i - 1]), 1e-8))
+            if exits:
+                cash -= pending * qty * (O[i] + pending * slip) + fee
+                if exits['rr']:
+                    stop, target = bracket(pending, O[i], A[i - 1], exits)
+            if entry_reward and frozen is None and not shadow:
+                w = learn(w, position[3], pending * entry_reward)
         pending = 0
         # Paper bets queued within this session; each entered at its signal bar + 1, so i > signal bar.
         while paper and (i - paper[0][0] >= params['horizon_bars'] or end):
@@ -110,10 +142,21 @@ def dan_path(df, X, params, initial=None, frozen=None, stats=None):
             graded.append((guess, outcome))
         if position is not None:
             entry, price, side, pattern, scale = position
-            if i - entry + 1 >= params['horizon_bars'] or end:
-                reward = side * (close[i] - price) / scale
+            if exits:
+                fill, _ = exit_fill(side, O[i], H[i], L[i], stop, target, daily_floor(side, qty, cash, day_base, exits['dll']))
+                exit_price = C[i] if fill is None else fill
+                closing = fill is not None or end or (not exits['rr'] and i - entry + 1 >= params['horizon_bars'])
+            else:
+                closing = i - entry + 1 >= params['horizon_bars'] or end
+            if closing:
+                reward = side * ((exit_price / fx if exits else close[i]) - price) / scale
+                if exits:
+                    cash += side * qty * (exit_price - side * slip) - fee
+                    stop = target = None
+                    if exits['dll'] and cash - day_base <= -exits['dll'] + 1e-9:
+                        blocked = sid[i]
                 if frozen is None and not shadow:
-                    felt = reward * aversion if reward < 0 else reward
+                    felt = reward * aversion if reward < 0 else reward * win
                     w = learn(w, pattern, side * felt)
                 recent.append(reward)
                 curve = np.cumsum(recent)
@@ -137,7 +180,7 @@ def dan_path(df, X, params, initial=None, frozen=None, stats=None):
         if i < blocked_until:
             action = 0
         signal[i] = action
-        if position is None and not end:
+        if position is None and not end and not (exits and sid[i] == blocked):
             pending = action
         if frozen is None:
             insort(history, abs(predictions[i]))

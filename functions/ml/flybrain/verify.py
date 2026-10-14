@@ -89,13 +89,13 @@ def _score_verify(df,frozen):
     from .connectome import build_circuit
     from .reservoir import cached_states
     from .readout import frozen_signals
-    from .engine import backtest
+    from .engine import backtest, exit_rule
     from .search import result_metrics
     from .prop import resolve_plan,run_prop
     p=frozen['params']
     c=build_circuit(frozen['circuit'],p['hemisphere'],p['seed'])
     signal=frozen_signals(cached_states(c,df,p),p,frozen['readout'],df)
-    r=backtest(df,signal,frozen['symbol'],p['horizon_bars'])
+    r=backtest(df,signal,frozen['symbol'],p['horizon_bars'],exits=exit_rule(p))
     return dict(metrics=result_metrics(r),prop=run_prop(r,plan=resolve_plan(),seed=p['seed'],keep_attempts=False))
 
 

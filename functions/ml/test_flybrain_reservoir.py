@@ -96,6 +96,63 @@ class ReservoirTests(unittest.TestCase):
                for lam in (1., 5.)]
         np.testing.assert_array_equal(out[0], out[1])
 
+    def test_win_reward_scales_winning_update(self):
+        # One session, one short that wins: the weight step is exactly win_reward times larger.
+        df = self.falling(n=1, bars=8); x = np.ones((len(df), 1)); w0 = np.array([-.01])
+        step = {}
+        for gain in (1., 3.):
+            p = dict(params(), readout='dan', dan_lr=.1, horizon_bars=100, win_reward=gain)
+            _, signals, w = dan_path(df, x, p, initial=w0)
+            self.assertEqual(signals[0], -1)
+            step[gain] = w[0] - (1 - .0001) * w0[0]
+        self.assertLess(step[1.], 0)
+        self.assertAlmostEqual(step[3.] / step[1.], 3.)
+
+    def test_win_reward_leaves_losses_alone(self):
+        df = self.falling(n=1, bars=8); x = np.ones((len(df), 1)); w0 = np.array([.01])
+        out = [dan_path(df, x, dict(params(), readout='dan', dan_lr=.1, horizon_bars=100, win_reward=g), initial=w0)[2]
+               for g in (1., 5.)]
+        np.testing.assert_array_equal(out[0], out[1])
+
+    def test_entry_reward_fires_on_entry(self):
+        # One long: entering is one extra learn step (decay w0, add lr * side * entry_reward), decayed again at the close.
+        df = self.falling(n=1, bars=8); x = np.ones((len(df), 1)); w0 = np.array([.01])
+        out = {}
+        for e in (0., 2.):
+            _, signals, w = dan_path(df, x, dict(params(), readout='dan', dan_lr=.1, horizon_bars=100, entry_reward=e), initial=w0)
+            self.assertEqual(signals[0], 1)
+            out[e] = w[0]
+        self.assertAlmostEqual(out[2.] - out[0.], (1 - .0001) * (.1 * 2. - .0001 * w0[0]), places=12)
+        # Frozen replay never learns, so the entry reward cannot move it.
+        fz = (np.array([.01]), .001); base = dict(params(), readout='dan')
+        np.testing.assert_array_equal(dan_path(df, x, base, frozen=fz)[1],
+                                      dan_path(df, x, dict(base, entry_reward=5.), frozen=fz)[1])
+
+    def ranged(self, df):
+        df['high'] = df[['open', 'close']].max(axis=1) + .05; df['low'] = df[['open', 'close']].min(axis=1) - .05
+        df.attrs['symbol'] = 'QQQ'
+        return df
+
+    def test_bracket_reward_is_the_fill(self):
+        # One long, one session: the 0.6-ATR stop fills at 99.4 on bar 2, so the reward is -0.6, not the close's -1.0.
+        df = self.ranged(self.falling(n=1, bars=3)); x = np.ones((len(df), 1)); w0 = np.array([.01])
+        p = dict(params(), readout='dan', dan_lr=.1, horizon_bars=100, rr=2., stop_atr=.6)
+        _, signals, w = dan_path(df, x, p, initial=w0)
+        self.assertEqual(signals[0], 1)
+        self.assertAlmostEqual(w[0] - (1 - .0001) * w0[0], .1 * -.6)
+
+    def test_daily_loss_limit_stops_learning_for_the_session(self):
+        # A growing input keeps the fly long into a steady fall; the DLL ends the session's trading early.
+        from flybrain.engine import backtest, exit_rule
+        df = self.ranged(self.falling(n=1, bars=60)); x = np.arange(1., 61.).reshape(-1, 1)
+        p = dict(params(), readout='dan', dan_lr=1e-7, horizon_bars=1, threshold_q=0.)
+        free, s_free, w_free = dan_path(df, x, p, initial=np.array([.01]))
+        capped, s_cap, w_cap = dan_path(df, x, dict(p, lucid_dll=True), initial=np.array([.01]))
+        self.assertGreater(w_cap[0], w_free[0])
+        n_free = len(backtest(df, s_free, 'QQQ', 1).trades)
+        n_cap = len(backtest(df, s_cap, 'QQQ', 1, exits=exit_rule(dict(lucid_dll=True))).trades)
+        self.assertLess(n_cap, n_free)
+
     def test_caution_blocks_entries_after_losses(self):
         df = self.falling(); x = np.ones((len(df), 1)); fz = (np.array([.01]), .001)
         base = dict(params(), readout='dan')
@@ -131,7 +188,7 @@ class ReservoirTests(unittest.TestCase):
     def test_loss_averse_defaults_are_neutral(self):
         df = frame(n=20, bars=8); x = df[['z_x']].to_numpy(); p = dict(params(), readout='dan', dan_lr=.1)
         a = dan_path(df, x, p)
-        b = dan_path(df, x, dict(p, loss_aversion=1., caution=0., cooldown_bars=0))
+        b = dan_path(df, x, dict(p, loss_aversion=1., win_reward=1., entry_reward=0., caution=0., cooldown_bars=0))
         for u, v in zip(a, b): np.testing.assert_array_equal(u, v)
 
     def test_frozen_dan_trade_fraction(self):
@@ -225,7 +282,9 @@ class ReservoirTests(unittest.TestCase):
 
     def test_learning_options_reject_ambiguous_settings(self):
         df = frame(n=2, bars=4); x = np.ones((len(df), 1)); p = dict(params(), readout='dan')
-        for bad in (dict(loss_aversion=2., dan_rule='delta'), dict(loss_aversion=2., shadow=True), dict(dan_rule='oja')):
+        for bad in (dict(loss_aversion=2., dan_rule='delta'), dict(loss_aversion=2., shadow=True), dict(dan_rule='oja'),
+                    dict(win_reward=2., dan_rule='delta'), dict(win_reward=2., shadow=True),
+                    dict(entry_reward=.5, dan_rule='delta'), dict(entry_reward=.5, shadow=True)):
             with self.assertRaises(ValueError):
                 dan_path(df, x, dict(p, **bad))
 

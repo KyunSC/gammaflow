@@ -19,6 +19,14 @@ class SearchTests(unittest.TestCase):
                          config_hash(dict(p,seed=999,eval_fee=.01),'fly','v'))
         self.assertNotEqual(config_hash(p,'fly','v'),config_hash(dict(p,rho=1.1),'fly','v'))
 
+    def test_configuration_identity_ignores_default_exit_options(self):
+        from flybrain.search import config_hash, check_settings
+        p=params()
+        self.assertEqual(config_hash(dict(p,rr=0,stop_atr=2.,lucid_dll=False),'fly','v'),config_hash(p,'fly','v'))
+        self.assertNotEqual(config_hash(dict(p,rr=2.),'fly','v'),config_hash(p,'fly','v'))
+        self.assertNotEqual(config_hash(dict(p,rr=2.,stop_atr=2.),'fly','v'),config_hash(dict(p,rr=2.),'fly','v'))
+        self.assertEqual(check_settings(dict(rr=1,lucid_dll=True)),dict(rr=1,lucid_dll=True))
+
     def test_configuration_identity_ignores_inert_dan_options(self):
         from flybrain.search import config_hash, trial_sharpes
         ridge=dict(params(),readout='ridge'); dan=dict(params(),readout='dan')

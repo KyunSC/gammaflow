@@ -70,11 +70,11 @@ def bonferroni_ci(inference, family_size, alpha=config.GATES['family_alpha'], pp
     return [(inference['sr']+s*z*inference['se'])*math.sqrt(ppy) for s in (-1,1)]
 
 
-def break_even_cost(df, signal, symbol, max_hold):
+def break_even_cost(df, signal, symbol, max_hold, exits=None):
     from .engine import backtest
     prev=None
     for ticks in range(5):
-        r=backtest(df,signal,symbol,max_hold,slippage_ticks=ticks)
+        r=backtest(df,signal,symbol,max_hold,slippage_ticks=ticks,exits=exits)
         pnl=float(r.equity[-1]-r.initial_capital)
         if not pnl>0:
             if ticks==0: return 0.
