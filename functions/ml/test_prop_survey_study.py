@@ -59,6 +59,16 @@ class Sweep(unittest.TestCase):
         rows = [(1012, 1013, 1009, 1009.5)] * 400
         self.assertIsNone(ps.signal_sweep(1010.0, 990.0, *bars(rows)))
 
+    def test_second_side_after_spent_first_is_no_trade(self):
+        # the high is swept and accepted (spent); later the low is swept and closes back inside: both swept, no trade
+        rows = [(1000, 1001, 999, 1000)] * 10 + [(1010.5, 1012, 1010.25, 1011)] * ps.SWEEP_BARS + \
+               [(1009, 1009.5, 995, 996)] * 80 + [(996, 996, 989, 991)] + [(991, 992, 990.5, 991.5)] * 300
+        self.assertIsNone(ps.signal_sweep(1010.0, 990.0, *bars(rows)))
+
+    def test_outside_bar_sweeping_both_is_no_trade(self):
+        rows = [(1000, 1001, 999, 1000)] * 10 + [(1000, 1011, 989, 1000)] + [(1000, 1001, 999, 1000)] * 400
+        self.assertIsNone(ps.signal_sweep(1010.0, 990.0, *bars(rows)))
+
 
 class VwapFade(unittest.TestCase):
     def test_stretch_below_vwap_buys_toward_vwap(self):
@@ -107,7 +117,7 @@ class RangeReclaim(unittest.TestCase):
         hour = [(1000, 1016, 1000, 1013)] + [(1013, 1014, 1005, 1013)] * 59
         self.hour = hour
 
-    def run_rows(self, after, day=date(2023, 6, 1)):
+    def run_rows(self, after, day=date(2023, 6, 7)):
         O, H, L, C, m = bars(self.hour + after, start=ps.PRE_OPEN)
         return ps.signal_range_reclaim(day, O, H, L, C, m)
 
@@ -127,8 +137,21 @@ class RangeReclaim(unittest.TestCase):
     def test_macro_day_and_mid_close_skipped(self):
         after = [(1013, 1017, 1012, 1015.5)] + [(1015.5, 1016.25, 1014, 1015)] * 400
         self.assertIsNone(self.run_rows(after, day=date(2023, 6, 2)))   # NFP
-        self.assertIn(date(2023, 5, 31), ps.MACRO)                       # ADP: Wednesday of that week
+        self.assertIn(date(2023, 6, 1), ps.MACRO)                        # ADP (a Thursday that week)
         self.hour[-1] = (1013, 1014, 1005, 1008)                         # closes at loc 0.5
+        self.assertIsNone(self.run_rows(after))
+
+
+    def test_adp_days_follow_adp_calendar(self):
+        # BLS moved NFP in the 2025-26 shutdown; ADP kept its own dates
+        for d in (date(2025, 10, 1), date(2025, 11, 5), date(2025, 12, 3), date(2026, 2, 4)):
+            self.assertIn(d, ps.MACRO)
+        self.assertNotIn(date(2025, 11, 19), ps.MACRO)               # Wednesday of the 2025-11-20 NFP week, no ADP
+
+    def test_reclaim_after_window_cancels(self):
+        # break at bar 0, first close back inside 61 minutes later
+        after = [(1014, 1017, 1014, 1016.5)] + [(1016.5, 1017, 1016.25, 1016.5)] * 60 + \
+                [(1016.5, 1016.75, 1015, 1015.5)] + [(1015.5, 1016.25, 1014, 1015)] * 400
         self.assertIsNone(self.run_rows(after))
 
 
@@ -172,6 +195,14 @@ class ContFvg(unittest.TestCase):
                 (1055, 1055.5, 1050, 1050.5), (1050.5, 1054, 1050, 1053.5)] + [(1053.5, 1053.75, 1053, 1053.5)] * 400
         self.assertIsNone(ps.signal_cont_fvg(1100.0, 900.0, *bars(rows)))
 
+    def test_gap_completed_on_voiding_bar_is_used(self):
+        # gap 1 = 1051..1051.25 (bars 0-2); bar 3 closes 1050.75 < 1051 (voids it) and completes gap 2 = 1050.5..1050.75
+        # (bar 1 high 1050.5 < bar 3 low 1050.75); bar 4 touches gap 2 and closes over bar 3's high -> long at bar 5
+        rows = [(1050, 1051, 1049, 1050.5), (1050.5, 1050.5, 1050, 1050.25), (1051.5, 1054, 1051.25, 1053),
+                (1053, 1053, 1050.75, 1050.75), (1050.75, 1053.5, 1050.75, 1053.25)] + [(1053.25, 1053.5, 1053, 1053.25)] * 400
+        O, H, L, C, m = bars(rows)
+        self.assertEqual(ps.signal_cont_fvg(1100.0, 900.0, O, H, L, C, m), (1, 5, 20.0, 20.0))
+
 
 class ErlIrl(unittest.TestCase):
     def test_high_sweep_then_bearish_gap_limit(self):
@@ -184,13 +215,24 @@ class ErlIrl(unittest.TestCase):
         self.assertEqual(sd, 1003 + T - 1000)
         self.assertEqual(td, round(2 * sd / T) * T)
 
-    def test_bracket_uses_limit_price(self):
-        rows = [(999, 1003.5, 998, 999)] + [(999, 1000.5, 990, 991)] * 10   # the fill bar's own high is ignored
+    def test_bracket_stop_on_limit_fill_bar_counts(self):
+        # sell limit 1000, stop 1003.25: the fill bar trades to 1003.5, so the stop was hit after the fill
+        rows = [(999, 1003.5, 998, 999)] + [(999, 1000.5, 990, 991)] * 10
         O, H, L, C, m = bars(rows)
         t = ps.bracket(O, H, L, C, m, -1, 0, 3.25, 6.5, 2.0, entry=1000.0)
+        self.assertEqual(t["reason"], "stop")
+        self.assertAlmostEqual(t["pnl"], -(3.25 + T) * 2.0 * t["contracts"] - 2 * ps.COMMISSION_SIDE * t["contracts"])
+
+    def test_bracket_target_on_limit_fill_bar_is_ignored(self):
+        # the fill bar's low reaches the target, possibly before the fill: managed from the next bar
+        rows = [(999, 1001, 993, 999)] + [(999, 1000.5, 996, 997)] * 10
+        O, H, L, C, m = bars(rows)
+        t = ps.bracket(O, H, L, C, m, -1, 0, 3.25, 6.5, 2.0, entry=1000.0)
+        self.assertEqual(t["reason"], "time")
+        self.assertLess(t["lo"], 0)                                # the fill bar's adverse excursion is kept
+        rows[3] = (997, 997, 993, 994)                             # a later bar through the target
+        t = ps.bracket(*bars(rows)[:4], bars(rows)[4], -1, 0, 3.25, 6.5, 2.0, entry=1000.0)
         self.assertEqual(t["reason"], "target")
-        self.assertAlmostEqual(t["r"] * 3.25 * 2.0 * t["contracts"],
-                               (6.5 * 2.0 - 2 * ps.COMMISSION_SIDE) * t["contracts"])
 
 
 class PastedWinners(unittest.TestCase):
@@ -238,8 +280,28 @@ class PastedWinners(unittest.TestCase):
         self.assertAlmostEqual(t["pnl"], (1003 - T - (1000 + T)) * 2.0 * t["contracts"] - 2 * ps.COMMISSION_SIDE * t["contracts"])
 
 
+# enough coin-flip seeds that p can fall under ALPHA (otherwise the null check below could never fail)
+NULL_RANDOM = int(1.05 / ps.ALPHA)
+
+
 class NullCheck(unittest.TestCase):
     """On a random walk no rule has an edge, so none may beat the coin flip; the coin flip itself must be near 0R."""
+
+    def test_alpha_is_reachable(self):
+        self.assertLess(1 / (1 + ps.N_RANDOM), ps.ALPHA)
+        self.assertLess(1 / (1 + NULL_RANDOM), ps.ALPHA)
+        self.assertEqual(ps.N_TESTS, 38)
+
+    def test_planted_look_ahead_beats_coin_flip(self):
+        # positive control: a rule that knows each day's winning side must come out BEATS-COIN-FLIP
+        sessions = random_walk_sessions(260, seed=7)
+        plans = ps.resolved_plans()
+        rows = ps.build_rows(sessions, "QQQ")["coin_1to1"]
+        cheat = {d: None if v is None else dict(v, dir=1 if v["long"]["pnl"] > v["short"]["pnl"] else -1)
+                 for d, v in rows.items()}
+        s = ps.score(cheat, plans, n_random=NULL_RANDOM, boot_paths=400, control_paths=100)
+        for plan in plans:
+            self.assertEqual(ps.verdict(s, plan), "BEATS-COIN-FLIP", plan)
 
     def test_random_walk_has_no_winner(self):
         sessions = random_walk_sessions(260, seed=7)
@@ -248,7 +310,7 @@ class NullCheck(unittest.TestCase):
         rows = {f"{sym}/{n}": r for sym in ("SPY", "QQQ") for n, r in ps.build_rows(sessions, sym).items()}
         self.assertEqual(len(rows), 2 * len(ps.COINS) + sum(len(v) for v in ps.TESTS.values()))
         for name, r in rows.items():
-            s = ps.score(r, plans, n_random=60, boot_paths=400, control_paths=200)
+            s = ps.score(r, plans, n_random=NULL_RANDOM, boot_paths=400, control_paths=100)
             if "plans" not in s:
                 continue
             traded += 1

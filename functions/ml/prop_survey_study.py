@@ -46,7 +46,7 @@ futures plane (SPY x 10.05 ~ ES points, QQQ x 41.2 ~ NQ points); that ignores th
 proxy's premarket is thinner than Globex. Risk per trade is the source's where it gives one, else $750.
   range_reclaim (Eddy Pips, ES; SPY only) Needs the extended-hours bars: the 08:00-08:59 ET hour (>= 30 of its
                 1m bars present) with range 10-24 points and (close - low) / range outside [0.45, 0.55]. Skipped on
-                CPI, NFP and ADP days (BLS schedule below; ADP = the Wednesday of the NFP week). From the 09:00 bar,
+                CPI, NFP and ADP days (BLS and ADP release calendars below). From the 09:00 bar,
                 the first bar trading a tick beyond the hour's high (low) sets the side: short (long) only; a bar
                 breaking both aborts the day. Reclaim: the first 1m close back inside the range within 60 minutes of
                 the break bar; none, or one 2-5 minutes after it, cancels the day. Retest: the first later bar within
@@ -85,8 +85,9 @@ proxy's premarket is thinner than Globex. Risk per trade is the source's where i
 The coin-flip control for each strategy: N_RANDOM seeds, same sessions, entries and stop / target distances,
 direction a fair coin. p = (1 + #seeds >= the strategy) / (1 + N_RANDOM), on mean net R and on Lucid EV.
 
-The limit-entry erl_irl control keeps the fill bar and price and flips only the direction; limit fills are managed
-from the bar after the fill for both directions (a bar that trades to the limit is one-sided around it).
+The limit-entry erl_irl control keeps the fill bar and price and flips only the direction. On the fill bar only the
+stop is checked, for both directions: price reached the limit first, so a stop beyond it was hit after the fill, while a
+target touch on that bar may have come before it.
 Four more, from Sunny's message of 2026-10-17 18:10 UTC: a pasted backtest (NDX 5m, 2026-08-03 -> 2026-10-16) that
 reports these as beating a coin flip with Lucid costs. That window is inside the project's reserved data and is not
 read here; this re-tests the rules as written on the discovery window. All NQ, so QQQ only; risk $200 a trade (the
@@ -111,7 +112,8 @@ Prop-rule ideas from the same message: rolling pass windows are what run_prop's 
 apply; circuit breakers and de-risking are sizing overlays, not entries, and the coin-flip test is about entries.
 Slippage stays at 1 tick on market fills: fill_study.py measured ~1.1 ticks of stop slip on these bars.
 
-Verdict per strategy x instrument x plan, Bonferroni ALPHA = 0.05 / 19 (19 strategy x instrument tests):
+Verdict per strategy x instrument x plan, Bonferroni ALPHA = 0.05 / 38 (19 strategy x instrument tests x 2 plans);
+N_RANDOM = 2000 seeds so p can reach ALPHA (the smallest p is 1 / 2001):
     BEATS-COIN-FLIP  EV > 0, mean net R 95% CI above 0, p (mean R) < ALPHA and p (EV) < ALPHA.
     STRUCTURE-ONLY   EV > 0 without the above: the account's payout shape pays, the entry does not.
     FAIL             EV <= 0.
@@ -124,15 +126,23 @@ Windows (amt_lucid_study's pinned split):
               question is settled so one person is not looking at the window for several questions at once.
               QQQ after DISCOVERY_END was spent by lucid_orb_study, so NQ-only rules get no second window here.
 
-Specification: everything above was written down before the first run and not changed after it.
+Specification: everything above was written down before the first run and not changed after it, except for the
+corrections below, made 2026-10-17 from the review of PR #6 and before any discovery or score run:
+  - erl_irl: a stop on the limit fill's own bar is counted (it was skipped, which hid certain losses).
+  - sweep: once both sides have traded beyond the prior range, no trade, as the rule says (a later sweep of the
+    second side could still trade, and a bar sweeping both sides returned a short).
+  - cont_fvg: an aligned FVG completing on the bar that voids or exhausts the active one is used.
+  - range_reclaim: ADP days from ADP's published calendar (the "Wednesday of the NFP week" rule was wrong around the
+    shutdown-shifted NFP releases of 2025-26).
+  - ALPHA counts both plans (0.05 / 38, was 0.05 / 19) and N_RANDOM is 2000 (was 500, whose smallest p, 1 / 501, could
+    not reach the corrected ALPHA).
 """
 from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -142,7 +152,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import amt_lucid_study as amt  # noqa: E402
 from flybrain.prop import resolve_plan  # noqa: E402
-from lucid_orb_study import FLAT_DAY, replay, trade_stats  # noqa: E402
+from lucid_orb_study import ev, replay, trade_stats  # noqa: E402
 
 OUT = amt.DATA / "prop_survey"
 TICK, OPEN, LAST_ENTRY = amt.TICK, amt.OPEN, amt.LAST_ENTRY
@@ -178,12 +188,18 @@ NFP_DAYS = """2022-01-07 2022-02-04 2022-03-04 2022-04-01 2022-05-06 2022-06-03 
 2024-09-06 2024-10-04 2024-11-01 2024-12-06 2025-01-10 2025-02-07 2025-03-07 2025-04-04 2025-05-02 2025-06-06 2025-07-03
 2025-08-01 2025-09-05 2025-11-20 2025-12-16 2026-01-09 2026-02-11 2026-03-06 2026-04-03 2026-05-08 2026-06-05 2026-07-02
 2026-08-07""".split()
+# ADP National Employment Report (monthly), from ADP's press-release archive (mediacenter.adp.com, checked 2026-10-17).
+# No June / July 2022 data releases (methodology relaunch); ADP kept its own dates through the 2025-26 BLS shutdown shifts.
+ADP_DAYS = """2022-01-05 2022-02-02 2022-03-02 2022-03-30 2022-05-04 2022-06-02 2022-08-31 2022-10-05 2022-11-02 2022-11-30
+2023-01-05 2023-02-01 2023-03-08 2023-04-05 2023-05-03 2023-06-01 2023-07-06 2023-08-02 2023-08-30 2023-10-04 2023-11-01
+2023-12-06 2024-01-04 2024-01-31 2024-03-06 2024-04-03 2024-05-01 2024-06-05 2024-07-03 2024-07-31 2024-09-05 2024-10-02
+2024-10-30 2024-12-04 2025-01-08 2025-02-05 2025-03-05 2025-04-02 2025-04-30 2025-06-04 2025-07-02 2025-07-30 2025-09-04
+2025-10-01 2025-11-05 2025-12-03 2026-01-07 2026-02-04 2026-03-04 2026-04-01 2026-05-06 2026-06-03 2026-07-01
+2026-08-05""".split()
 
 
 def macro_days() -> set[date]:
-    nfp = [date.fromisoformat(s) for s in NFP_DAYS]
-    adp = {d - timedelta(days=d.weekday() - 2) for d in nfp if d.weekday() > 2}      # Wednesday of the NFP week
-    return {date.fromisoformat(s) for s in CPI_DAYS} | set(nfp) | adp
+    return {date.fromisoformat(s) for s in (*CPI_DAYS, *NFP_DAYS, *ADP_DAYS)}
 
 
 MACRO = macro_days()
@@ -192,8 +208,10 @@ SWEEP_BARS, SWEEP_RR = 5, 2.0
 VWAP_ENTRY, VWAP_EXIT, VWAP_STOP, ATR_N = 1.2, 0.2, 1.0, 14
 COIN_MINUTE = 600                                                  # 10:00 ET
 PLANS = {"flex": (("flex", "50k", False), 90.0), "pro": (("pro", "50k", True), 115.0)}
-ALPHA = 0.05 / 19
-BOOT_PATHS, CONTROL_PATHS, N_RANDOM, SEED = 5000, 2000, 500, 42
+N_TESTS = sum(len(v) for v in TESTS.values()) * len(PLANS)        # 19 strategy x instrument tests x 2 plans
+ALPHA = 0.05 / N_TESTS
+BOOT_PATHS, CONTROL_PATHS, N_RANDOM, SEED = 5000, 2000, 2000, 42
+assert 1 / (1 + N_RANDOM) < ALPHA, "N_RANDOM too small: p can never reach ALPHA"
 
 
 # ---------------------------------------------------------------- signals: (dir, entry index, stop dist, target dist) | None
@@ -228,20 +246,23 @@ def signal_sweep(prev_high: float, prev_low: float, O, H, L, C, m):
             first[1] = i
         if first[-1] is None and L[i] <= prev_low - TICK:
             first[-1] = i
-        a = first[1]
-        if a is not None and i - a < SWEEP_BARS and C[i] < prev_high:
-            return amt.plan_trade(-1, i + 1, H[a:i + 1].max() + TICK, None, SWEEP_RR, O, m)
-        b = first[-1]
-        if b is not None and i - b < SWEEP_BARS and C[i] > prev_low:
-            return amt.plan_trade(1, i + 1, L[b:i + 1].min() - TICK, None, SWEEP_RR, O, m)
+        a, b = first[1], first[-1]
         if a is not None and b is not None:
             return None
+        if a is not None and i - a < SWEEP_BARS and C[i] < prev_high:
+            return amt.plan_trade(-1, i + 1, H[a:i + 1].max() + TICK, None, SWEEP_RR, O, m)
+        if b is not None and i - b < SWEEP_BARS and C[i] > prev_low:
+            return amt.plan_trade(1, i + 1, L[b:i + 1].min() - TICK, None, SWEEP_RR, O, m)
     return None
 
 
+def session_vwap(H, L, C, V) -> np.ndarray:
+    """Cumulative VWAP of typical price from the first bar."""
+    return np.cumsum((H + L + C) / 3 * V) / np.maximum(np.cumsum(V), 1e-9)
+
+
 def signal_vwap_fade(O, H, L, C, V, m):
-    tp = (H + L + C) / 3
-    vwap = np.cumsum(tp * V) / np.maximum(np.cumsum(V), 1e-9)
+    vwap = session_vwap(H, L, C, V)
     prev_c = None
     trs = []
     for s, e in amt.periods(m, 5):
@@ -306,8 +327,14 @@ def signal_range_reclaim(day: date, O, H, L, C, m):
             break
     if b is None:
         return None
-    k = next((i for i in range(b, len(m)) if m[i] - m[b] <= RR_RECLAIM and inside(i)), None)
-    if k is None or k >= len(m) or m[k] - m[b] > RR_RECLAIM or RR_BLACKOUT[0] <= m[k] - m[b] <= RR_BLACKOUT[1]:
+    k = None
+    for i in range(b, len(m)):
+        if m[i] - m[b] > RR_RECLAIM:
+            break
+        if inside(i):
+            k = i
+            break
+    if k is None or RR_BLACKOUT[0] <= m[k] - m[b] <= RR_BLACKOUT[1]:
         return None
     edge = hi if d < 0 else lo
     for q in range(k + 1, len(m)):
@@ -386,7 +413,8 @@ def signal_cont_fvg(prev_high: float, prev_low: float, O, H, L, C, m):
                     j = i + 1
                     return (d, j, CF_STOP, CF_STOP) if j < len(m) else None
                 gap = None if n >= CF_TOUCHES else (near, far, n)
-            continue
+            if gap is not None:
+                continue
         if i >= 2 and ((H[i - 2] < L[i]) if d > 0 else (L[i - 2] > H[i])):
             gap = (L[i], H[i - 2], 0) if d > 0 else (H[i], L[i - 2], 0)
     return None
@@ -436,8 +464,7 @@ def ema(values: np.ndarray, n: int) -> np.ndarray:
 
 
 def signal_vwap_ema(prev_closes5: np.ndarray, O, H, L, C, V, m):
-    tp = (H + L + C) / 3
-    vwap = np.cumsum(tp * V) / np.maximum(np.cumsum(V), 1e-9)
+    vwap = session_vwap(H, L, C, V)
     bars = amt.periods(m, 5)
     ends = np.array([e for _, e in bars])
     closes = C[ends]
@@ -509,71 +536,18 @@ def signal_orb_2close(O, H, L, C, m, rr: float | None):
 
 # ---------------------------------------------------------------- execution
 
-def bracket(O, H, L, C, m, d: int, j: int, stop_d: float, tgt_d: float, pv: float, risk: float = amt.RISK_USD,
-            entry: float | None = None, until: int | None = None, exit_at: int | None = None) -> dict:
-    """amt_lucid_study.bracket with a per-trade risk, an optional limit-fill entry price, an optional time exit and an
-    optional rule exit (`exit_at`: the bar whose open closes the trade)."""
-    # A limit fill is managed from the next bar: inside the fill bar the order of prices is unknown, and the bar's
-    # excursion is one-sided relative to the order (it traded to the limit), so checking it would favour the
-    # original direction over its coin-flipped twin.
-    start = j if entry is None else j + 1
-    entry = O[j] + d * TICK if entry is None else entry
-    flat = amt.FLAT if until is None else min(amt.FLAT, until)
-    stop, target = entry - d * stop_d, entry + d * tgt_d
-    n = int(min(amt.MAX_CONTRACTS, max(1, math.floor(risk / (stop_d * pv)))))
-    worst = best = 0.0
-    exit_px, reason = None, "time"
-    for i in range(start, len(m)):
-        adv, fav = (L[i], H[i]) if d > 0 else (H[i], L[i])
-        if exit_at is not None and i == exit_at and i > j:
-            exit_px, reason = O[i] - d * TICK, "rule"
-            worst = min(worst, (exit_px - entry) * d)
-            best = max(best, (exit_px - entry) * d)
-            break
-        if i > j and (O[i] - stop) * d <= 0:
-            exit_px, reason = O[i] - d * TICK, "stop"
-        elif (adv - stop) * d <= 0:
-            exit_px, reason = stop - d * TICK, "stop"
-        elif i > j and (O[i] - target) * d >= 0:
-            exit_px, reason = O[i], "target"
-        elif (fav - target) * d >= TICK:
-            exit_px, reason = target, "target"
-        if exit_px is not None:
-            worst = min(worst, (exit_px - entry) * d if reason == "stop" else (adv - entry) * d)
-            best = max(best, (exit_px - entry) * d if reason == "target" else 0.0)
-            break
-        worst = min(worst, (adv - entry) * d)
-        best = max(best, (fav - entry) * d)
-        if m[i] >= flat:
-            exit_px = C[i] - d * TICK
-            break
-    if exit_px is None:                                    # data ended early (or a fill on the last bar): last close
-        exit_px = C[-1] - d * TICK
-    fees = 2 * COMMISSION_SIDE * n
-    pnl = (exit_px - entry) * d * pv * n - fees
-    return dict(pnl=pnl, lo=min(0.0, worst * pv * n - fees, pnl), hi=max(0.0, best * pv * n, pnl),
-                r=pnl / (stop_d * pv * n), reason=reason, contracts=n, win=pnl > 0, rr=min(tgt_d / stop_d, 999.0))
+def bracket(*args, **kw) -> dict:
+    """amt_lucid_study.bracket (per-trade risk, limit-fill entry, time and rule exits) at this study's commission."""
+    return amt.bracket(*args, commission=COMMISSION_SIDE, **kw)
 
 
 # ---------------------------------------------------------------- data
 
 def load_extended(symbol: str, until: date) -> dict[date, pd.DataFrame]:
-    """amt_lucid_study.load_sessions' sessions, each with its 08:00-09:29 ET bars kept in front of the RTH bars."""
-    rth = amt.load_sessions(symbol, until)
-    if not rth:
-        return {}
-    cutoff = min(pd.Timestamp(until + timedelta(days=1), tz=amt.ET), amt.VERIFY_START).tz_convert("UTC")
-    files = [f for f in sorted((amt.BARS_DIR / symbol).glob("*.parquet")) if date.fromisoformat(f.name[:10]) < cutoff.date()]
-    bars = pd.concat([pd.read_parquet(f, columns=["open", "high", "low", "close", "volume"], filters=[("ts_event", "<", cutoff)])
-                      for f in files]).sort_index()
-    bars = bars[~bars.index.duplicated()]
-    et = bars.index.tz_convert(amt.ET)
-    bars = bars.assign(day=et.date, minute=et.hour * 60 + et.minute)
-    pre = bars[(bars.minute >= PRE_OPEN) & (bars.minute < OPEN) & bars.day.isin(set(rth))]
-    out = {}
-    for d, g in rth.items():
-        p = pre[pre.day == d] if len(pre) else pre
-        out[d] = pd.concat([p, g]) if len(p) else g
+    """amt_lucid_study.load_sessions' sessions; for range_reclaim's instruments each also carries its 08:00-09:29 ET
+    bars in front of the RTH bars."""
+    pre = PRE_OPEN if symbol in TESTS["range_reclaim"] else None
+    out = amt.load_sessions(symbol, until, pre_open=pre)
     n_pre = sum((g.minute < OPEN).any() for g in out.values())
     print(f"{symbol}: {len(out)} sessions, {n_pre} with 08:00-09:29 bars")
     return out
@@ -599,7 +573,7 @@ def build_rows(sessions: dict, symbol: str) -> dict:
         prev_high, prev_low = p.high.max() * ratio, p.low.min() * ratio
         arr = lambda f: tuple(f[k].to_numpy(dtype=float) * ratio for k in ("open", "high", "low", "close")) + (f.minute.to_numpy(),)
         O, H, L, C, m = rth_arrays = arr(g)
-        ext_arrays = arr(x)
+        ext_arrays = arr(x) if "range_reclaim" in names else rth_arrays
         V = g.volume.to_numpy(dtype=float)
         prev5 = p.close.to_numpy(dtype=float)[[e for _, e in amt.periods(p.minute.to_numpy(), 5)]] * ratio
         coin = int(rng.choice((-1, 1)))
@@ -632,10 +606,6 @@ def build_rows(sessions: dict, symbol: str) -> dict:
 
 
 # ---------------------------------------------------------------- scoring
-
-def ev(rep: dict, fee: float) -> float:
-    return rep["bootstrap"]["meanTake"] - fee
-
 
 def mean_r(trades: list[dict]) -> float:
     return float(np.mean([t["r"] for t in trades if "r" in t]))
