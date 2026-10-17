@@ -107,6 +107,38 @@ class Build(unittest.TestCase):
         self.assertTrue(f <= u)
 
 
+class Gates(unittest.TestCase):
+    def test_percentile_uses_only_past(self):
+        days = [date(2023, 1, 1) + timedelta(days=i) for i in range(100)]
+        ratio = {d: float(i) for i, d in enumerate(days)}
+        pct = lw.range_percentiles(ratio)
+        self.assertNotIn(days[lw.RANGE_MIN_HISTORY - 1], pct)
+        self.assertEqual(pct[days[80]], 1.0)                           # bigger than every earlier day
+        ratio[days[-1]] = 1e9                                          # a future change moves nothing earlier
+        self.assertEqual(lw.range_percentiles(ratio)[days[80]], 1.0)
+
+    def test_gamma_snapshot_cut_at_0945(self):
+        snaps = pd.DataFrame(dict(
+            computed_at=pd.to_datetime(["2023-01-03 09:40", "2023-01-03 09:50", "2023-01-04 09:50"])
+            .tz_localize("America/New_York").tz_convert("UTC"),
+            net_gex=[-5.0, 5.0, -5.0], abs_gex_total=[10.0, 10.0, 10.0]))
+        neg = lw.negative_gamma(snaps, [date(2023, 1, 3), date(2023, 1, 4)])
+        self.assertEqual(neg, {date(2023, 1, 3): True})                # 09:50 is too late; Jan 4 has none
+
+    def test_any_is_union(self):
+        days = [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4), date(2023, 1, 5)]
+        base = {d: dict(dir=1) for d in days}
+        pct = dict(zip(days, [0.1, 0.5, 0.9, 0.5]))
+        neg = {days[3]: True}
+        cells = lw.gate_cells(base, pct, neg)
+        live = {k: [d for d, r in v.items() if r] for k, v in cells.items()}
+        self.assertEqual(live["small"], [days[0]])
+        self.assertEqual(live["large"], [days[2]])
+        self.assertEqual(live["neg_gamma"], [days[3]])
+        self.assertEqual(live["any"], [days[0], days[2], days[3]])
+        self.assertEqual(len(live["base"]), 4)
+
+
 class Verdict(unittest.TestCase):
     def s(self, ev, lo, p=0.001):
         return dict(trades=100, lucid=dict(pro=dict(ev=ev)), mean_r_ci=[lo, lo + 0.2], random=dict(p=p))

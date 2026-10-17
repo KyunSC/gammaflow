@@ -52,6 +52,20 @@ Scoring (4 tests: 2 rules x 2 instruments, Bonferroni ALPHA = 0.05 / 4):
       FAIL            EV <= 0.
 One look: --score writes a lock and refuses a second run. Without it, only counts and trade frequencies print.
 
+Gated ORB (--explore-gates; added 2026-10-17 at Sunny's request, AFTER the spec above was frozen, so it is
+exploration, not a test). The write-up's ORB entry, stop and exit (orb15_unfiltered) with its RVOL / compression
+filters replaced by: trade only if gamma is negative OR the opening range is very small or very large.
+   - gamma: net_gex / abs_gex_total < 0 at the last ThetaData snapshot (data/thetadata_gex/<sym>_gex_snapshots
+     .parquet, thetadata_gex.py) computed at or before 09:45:00 ET that session, i.e. before any entry (the first
+     possible entry is the 09:46 open). No snapshot that morning -> not negative. These are rebuilt snapshots, not
+     the live gamma_exposure table, so the after-close (market_open = false) rows do not enter.
+   - range: x = opening range / ATR14 (as in A). Its percentile among the previous RANGE_LOOKBACK sessions (at
+     least RANGE_MIN_HISTORY), so no future day sets the cut. Very small: <= RANGE_LO; very large: >= RANGE_HI.
+   - cells: any (the request), and its parts neg_gamma, small, large, plus the ungated base, all described.
+   - sessions: discovery only, <= EXPLORE_END (amt_lucid_study.DISCOVERY_END), both instruments. The sessions
+     after it stay unread by this mode, so a gate chosen here can still be checked once on SPY 2025-03-27 ->
+     2026-08-14, provided --score has not been run first (it reads the same sessions for A).
+
 Specification: everything above was written down before the first run and not changed after it.
 """
 from __future__ import annotations
@@ -85,6 +99,10 @@ RVOL_N, RVOL_X, ATR_N, ATR_X = 20, 1.25, 14, 0.60
 MOVE_N, MOVE_X, B_STOP_X = 20, 0.5, 1.2
 ALPHA = 0.05 / 4
 N_BOOT, BOOT_BLOCK, N_RANDOM, BOOT_PATHS, SEED = 2000, 5, 500, 5000, 42
+RANGE_LOOKBACK, RANGE_MIN_HISTORY, RANGE_LO, RANGE_HI = 250, 60, 0.20, 0.80
+GEX_CUT = OR_END                 # 09:45 ET, minutes after midnight
+EXPLORE_END = amt.DISCOVERY_END
+GEX_DIR = amt.DATA / "thetadata_gex"
 PLANS = {"pro": (("pro", "50k", True), 115.0), "flex": (("flex", "50k", False), 90.0)}
 
 
@@ -173,8 +191,9 @@ def itsm_features(O, H, L, C, m, prev_close):
     return dict(r1=r1, r12=r12, move=move, range=rng, entry=e)
 
 
-def build(sessions: dict, symbol: str) -> dict:
-    """{rule: {day: None | dict(dir, long, short)}}; sessions before every filter has its full history only warm up."""
+def build(sessions: dict, symbol: str, or_ratio: dict | None = None) -> dict:
+    """{rule: {day: None | dict(dir, long, short)}}; sessions before every filter has its full history only warm up.
+    `or_ratio`, when given, is filled with each warm session's opening range / ATR14."""
     spec = amt.INSTRUMENTS[symbol]
     days = sorted(sessions)
     rows = {"orb15": {}, "orb15_unfiltered": {}, "itsm": {}}
@@ -192,6 +211,8 @@ def build(sessions: dict, symbol: str) -> dict:
                 dir=s[0], long=manage(O, H, L, C, m, 1, s[1], s[2], spec["pv"], FLAT, vwap),
                 short=manage(O, H, L, C, m, -1, s[1], s[2], spec["pv"], FLAT, vwap))
             rows["orb15_unfiltered"][d] = both(s)
+            if or_ratio is not None:
+                or_ratio[d] = or_range / np.mean(tr[-ATR_N:])
             ok = ov >= RVOL_X * np.mean(or_vol[-RVOL_N:]) and or_range < ATR_X * np.mean(tr[-ATR_N:])
             rows["orb15"][d] = both(s) if ok else None
             sig = None
@@ -210,6 +231,72 @@ def build(sessions: dict, symbol: str) -> dict:
     for rule in rows:   # a skipped side (risk too wide) drops the whole day, so controls see the same days
         rows[rule] = {d: (r if r and r["long"] and r["short"] else None) for d, r in rows[rule].items()}
     return rows
+
+
+# ---------------------------------------------------------------- gates (exploration)
+
+def range_percentiles(or_ratio: dict) -> dict:
+    """{day: share of the previous RANGE_LOOKBACK sessions with a smaller ratio}, once RANGE_MIN_HISTORY exist."""
+    days = sorted(or_ratio)
+    x = np.array([or_ratio[d] for d in days])
+    out = {}
+    for i, d in enumerate(days):
+        prev = x[max(0, i - RANGE_LOOKBACK):i]
+        if len(prev) >= RANGE_MIN_HISTORY:
+            out[d] = float(np.mean(prev < x[i]))
+    return out
+
+
+def negative_gamma(snaps: pd.DataFrame, days: list) -> dict:
+    """{day: True / False} from the last snapshot computed at or before GEX_CUT; days without one are absent."""
+    c = pd.to_datetime(snaps["computed_at"], utc=True).dt.tz_convert(amt.ET)
+    s = pd.DataFrame({"day": c.dt.date.to_numpy(), "tod": (c - c.dt.normalize()).to_numpy(),
+                      "regime": (snaps["net_gex"] / (snaps["abs_gex_total"] + 1e-8)).to_numpy()})
+    last = s[s["tod"] <= pd.Timedelta(minutes=GEX_CUT)].sort_values(["day", "tod"]).groupby("day")["regime"].last()
+    return {d: bool(last[d] < 0) for d in days if d in last.index}
+
+
+def gate_cells(base: dict, pct: dict, neg: dict) -> dict:
+    """The base ORB rows restricted by each gate; a day with no range percentile yet is never traded."""
+    days = [d for d in sorted(base) if d in pct]
+    small = {d: pct[d] <= RANGE_LO for d in days}
+    large = {d: pct[d] >= RANGE_HI for d in days}
+    ng = {d: neg.get(d, False) for d in days}
+    keep = dict(base={d: True for d in days}, neg_gamma=ng, small=small, large=large,
+                any={d: ng[d] or small[d] or large[d] for d in days})
+    return {k: {d: (base[d] if on[d] else None) for d in days} for k, on in keep.items()}
+
+
+def load_gamma(symbol: str, days: list) -> dict:
+    path = GEX_DIR / f"{symbol.lower()}_gex_snapshots.parquet"
+    if not path.exists():
+        print(f"{symbol}: no {path.name}; the gamma gate never fires")
+        return {}
+    cutoff = pd.Timestamp(EXPLORE_END + pd.Timedelta(days=1), tz=amt.ET).tz_convert("UTC")
+    snaps = pd.read_parquet(path, columns=["computed_at", "net_gex", "abs_gex_total"], filters=[("computed_at", "<", cutoff)])
+    assert (pd.to_datetime(snaps["computed_at"], utc=True) < cutoff).all(), "LEAK: GEX read past EXPLORE_END"
+    return negative_gamma(snaps, days)
+
+
+def explore_gates() -> int:
+    res = {}
+    for sym in SYMBOLS:
+        fut = amt.INSTRUMENTS[sym]["fut"]
+        sessions = amt.load_sessions(sym, EXPLORE_END)
+        ratio = {}
+        base = build(sessions, sym, ratio)["orb15_unfiltered"]
+        days = sorted(base)
+        neg = load_gamma(sym, days)
+        cells = gate_cells(base, range_percentiles(ratio), neg)
+        print(f"\n{fut} ({sym}) discovery {days[0]} -> {days[-1]}: GEX snapshot by 09:45 on {len(neg)} of {len(days)} "
+              f"sessions, negative on {sum(neg.values())}")
+        for name, rows in cells.items():
+            s = score(rows, random_control=False)
+            res[f"{name}/{fut}"] = s
+            print(f"  {name:<10}{fmt(s)}")
+    (OUT / "gates_explore.json").write_text(json.dumps(res, indent=1, default=str))
+    print(f"\nexploration on discovery sessions only (5 cells x 2 instruments, no correction): not a test")
+    return 0
 
 
 # ---------------------------------------------------------------- scoring
@@ -292,8 +379,13 @@ def fmt(s: dict) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--score", action="store_true", help="score both rules once (writes the lock)")
+    ap.add_argument("--explore-gates", action="store_true", help="gated ORB on discovery sessions (repeatable)")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
+    if args.explore_gates:
+        if args.score:
+            ap.error("--explore-gates and --score are separate runs")
+        return explore_gates()
     lock = OUT / "score.lock"
     if args.score and lock.exists():
         print(f"already scored ({lock.read_text().strip()}); refusing a second look")
