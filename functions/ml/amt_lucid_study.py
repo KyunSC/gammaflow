@@ -111,8 +111,9 @@ def cell_name(setup: str, params: dict) -> str:
 
 # ---------------------------------------------------------------- data
 
-def load_sessions(symbol: str, until: date) -> dict[date, pd.DataFrame]:
-    """RTH 1m bars per session for sessions <= `until` (and inside the research side of holdout.py)."""
+def load_sessions(symbol: str, until: date, pre_open: int | None = None) -> dict[date, pd.DataFrame]:
+    """RTH 1m bars per session for sessions <= `until` (and inside the research side of holdout.py). With `pre_open`
+    (minute ET), each kept session also carries its bars from that minute to 09:29 in front of the RTH bars."""
     cutoff = min(pd.Timestamp(until + pd.Timedelta(days=1), tz=ET), VERIFY_START).tz_convert("UTC")
     files = [f for f in sorted((BARS_DIR / symbol).glob("*.parquet")) if date.fromisoformat(f.name[:10]) < cutoff.date()]
     bars = pd.concat([pd.read_parquet(f, columns=["open", "high", "low", "close", "volume"], filters=[("ts_event", "<", cutoff)])
@@ -121,12 +122,14 @@ def load_sessions(symbol: str, until: date) -> dict[date, pd.DataFrame]:
     assert (bars.index < cutoff).all(), "LEAK: bar read reaches past the cutoff"
     et = bars.index.tz_convert(ET)
     bars = bars.assign(day=et.date, minute=et.hour * 60 + et.minute)
-    bars = bars[(bars.minute >= OPEN) & (bars.minute < CLOSE)]
+    bars = bars[(bars.minute >= (OPEN if pre_open is None else pre_open)) & (bars.minute < CLOSE)]
+    rth_days = set(bars.day[bars.minute >= OPEN])
     # the verify gap belongs to the sessions just before VERIFY_START, not to the end of a truncated load
-    keep = set(research_sessions(sorted(set(bars.day)))) if cutoff >= VERIFY_START else set(bars.day)
+    keep = set(research_sessions(sorted(rth_days))) if cutoff >= VERIFY_START else rth_days
     out = {}
     for d, g in bars.groupby("day", sort=True):
-        if d in keep and d <= until and len(g) >= MIN_BARS and g.minute.iloc[0] == OPEN and g.minute.iloc[-1] >= FLAT:
+        r = g if pre_open is None else g[g.minute >= OPEN]
+        if d in keep and d <= until and len(r) >= MIN_BARS and r.minute.iloc[0] == OPEN and r.minute.iloc[-1] >= FLAT:
             out[d] = g
     return out
 
@@ -249,15 +252,39 @@ SIGNALS = {"va_reentry": signal_va_reentry, "ov_accept": signal_ov_accept, "va_f
 
 # ---------------------------------------------------------------- execution
 
-def bracket(O, H, L, C, m, d: int, j: int, stop_d: float, tgt_d: float, pv: float) -> dict:
-    """Net P&L and the worst / best equity of one bracket trade, in dollars."""
-    entry = O[j] + d * TICK
+def bracket(O, H, L, C, m, d: int, j: int, stop_d: float, tgt_d: float, pv: float, risk: float = RISK_USD,
+            commission: float = COMMISSION_SIDE, entry: float | None = None, until: int | None = None,
+            exit_at: int | None = None) -> dict:
+    """Net P&L and the worst / best equity of one bracket trade, in dollars.
+
+    Optional (prop_survey_study): a per-trade `risk`, a `commission` per micro per side, a limit-fill `entry` price on
+    bar j, a time exit `until` (minute), and a rule exit `exit_at` (the bar whose open closes the trade).
+    On a limit fill's own bar only the stop is checked: price had to reach the limit before going on to a stop beyond
+    it, so a stop there is certain, while a target touch may have come before the fill."""
+    limit = entry is not None
+    entry = O[j] + d * TICK if entry is None else entry
+    flat = FLAT if until is None else min(FLAT, until)
     stop, target = entry - d * stop_d, entry + d * tgt_d
-    n = int(min(MAX_CONTRACTS, max(1, math.floor(RISK_USD / (stop_d * pv)))))
+    n = int(min(MAX_CONTRACTS, max(1, math.floor(risk / (stop_d * pv)))))
     worst = best = 0.0
     exit_px, reason = None, "time"
     for i in range(j, len(m)):
         adv, fav = (L[i], H[i]) if d > 0 else (H[i], L[i])
+        if limit and i == j:
+            if (adv - stop) * d <= 0:
+                exit_px, reason = stop - d * TICK, "stop"
+                worst = (exit_px - entry) * d
+                break
+            worst = min(worst, (adv - entry) * d)
+            if m[i] >= flat:
+                exit_px = C[i] - d * TICK
+                break
+            continue
+        if exit_at is not None and i == exit_at and i > j:
+            exit_px, reason = O[i] - d * TICK, "rule"
+            worst = min(worst, (exit_px - entry) * d)
+            best = max(best, (exit_px - entry) * d)
+            break
         if i > j and (O[i] - stop) * d <= 0:
             exit_px, reason = O[i] - d * TICK, "stop"
         elif (adv - stop) * d <= 0:
@@ -272,13 +299,15 @@ def bracket(O, H, L, C, m, d: int, j: int, stop_d: float, tgt_d: float, pv: floa
             break
         worst = min(worst, (adv - entry) * d)
         best = max(best, (fav - entry) * d)
-        if m[i] >= FLAT:
+        if m[i] >= flat:
             exit_px = C[i] - d * TICK
             break
-    fees = 2 * COMMISSION_SIDE * n
+    if exit_px is None:                                    # data ended early (or a fill on the last bar): last close
+        exit_px = C[-1] - d * TICK
+    fees = 2 * commission * n
     pnl = (exit_px - entry) * d * pv * n - fees
     return dict(pnl=pnl, lo=min(0.0, worst * pv * n - fees, pnl), hi=max(0.0, best * pv * n, pnl),
-                r=pnl / (stop_d * pv * n), reason=reason, contracts=n, win=pnl > 0, rr=tgt_d / stop_d)
+                r=pnl / (stop_d * pv * n), reason=reason, contracts=n, win=pnl > 0, rr=min(tgt_d / stop_d, 999.0))
 
 
 def build_rows(sessions: dict, symbol: str) -> dict:
