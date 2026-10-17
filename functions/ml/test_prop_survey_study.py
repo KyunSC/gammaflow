@@ -189,7 +189,53 @@ class ErlIrl(unittest.TestCase):
         O, H, L, C, m = bars(rows)
         t = ps.bracket(O, H, L, C, m, -1, 0, 3.25, 6.5, 2.0, entry=1000.0)
         self.assertEqual(t["reason"], "target")
-        self.assertAlmostEqual(t["r"] * 3.25 * 2.0 * t["contracts"], 6.5 * 2.0 * t["contracts"] - 2 * t["contracts"])
+        self.assertAlmostEqual(t["r"] * 3.25 * 2.0 * t["contracts"],
+                               (6.5 * 2.0 - 2 * ps.COMMISSION_SIDE) * t["contracts"])
+
+
+class PastedWinners(unittest.TestCase):
+    def test_impulse_long_with_min_stop_and_10r(self):
+        rows = [(1000, 1003, 999, 1002)] * 10 + [(1002, 1004, 1001, 1003)] * 400
+        O, H, L, C, m = bars(rows)
+        d, j, sd, td, kw = ps.signal_impulse(O, H, L, C, m)
+        self.assertEqual((d, j, sd, td, kw["risk"]), (1, 10, 15.0, 150.0, 200.0))   # 1002.25 - 999 < 15 -> 15
+
+    def test_impulse_flat_open_skipped(self):
+        rows = [(1000, 1003, 999, 1001.5)] * 10 + [(1001.5, 1002, 1001, 1001.5)] * 400
+        self.assertIsNone(ps.signal_impulse(*bars(rows)))
+
+    def test_orb_two_closes(self):
+        # range 990-1010 (mid 1000); 09:45 bar closes 1011, 09:50 bar 1012 -> long at 09:55, stop at the midpoint
+        rows = [(1000, 1010, 990, 1005)] * 15 + [(1005, 1012, 1004, 1011)] * 5 + [(1011, 1013, 1010, 1012)] * 5 + \
+               [(1012, 1013, 1011, 1012)] * 400
+        O, H, L, C, m = bars(rows)
+        d, j, sd, td, kw = ps.signal_orb_2close(O, H, L, C, m, 2.0)
+        self.assertEqual((d, j, sd, td), (1, 25, 1012 + T - 1000, 2 * (1012 + T - 1000)))
+        self.assertEqual(ps.signal_orb_2close(O, H, L, C, m, None)[3], ps.NO_TARGET)
+
+    def test_orb_two_closes_needs_both(self):
+        rows = [(1000, 1010, 990, 1005)] * 15 + [(1005, 1012, 1004, 1011)] * 5 + [(1011, 1011, 1004, 1006)] * 400
+        self.assertIsNone(ps.signal_orb_2close(*bars(rows), 2.0))
+
+    def test_vwap_ema_cross_and_exits(self):
+        # below VWAP until 10:00, the 10:00-10:04 bar closes above it, then price rolls over at 10:30
+        rows = [(1000, 1000.5, 999, 999.5)] * 30 + [(999.5, 1004, 999.5, 1003.5)] * 5 + \
+               [(1003.5, 1006, 1003, 1005.5)] * 25 + [(1005.5, 1005.5, 990, 990.5)] * 400
+        O, H, L, C, m = bars(rows)
+        V = np.ones(len(m))
+        d, j, sd, td, kw = ps.signal_vwap_ema(np.full(78, 1000.0), O, H, L, C, V, m)
+        self.assertEqual((d, j), (1, 35))
+        self.assertEqual(sd, 15.0)                                 # swing low 999 - 5 is 9.75 away -> the 15 minimum
+        self.assertEqual(td, ps.NO_TARGET)
+        self.assertEqual(kw["exit_at"][1], 65)                     # first 5m close under EMA9 is the 10:30 bar
+        self.assertEqual(kw["exit_at"][-1], 40)                    # the short's twin exits after the next bar
+
+    def test_rule_exit_at_open(self):
+        rows = [(1000, 1001, 999, 1000.5)] * 5 + [(1003, 1004, 1002, 1003.5)] * 5
+        O, H, L, C, m = bars(rows)
+        t = ps.bracket(O, H, L, C, m, 1, 0, 15.0, ps.NO_TARGET, 2.0, risk=200.0, exit_at=5)
+        self.assertEqual(t["reason"], "rule")
+        self.assertAlmostEqual(t["pnl"], (1003 - T - (1000 + T)) * 2.0 * t["contracts"] - 2 * ps.COMMISSION_SIDE * t["contracts"])
 
 
 class NullCheck(unittest.TestCase):

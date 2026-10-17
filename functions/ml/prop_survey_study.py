@@ -14,7 +14,8 @@ Data, execution and costs are amt_lucid_study.py's, unchanged:
   - signals use closed 1m bars; entry = the next 1m bar's open + 1 tick adverse; no entry from 14:00 ET.
   - bracket on 1m bars: a bar that opens through a level fills at its open (stop: +1 tick); a bar touching both fills
     the stop; a target fills only when price trades a tick THROUGH it; else flat at the 15:54 close - 1 tick.
-  - size: floor($750 / (stop_pts x point value)) micros, clamped to [1, 40]. Commission $1.00 per micro per side.
+  - size: floor($750 / (stop_pts x point value)) micros, clamped to [1, 40]. Commission $0.50 per micro per side
+    (Lucid help center, "Approved products and commissions", dated 2026-08-26; amt_lucid_study used $1.00).
   - Lucid: daily P&L replayed by flybrain.prop.run_prop (lucid_orb_study.replay), 5,000 bootstrap accounts on 5-session
     blocks, 250-session horizon, for LucidFlex 50K (no DLL, fee $90) and LucidPro 50K (DLL $1,200, fee $115).
     EV per evaluation = 90% of payouts - fee.
@@ -86,12 +87,31 @@ direction a fair coin. p = (1 + #seeds >= the strategy) / (1 + N_RANDOM), on mea
 
 The limit-entry erl_irl control keeps the fill bar and price and flips only the direction; limit fills are managed
 from the bar after the fill for both directions (a bar that trades to the limit is one-sided around it).
+Four more, from Sunny's message of 2026-10-17 18:10 UTC: a pasted backtest (NDX 5m, 2026-08-03 -> 2026-10-16) that
+reports these as beating a coin flip with Lucid costs. That window is inside the project's reserved data and is not
+read here; this re-tests the rules as written on the discovery window. All NQ, so QQQ only; risk $200 a trade (the
+paste's risk-normalised sizing).
+  vwap_ema      (LuxAlgo VWAP + 9 EMA) 5m bars (09:30-anchored), session VWAP from 09:30, EMA9 of 5m closes seeded on
+                the prior session's 5m closes. The first 5m bar starting 10:00 or later and closing by 11:30 whose close
+                crosses session VWAP (previous 5m close on the other side) -> entry at the next 1m bar. Stop: 5 points
+                beyond the extreme of the two 5m bars before the signal bar, at least 15 points. No target: exit at
+                the next 1m open after a 5m close on the wrong side of EMA9, else 15:54. The coin-flipped twin uses
+                the same rule for its own direction.
+  impulse       (Elite Trader 5-min ORB / "opening impulse") net move of 09:30-09:39 (09:39 close - 09:30 open);
+                |move| < 2 points -> no trade. Entry at the 09:40 bar in its direction. Stop: the 09:30-09:39 low
+                (long) / high (short), at least 15 points. Target 10R, else 15:54. Unlike Zarattini & Aziz (and the
+                5m ORB in lucid_orb_study), no breakout is needed: it always trades the first 10 minutes' sign; PR
+                #5's ORB is a 15m breakout with filters and a VWAP exit.
+  orb2c_eod, orb2c_2r  (Prop Firm Kid) 09:30-09:44 range and midpoint. Two consecutive 5m closes beyond the range on
+                the same side, the first closing at 09:50 or later and the second by 11:30 -> entry at the next 1m bar.
+                Stop: the midpoint. Target: none (15:54) / 2R. Both variants were posted as winners, so both are tests.
+
 Prop-rule ideas from the same message: rolling pass windows are what run_prop's historical replay already reports
 (every start day); Lucid's drawdown is end-of-day (verified 2026-10-16), so the intraday-trailing variant does not
 apply; circuit breakers and de-risking are sizing overlays, not entries, and the coin-flip test is about entries.
 Slippage stays at 1 tick on market fills: fill_study.py measured ~1.1 ticks of stop slip on these bars.
 
-Verdict per strategy x instrument x plan, Bonferroni ALPHA = 0.05 / 15 (15 strategy x instrument tests):
+Verdict per strategy x instrument x plan, Bonferroni ALPHA = 0.05 / 19 (19 strategy x instrument tests):
     BEATS-COIN-FLIP  EV > 0, mean net R 95% CI above 0, p (mean R) < ALPHA and p (EV) < ALPHA.
     STRUCTURE-ONLY   EV > 0 without the above: the account's payout shape pays, the entry does not.
     FAIL             EV <= 0.
@@ -128,7 +148,8 @@ OUT = amt.DATA / "prop_survey"
 TICK, OPEN, LAST_ENTRY = amt.TICK, amt.OPEN, amt.LAST_ENTRY
 BOTH, ES, NQ = ("QQQ", "SPY"), ("SPY",), ("QQQ",)
 TESTS = {"gap_fill": BOTH, "sweep": BOTH, "eighty_pct": BOTH, "vwap_fade": BOTH,
-         "range_reclaim": ES, "orb15_mid": NQ, "orb_fvg": BOTH, "cont_fvg": NQ, "erl_irl": BOTH}
+         "range_reclaim": ES, "orb15_mid": NQ, "orb_fvg": BOTH, "cont_fvg": NQ, "erl_irl": BOTH,
+         "vwap_ema": NQ, "impulse": NQ, "orb2c_eod": NQ, "orb2c_2r": NQ}
 STRATEGIES = tuple(TESTS)
 COINS = {"coin_1to1": (0.25, 0.25), "coin_scalp": (0.30, 0.10)}   # stop %, target %
 PRE_OPEN, PRE_MIN_BARS = 480, 30                                   # 08:00 ET; bars needed in the 08:00 hour
@@ -138,6 +159,12 @@ OM_BUFFER, OM_RR, OM_RISK = 5.0, 2.0, 500.0
 OF_LAST, OF_WIDE = 660, {"QQQ": 30.0, "SPY": 8.0}                  # 11:00 ET; wide-stop threshold, points
 CF_LAST, CF_STOP, CF_TOUCHES = 660, 20.0, 5
 EI_RR = 2.0
+PASTE_RISK = 200.0
+VE_FROM, VE_LAST, VE_EMA, VE_BUFFER, VE_MIN_STOP = 600, 690, 9, 5.0, 15.0     # 10:00, 11:30 ET
+IM_END, IM_MIN_MOVE, IM_MIN_STOP, IM_RR = 580, 2.0, 15.0, 10.0               # 09:40 ET
+O2_FIRST, O2_LAST = 590, 690                                                 # 09:50, 11:30 ET
+NO_TARGET = 1e9
+COMMISSION_SIDE = 0.50
 # BLS release calendar (bls.gov/schedule/<year>, checked 2026-10-17), 2022-01 -> 2026-08
 CPI_DAYS = """2022-01-12 2022-02-10 2022-03-10 2022-04-12 2022-05-11 2022-06-10 2022-07-13 2022-08-10 2022-09-13 2022-10-13
 2022-11-10 2022-12-13 2023-01-12 2023-02-14 2023-03-14 2023-04-12 2023-05-10 2023-06-13 2023-07-12 2023-08-10 2023-09-13
@@ -165,7 +192,7 @@ SWEEP_BARS, SWEEP_RR = 5, 2.0
 VWAP_ENTRY, VWAP_EXIT, VWAP_STOP, ATR_N = 1.2, 0.2, 1.0, 14
 COIN_MINUTE = 600                                                  # 10:00 ET
 PLANS = {"flex": (("flex", "50k", False), 90.0), "pro": (("pro", "50k", True), 115.0)}
-ALPHA = 0.05 / 15
+ALPHA = 0.05 / 19
 BOOT_PATHS, CONTROL_PATHS, N_RANDOM, SEED = 5000, 2000, 500, 42
 
 
@@ -400,11 +427,92 @@ def signal_erl_irl(prev_high: float, prev_low: float, O, H, L, C, m):
     return None
 
 
+def ema(values: np.ndarray, n: int) -> np.ndarray:
+    out = np.empty(len(values))
+    k = 2 / (n + 1)
+    for i, v in enumerate(values):
+        out[i] = v if i == 0 else out[i - 1] + k * (v - out[i - 1])
+    return out
+
+
+def signal_vwap_ema(prev_closes5: np.ndarray, O, H, L, C, V, m):
+    tp = (H + L + C) / 3
+    vwap = np.cumsum(tp * V) / np.maximum(np.cumsum(V), 1e-9)
+    bars = amt.periods(m, 5)
+    ends = np.array([e for _, e in bars])
+    closes = C[ends]
+    e9 = ema(np.r_[prev_closes5, closes], VE_EMA)[len(prev_closes5):]
+    for k in range(1, len(bars)):
+        s, e = bars[k]
+        if m[s] < VE_FROM:
+            continue
+        if m[e] + 1 > VE_LAST:
+            return None
+        before, now = closes[k - 1] - vwap[ends[k - 1]], closes[k] - vwap[e]
+        d = 1 if before <= 0 < now else -1 if before >= 0 > now else 0
+        if not d or k < 2:
+            continue
+        j = e + 1
+        if j >= len(m) or m[j] >= LAST_ENTRY:
+            return None
+        lo, hi = L[bars[k - 2][0]:bars[k - 1][1] + 1].min(), H[bars[k - 2][0]:bars[k - 1][1] + 1].max()
+        entry = O[j] + d * TICK
+        swing = lo - VE_BUFFER if d > 0 else hi + VE_BUFFER
+        sd = max(VE_MIN_STOP, round((entry - swing) * d / TICK) * TICK)
+        exits = {}
+        for dd in (1, -1):                       # exit at the next 1m open after a 5m close across EMA9
+            x = next((ends[q] + 1 for q in range(k + 1, len(bars)) if (closes[q] - e9[q]) * dd < 0), None)
+            exits[dd] = x if x is not None and x < len(m) else None
+        return d, j, sd, NO_TARGET, dict(risk=PASTE_RISK, exit_at=exits)
+    return None
+
+
+def signal_impulse(O, H, L, C, m):
+    first = np.flatnonzero(m < IM_END)
+    if not len(first) or m[first[-1]] != IM_END - 1:
+        return None
+    move = C[first[-1]] - O[0]
+    if abs(move) < IM_MIN_MOVE:
+        return None
+    d = 1 if move > 0 else -1
+    j = first[-1] + 1
+    if j >= len(m):
+        return None
+    entry = O[j] + d * TICK
+    stop = L[first].min() if d > 0 else H[first].max()
+    sd = max(IM_MIN_STOP, round((entry - stop) * d / TICK) * TICK)
+    return d, int(j), sd, round(IM_RR * sd / TICK) * TICK, dict(risk=PASTE_RISK)
+
+
+def signal_orb_2close(O, H, L, C, m, rr: float | None):
+    rng = m < OPEN + 15
+    hi, lo = H[rng].max(), L[rng].min()
+    mid = (hi + lo) / 2
+    bars = [(s, e) for s, e in amt.periods(m, 5) if m[s] >= OPEN + 15]
+    side = lambda e: 1 if C[e] > hi else -1 if C[e] < lo else 0
+    for (_, e1), (_, e2) in zip(bars, bars[1:]):
+        if m[e1] + 1 < O2_FIRST:
+            continue
+        if m[e2] + 1 > O2_LAST:
+            return None
+        d = side(e1)
+        if d and side(e2) == d:
+            j = e2 + 1
+            if j >= len(m):
+                return None
+            sd = round(((O[j] + d * TICK) - mid) * d / TICK) * TICK
+            if sd < TICK:
+                return None
+            return d, j, sd, NO_TARGET if rr is None else round(rr * sd / TICK) * TICK, dict(risk=PASTE_RISK)
+    return None
+
+
 # ---------------------------------------------------------------- execution
 
 def bracket(O, H, L, C, m, d: int, j: int, stop_d: float, tgt_d: float, pv: float, risk: float = amt.RISK_USD,
-            entry: float | None = None, until: int | None = None) -> dict:
-    """amt_lucid_study.bracket with a per-trade risk, an optional limit-fill entry price and an optional time exit."""
+            entry: float | None = None, until: int | None = None, exit_at: int | None = None) -> dict:
+    """amt_lucid_study.bracket with a per-trade risk, an optional limit-fill entry price, an optional time exit and an
+    optional rule exit (`exit_at`: the bar whose open closes the trade)."""
     # A limit fill is managed from the next bar: inside the fill bar the order of prices is unknown, and the bar's
     # excursion is one-sided relative to the order (it traded to the limit), so checking it would favour the
     # original direction over its coin-flipped twin.
@@ -417,6 +525,11 @@ def bracket(O, H, L, C, m, d: int, j: int, stop_d: float, tgt_d: float, pv: floa
     exit_px, reason = None, "time"
     for i in range(start, len(m)):
         adv, fav = (L[i], H[i]) if d > 0 else (H[i], L[i])
+        if exit_at is not None and i == exit_at and i > j:
+            exit_px, reason = O[i] - d * TICK, "rule"
+            worst = min(worst, (exit_px - entry) * d)
+            best = max(best, (exit_px - entry) * d)
+            break
         if i > j and (O[i] - stop) * d <= 0:
             exit_px, reason = O[i] - d * TICK, "stop"
         elif (adv - stop) * d <= 0:
@@ -436,10 +549,10 @@ def bracket(O, H, L, C, m, d: int, j: int, stop_d: float, tgt_d: float, pv: floa
             break
     if exit_px is None:                                    # data ended early (or a fill on the last bar): last close
         exit_px = C[-1] - d * TICK
-    fees = 2 * amt.COMMISSION_SIDE * n
+    fees = 2 * COMMISSION_SIDE * n
     pnl = (exit_px - entry) * d * pv * n - fees
     return dict(pnl=pnl, lo=min(0.0, worst * pv * n - fees, pnl), hi=max(0.0, best * pv * n, pnl),
-                r=pnl / (stop_d * pv * n), reason=reason, contracts=n, win=pnl > 0, rr=tgt_d / stop_d)
+                r=pnl / (stop_d * pv * n), reason=reason, contracts=n, win=pnl > 0, rr=min(tgt_d / stop_d, 999.0))
 
 
 # ---------------------------------------------------------------- data
@@ -488,6 +601,7 @@ def build_rows(sessions: dict, symbol: str) -> dict:
         O, H, L, C, m = rth_arrays = arr(g)
         ext_arrays = arr(x)
         V = g.volume.to_numpy(dtype=float)
+        prev5 = p.close.to_numpy(dtype=float)[[e for _, e in amt.periods(p.minute.to_numpy(), 5)]] * ratio
         coin = int(rng.choice((-1, 1)))
         make = dict(gap_fill=lambda: signal_gap_fill(prev_close, O, H, L, C, m),
                     sweep=lambda: signal_sweep(prev_high, prev_low, O, H, L, C, m),
@@ -497,7 +611,11 @@ def build_rows(sessions: dict, symbol: str) -> dict:
                     orb15_mid=lambda: signal_orb15_mid(O, H, L, C, m),
                     orb_fvg=lambda: signal_orb_fvg(O, H, L, C, m, OF_WIDE[symbol]),
                     cont_fvg=lambda: signal_cont_fvg(prev_high, prev_low, O, H, L, C, m),
-                    erl_irl=lambda: signal_erl_irl(prev_high, prev_low, O, H, L, C, m))
+                    erl_irl=lambda: signal_erl_irl(prev_high, prev_low, O, H, L, C, m),
+                    vwap_ema=lambda: signal_vwap_ema(prev5, O, H, L, C, V, m),
+                    impulse=lambda: signal_impulse(O, H, L, C, m),
+                    orb2c_eod=lambda: signal_orb_2close(O, H, L, C, m, None),
+                    orb2c_2r=lambda: signal_orb_2close(O, H, L, C, m, 2.0))
         sigs = {n: make[n]() for n in names}
         sigs.update({n: coin_signal(O, m, *pc, coin) for n, pc in COINS.items()})
         for name, sig in sigs.items():
@@ -505,10 +623,11 @@ def build_rows(sessions: dict, symbol: str) -> dict:
                 rows[name][d] = None
                 continue
             side, j, sd, td, *kw = sig
-            kw = kw[0] if kw else {}
+            kw = dict(kw[0]) if kw else {}
+            exits = kw.pop("exit_at", {})
             a = ext_arrays if name == "range_reclaim" else rth_arrays
-            rows[name][d] = dict(dir=side, long=bracket(*a[:4], a[4], 1, j, sd, td, pv, **kw),
-                                 short=bracket(*a[:4], a[4], -1, j, sd, td, pv, **kw))
+            rows[name][d] = dict(dir=side, long=bracket(*a[:4], a[4], 1, j, sd, td, pv, exit_at=exits.get(1), **kw),
+                                 short=bracket(*a[:4], a[4], -1, j, sd, td, pv, exit_at=exits.get(-1), **kw))
     return rows
 
 
@@ -593,7 +712,7 @@ def main() -> int:
         print(f"already scored ({lock.read_text().strip()}); refusing a second look")
         return 1
     plans = resolved_plans()
-    res = dict(spec=dict(alpha=ALPHA, n_random=N_RANDOM, tests=TESTS, risk_usd=amt.RISK_USD, commission_side=amt.COMMISSION_SIDE,
+    res = dict(spec=dict(alpha=ALPHA, n_random=N_RANDOM, tests=TESTS, risk_usd=amt.RISK_USD, commission_side=COMMISSION_SIDE,
                          fees={n: f for n, (_, f) in PLANS.items()}), windows={})
     if args.score:
         lock.write_text(f"scored at {pd.Timestamp.now(tz='UTC').isoformat()}\n")
