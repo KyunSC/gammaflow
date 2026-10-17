@@ -7,6 +7,7 @@ import { propSetup } from '../../lib/backtest/prop'
 import { FIRMS, FIRM_LIST, SIZES, PROP_ASOF, resolvePlan } from '../../lib/backtest/prop/firms'
 import { FUTURES_LIVE_SYMBOLS, contractsForSymbol } from '../../lib/backtest/prop/contracts'
 import { fmtCompact } from '../../lib/backtest/format'
+import { IMPACT_OPTIONS, RETRIEVED as NEWS_RETRIEVED } from '../../lib/backtest/news'
 import Panel from './Panel'
 
 /**
@@ -342,11 +343,14 @@ function RiskSection() {
   const propOn = useBacktest((s) => s.prop.enabled)
 
   const flat = propOn || risk.flatAtSessionEnd
+  const news = risk.newsBlackout
+  const uncovered = useBacktest((s) => s.result?.newsUncoveredBars || 0)
   const summary = [
     risk.stopPct ? `stop ${risk.stopPct}%` : null,
     risk.targetPct ? `target ${risk.targetPct}%` : null,
     risk.maxBars ? `${risk.maxBars} bars` : null,
     flat ? 'flat at close' : null,
+    news?.impact ? `flat ${news.impact} news` : null,
     risk.allowShort ? null : 'long only',
   ].filter(Boolean).join(' · ') || 'strategy exits only'
 
@@ -372,6 +376,31 @@ function RiskSection() {
           <span className="flex-1" />
           <Switch checked={risk.allowShort} onChange={(v) => setRisk({ allowShort: v })} />
         </div>
+        <div
+          className="flex items-center gap-2"
+          title={`Scheduled US releases (CPI, NFP, FOMC, ISM…), calendar as of ${NEWS_RETRIEVED}. High = ForexFactory's red folder, medium = orange, low = yellow; the tiers are ours.`}
+        >
+          <span className="w-[104px] shrink-0 text-[11px] text-muted">Flat for news</span>
+          <span className="flex-1" />
+          <div className="w-[136px]">
+            <Select
+              value={news?.impact || 'off'}
+              onChange={(v) => setRisk({ newsBlackout: v === 'off' ? null : { beforeMin: 5, afterMin: 15, ...news, impact: v } })}
+              options={[{ value: 'off', label: 'Off' }, ...IMPACT_OPTIONS.map((o) => ({ value: o.id, label: o.label }))]}
+            />
+          </div>
+        </div>
+        {news?.impact ? (
+          <>
+            <NumRow label="Mins before" value={news.beforeMin} min={0} max={60} step={1} onChange={(v) => setRisk({ newsBlackout: { ...news, beforeMin: v } })} hint="Flat this long before each release" />
+            <NumRow label="Mins after" value={news.afterMin} min={0} max={120} step={1} onChange={(v) => setRisk({ newsBlackout: { ...news, afterMin: v } })} hint="No position until this long after it" />
+            {uncovered > 0 ? (
+              <p className="text-[10px] leading-snug text-amber">
+                {uncovered.toLocaleString()} bars are past the news calendar ({NEWS_RETRIEVED}) and were not filtered.
+              </p>
+            ) : null}
+          </>
+        ) : null}
       </div>
     </Collapsible>
   )

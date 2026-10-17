@@ -70,7 +70,8 @@ export function propSetup({ prop, symbol, costs, risk }) {
         priceScale,
       },
     },
-    risk: { ...risk, flatAtSessionEnd: true, flatByEt: plan.flatByEt },
+    // A news rule the user set themselves wins over the firm's.
+    risk: { ...risk, flatAtSessionEnd: true, flatByEt: plan.flatByEt, newsBlackout: risk.newsBlackout?.impact ? risk.newsBlackout : plan.news },
   }
 }
 

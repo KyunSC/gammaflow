@@ -16,6 +16,7 @@
 
 import { computeMetrics, buyHoldCurve, datasetPeriodsPerYear } from './metrics'
 import { sessionEndFlags, flatByFlags } from './series'
+import { newsBlackoutFlags } from './news'
 
 export const DEFAULT_COSTS = {
   initialCapital: 100000,
@@ -31,6 +32,9 @@ export const DEFAULT_RISK = {
   flatAtSessionEnd: false,
   allowShort: true,
   flatByEt: 0,     // minutes after midnight ET to be flat by; 0 = disabled
+  // Flat through scheduled news: `{ impact: 'high'|'medium'|'low', beforeMin, afterMin }`
+  // or null. See `news.js` for the calendar and what "impact" means.
+  newsBlackout: null,
 }
 
 const EXIT_REASON = {
@@ -39,6 +43,7 @@ const EXIT_REASON = {
   TARGET: 'target',
   TIME: 'time',
   SESSION: 'session',
+  NEWS: 'news',
   END: 'end-of-data',
 }
 
@@ -85,6 +90,7 @@ export function runBacktest({ dataset, strategy, params, costs, risk, window }) 
   const sessionBreak = sessionEndFlags(ds.time)
   const sessionEnd = r.flatAtSessionEnd ? sessionBreak : null
   const flatBy = r.flatByEt > 0 ? flatByFlags(ds.time, r.flatByEt) : null
+  const news = r.newsBlackout?.impact ? newsBlackoutFlags(ds, r.newsBlackout) : null
 
   const equity = new Float64Array(n).fill(c.initialCapital)
   const returns = new Float64Array(n)
@@ -247,6 +253,18 @@ export function runBacktest({ dataset, strategy, params, costs, risk, window }) 
       }
       prevTarget = 0
     }
+    // News blackout: flat at the close of the bar before the window, and no
+    // order that would be held into it. Unlike a stop there is no lockout
+    // afterwards — the strategy may re-enter once the window has passed, and
+    // pays the round trip for doing so.
+    const newsNow = news && news.end[i]
+    if (newsNow) {
+      if (pos !== 0) {
+        closePosition(i, C[i], EXIT_REASON.NEWS)
+        eq = cash
+      }
+      prevTarget = 0
+    }
     // A new session is a fresh start: yesterday's stop does not veto today,
     // whether or not positions are flattened overnight. Without this a regime
     // strategy stopped out once would sit flat until its signal flipped, which
@@ -275,6 +293,7 @@ export function runBacktest({ dataset, strategy, params, costs, risk, window }) 
       target = Math.max(-1, Math.min(1, Math.round(target)))
       if (target < 0 && !r.allowShort) target = 0
       if (flatNow || (flatBy && flatBy.blocked[i])) target = 0
+      if (newsNow || (news && news.blocked[i])) target = 0
       prevTarget = target
       if (lockout !== 0) {
         if (target === lockout) target = 0
@@ -308,6 +327,7 @@ export function runBacktest({ dataset, strategy, params, costs, risk, window }) 
     barOpen,
     windowStart: wStart,
     windowEnd: wEnd,
+    newsUncoveredBars: news ? news.uncovered : 0,
     elapsedMs: t1 - t0,
     config: {
       strategyId: strategy.id,

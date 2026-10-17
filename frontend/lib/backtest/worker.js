@@ -57,6 +57,7 @@ const api = {
       metrics: result.metrics,
       windowStart: result.windowStart,
       windowEnd: result.windowEnd,
+      newsUncoveredBars: result.newsUncoveredBars,
       elapsedMs: result.elapsedMs,
       config: result.config,
       prop: result.prop,

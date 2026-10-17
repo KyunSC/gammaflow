@@ -73,6 +73,20 @@ export const OPERAND_GROUPS = [
     ],
   },
   {
+    // Scheduled US releases (news.js). 1/0 flags compare against a constant:
+    // "High-impact news window = 0" keeps a rule out of the release.
+    group: 'News',
+    items: [
+      { k: 'news:high:5:15', label: 'High-impact news window (−5m/+15m)' },
+      { k: 'news:medium:5:15', label: 'Medium+ news window (−5m/+15m)' },
+      { k: 'news:high:0:0', label: 'High-impact release in this bar' },
+      { k: 'newsNext:high', label: 'Minutes to next high-impact' },
+      { k: 'newsPrev:high', label: 'Minutes since last high-impact' },
+      { k: 'newsNext:medium', label: 'Minutes to next medium+' },
+      { k: 'newsPrev:medium', label: 'Minutes since last medium+' },
+    ],
+  },
+  {
     group: 'GEX',
     plane: 'research',
     items: [

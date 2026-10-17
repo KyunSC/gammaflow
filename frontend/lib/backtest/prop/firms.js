@@ -101,7 +101,11 @@ export const FIRMS = {
       daily: {
         id: 'daily',
         label: 'LucidDaily',
-        blurb: 'Funded drawdown trails intraday. Payout any day above the buffer; news trading not allowed (not modelled).',
+        blurb: 'Funded drawdown trails intraday. Payout any day above the buffer; flat from 1 min before to 1 min after high-impact USD news.',
+        // Funded-account rule per proptradingvibes.com/blog/lucid-trading-news-trading-policy
+        // (Oct 2026; the eval rule is unstated). The engine replays one path for eval
+        // and funded, so it is applied to both — conservative for the eval.
+        news: { impact: 'high', beforeMin: 1, afterMin: 1 },
         price: [80, 110, 185, 260],
         priceNoDll: [80, 110, 185, 260],
         activationFee: [0, 0, 0, 0],
@@ -181,6 +185,7 @@ export function resolvePlan({ firm = 'lucid', plan = 'flex', size = '50k', dll =
     maxMinis: p.maxMinis[si],
     dailyLossLimit: dll ? p.dailyLossLimit[si] : null,
     flatByEt: f.flatByEt,
+    news: p.news || null,
     hasEval: Boolean(p.eval),
     profitTarget: p.eval ? p.eval.profitTarget[si] : 0,
     evalConsistency: p.eval ? p.eval.consistency : 0,
