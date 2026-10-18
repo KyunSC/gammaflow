@@ -16,6 +16,7 @@ import * as runner from './runner'
 import { emptyRule, newCompare } from './ruleAst'
 import { BENCHMARKS } from './benchmark'
 import { DEFAULT_PROP, propSetup } from './prop'
+import { resolvePlan } from './prop/firms'
 import { FUTURES_LIVE_SYMBOLS, symbolFamily } from './prop/contracts'
 
 const initialParams = () => {
@@ -283,6 +284,7 @@ export const useBacktest = create((rawSet, get) => {
       const setup = propSetup({ prop, symbol: dataset.symbol, costs, risk })
       if (setup.error) throw new Error(setup.error)
       Object.assign(config, { costs: setup.costs, risk: setup.risk, prop: setup.plan })
+      if (prop.twins > 0) config.twins = prop.twins
     }
     return { ...config, ...extra }
   },
@@ -314,11 +316,13 @@ export const useBacktest = create((rawSet, get) => {
       get().setAdvanced(true)
       set({ activeTab: 'prop' })
     }
-    if (prop.enabled && get().plane === 'live' && !FUTURES_LIVE_SYMBOLS.includes(get().liveSymbol)) {
+    // Futures firms trade NQ/ES only; a perps firm (MyFundedPerps) takes crypto too.
+    const futures = resolvePlan(prop).instrument !== 'perp'
+    if (prop.enabled && futures && get().plane === 'live' && !FUTURES_LIVE_SYMBOLS.includes(get().liveSymbol)) {
       get().setLive({ liveSymbol: 'NQ=F' })
       return
     }
-    if (prop.enabled) get().fetchRatio()
+    if (prop.enabled && futures) get().fetchRatio()
     if (get().autoRun) get().run()
   },
 

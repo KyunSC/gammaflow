@@ -38,14 +38,15 @@ const api = {
   run(config) {
     const { datasetId, strategyId, params, costs, risk, window } = config
     const dataset = resolve(datasetId)
+    const strategy = getStrategy(strategyId)
     const result = attachProp(runBacktest({
       dataset,
-      strategy: getStrategy(strategyId),
+      strategy,
       params,
       costs,
       risk,
       window,
-    }), dataset, config)
+    }), dataset, config, { strategy })
     // Drop the memoised series cache from the reply path by returning only
     // plain arrays and the trade list.
     return {

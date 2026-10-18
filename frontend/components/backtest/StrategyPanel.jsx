@@ -4,7 +4,7 @@ import { useBacktest } from '../../lib/backtest/store'
 import { getStrategy, strategiesForPlane, FAMILIES, STRATEGIES } from '../../lib/backtest/strategies'
 import { LIVE_SYMBOLS, LIVE_PERIODS, LIVE_INTERVALS } from '../../lib/backtest/datasets'
 import { propSetup } from '../../lib/backtest/prop'
-import { FIRMS, FIRM_LIST, SIZES, PROP_ASOF, resolvePlan } from '../../lib/backtest/prop/firms'
+import { FIRMS, FIRM_LIST, PROP_ASOF, resolvePlan, sizesFor } from '../../lib/backtest/prop/firms'
 import { FUTURES_LIVE_SYMBOLS, contractsForSymbol } from '../../lib/backtest/prop/contracts'
 import { fmtCompact } from '../../lib/backtest/format'
 import Panel from './Panel'
@@ -107,7 +107,8 @@ function DatasetSection() {
   const setExample = useBacktest((s) => s.setExample)
   const refreshDataset = useBacktest((s) => s.refreshDataset)
   const loading = useBacktest((s) => s.datasetLoading)
-  const propOn = useBacktest((s) => s.prop.enabled)
+  // Futures prop firms take NQ/ES only; MyFundedPerps also takes crypto and the index ETFs as proxies.
+  const futuresProp = useBacktest((s) => s.prop.enabled && resolvePlan(s.prop).instrument !== 'perp')
 
   return (
     <Section title="data" step={1}>
@@ -123,7 +124,7 @@ function DatasetSection() {
       <div className="mt-1.5">
         {plane === 'live' ? (
           <div className="grid grid-cols-3 gap-1">
-            <Select value={liveSymbol} onChange={(v) => setLive({ liveSymbol: v })} options={propOn ? FUTURES_LIVE_SYMBOLS : LIVE_SYMBOLS} />
+            <Select value={liveSymbol} onChange={(v) => setLive({ liveSymbol: v })} options={futuresProp ? FUTURES_LIVE_SYMBOLS : LIVE_SYMBOLS} />
             <Select value={livePeriod} onChange={(v) => setLive({ livePeriod: v })} options={LIVE_PERIODS} />
             <Select value={liveInterval} onChange={(v) => setLive({ liveInterval: v })} options={LIVE_INTERVALS} />
           </div>
@@ -303,12 +304,13 @@ function CostSection() {
   const costs = useBacktest((s) => s.costs)
   const setCosts = useBacktest((s) => s.setCosts)
   const propOn = useBacktest((s) => s.prop.enabled)
+  const perpOn = useBacktest((s) => s.prop.enabled && resolvePlan(s.prop).instrument === 'perp')
 
   if (propOn) {
     return (
-      <Collapsible title="costs & sizing" summary="per contract">
+      <Collapsible title="costs & sizing" summary={perpOn ? 'bps of notional' : 'per contract'}>
         <p className="text-[10px] leading-snug text-dim">
-          Prop mode sizes in contracts: commission and slippage are set per contract under{' '}
+          {perpOn ? 'Perps prop mode sizes by risk or notional: commission, slippage and swap are set in bps' : 'Prop mode sizes in contracts: commission and slippage are set per contract'} under{' '}
           <span className="text-muted">account</span>, and capital is the account size.
         </p>
       </Collapsible>
@@ -339,7 +341,7 @@ function CostSection() {
 function RiskSection() {
   const risk = useBacktest((s) => s.risk)
   const setRisk = useBacktest((s) => s.setRisk)
-  const propOn = useBacktest((s) => s.prop.enabled)
+  const propOn = useBacktest((s) => s.prop.enabled && resolvePlan(s.prop).instrument !== 'perp')
 
   const flat = propOn || risk.flatAtSessionEnd
   const summary = [
@@ -419,7 +421,11 @@ const RULE_FIELDS = [
   { key: 'payoutCap', label: 'Payout cap ($)', list: true },
   { key: 'split', label: 'Split %', pct: true },
   { key: 'maxPayouts', label: 'Payouts → live' },
+  { key: 'minPayout', label: 'Min payout ($)', perpOnly: true },
+  { key: 'lifetimeCap', label: 'Lifetime cap ($)', perpOnly: true },
 ]
+/** Lucid concepts with no MyFundedPerps counterpart. */
+const FUTURES_ONLY_FIELDS = new Set(['activationFee', 'evalConsistency', 'maxMinis', 'fundedConsistency', 'buffer', 'minDayProfit', 'payoutCap', 'maxPayouts'])
 
 function PropSection() {
   const prop = useBacktest((s) => s.prop)
@@ -436,6 +442,7 @@ function PropSection() {
   const info = prop.enabled ? propSetup({ prop, symbol, costs, risk }) : null
   const firm = FIRMS[prop.firm] || FIRM_LIST[0]
   const plans = Object.values(firm.plans)
+  const perpFirm = firm.instrument === 'perp'
 
   return (
     <Section title="account" right={info?.plan?.overridden?.length ? <span className="text-[10px] text-amber">edited</span> : null}>
@@ -450,15 +457,20 @@ function PropSection() {
 
       {!prop.enabled ? (
         <p className="text-[10px] leading-snug text-dim">
-          Prop mode trades NQ/ES futures in whole contracts under a firm&apos;s evaluation, drawdown and payout rules,
-          and prices the account — some strategies only pay when the fee caps the downside.
+          Prop mode trades NQ/ES futures in whole contracts (Lucid) or crypto and index perps (MyFundedPerps) under a
+          firm&apos;s evaluation, drawdown and payout rules, and prices the account — some strategies only pay when the
+          fee caps the downside, and some rules pay a coin flip.
         </p>
       ) : info.error ? (
         <p className="text-[10px] leading-snug text-neg">{info.error}</p>
       ) : (
         <div className="flex flex-col gap-1.5">
           {FIRM_LIST.length > 1 && (
-            <Select value={prop.firm} onChange={(v) => setProp({ firm: v })} options={FIRM_LIST.map((f) => ({ value: f.id, label: f.label }))} />
+            <Select
+              value={prop.firm}
+              onChange={(v) => setProp({ firm: v, plan: Object.keys(FIRMS[v].plans)[0], size: '50k', overrides: {} })}
+              options={FIRM_LIST.map((f) => ({ value: f.id, label: f.label }))}
+            />
           )}
           <div className="grid grid-cols-4 gap-1">
             {plans.map((p) => (
@@ -470,14 +482,14 @@ function PropSection() {
           <p className="text-[10px] leading-snug text-dim">{firm.plans[prop.plan]?.blurb}</p>
           <span className="text-[11px] text-muted">Account size</span>
           <div className="grid grid-cols-4 gap-1">
-            {SIZES.map((sz) => {
+            {sizesFor(prop.firm, prop.plan).map((sz) => {
               const p = resolvePlan({ ...prop, size: sz.id })
               return (
                 <button
                   key={sz.id}
                   onClick={() => setProp({ size: sz.id })}
-                  className={`btn flex flex-col items-center !px-1 !py-1 ${prop.size === sz.id ? 'btn-active' : ''}`}
-                  title={`${p.planLabel} ${sz.label}: max loss $${p.maxLoss.toLocaleString()}, up to ${p.maxMinis} minis / ${p.maxMinis * 10} micros`}
+                  className={`btn flex flex-col items-center !px-1 !py-1 ${info.plan.size === sz.id ? 'btn-active' : ''}`}
+                  title={`${p.planLabel} ${sz.label}: max loss $${p.maxLoss.toLocaleString()}${perpFirm ? ' (static)' : `, up to ${p.maxMinis} minis / ${p.maxMinis * 10} micros`}`}
                 >
                   <span className="text-[11px]">{sz.label}</span>
                   <span className="num text-[9px] text-dim">${(p.price + p.activationFee).toLocaleString()}</span>
@@ -488,55 +500,79 @@ function PropSection() {
           <p className="text-[10px] leading-snug text-dim">
             {info.plan.hasEval && <>Target <span className="num text-muted">${info.plan.profitTarget.toLocaleString()}</span> · </>}
             Max loss <span className="num text-muted">${info.plan.maxLoss.toLocaleString()}</span> ·
-            Daily <span className="num text-muted">{info.plan.dailyLossLimit ? `$${info.plan.dailyLossLimit.toLocaleString()}` : 'none'}</span> ·
-            Up to <span className="num text-muted">{info.plan.maxMinis}</span> minis / <span className="num text-muted">{info.plan.maxMinis * 10}</span> micros
+            Daily <span className="num text-muted">{info.plan.dailyLossLimit ? `$${info.plan.dailyLossLimit.toLocaleString()}` : 'none'}</span>
+            {perpFirm ? (
+              <> · static floor, hard daily limit, NY-midnight days</>
+            ) : (
+              <>
+                {' '}· Up to <span className="num text-muted">{info.plan.maxMinis}</span> minis / <span className="num text-muted">{info.plan.maxMinis * 10}</span> micros
+              </>
+            )}
           </p>
-          <div className="flex items-center gap-2">
-            <span className="w-[104px] shrink-0 text-[11px] text-muted">Daily limit</span>
-            <button onClick={() => setProp({ dll: !prop.dll })} className={`btn flex-1 !py-1 ${prop.dll ? 'btn-active' : ''}`}>
-              {prop.dll ? (info.plan.dailyLossLimit ? `on · $${info.plan.dailyLossLimit.toLocaleString()}` : 'on · none at this size') : 'off'}
-            </button>
-          </div>
+          {info.plan.dllOptional && (
+            <div className="flex items-center gap-2">
+              <span className="w-[104px] shrink-0 text-[11px] text-muted">Daily limit</span>
+              <button onClick={() => setProp({ dll: !prop.dll })} className={`btn flex-1 !py-1 ${prop.dll ? 'btn-active' : ''}`}>
+                {prop.dll ? (info.plan.dailyLossLimit ? `on · $${info.plan.dailyLossLimit.toLocaleString()}` : 'on · none at this size') : 'off'}
+              </button>
+            </div>
+          )}
           <div className="flex items-baseline justify-between font-mono text-[11px]">
             <span className="text-muted">Account price</span>
             <span className="num text-ink">${(info.plan.price + info.plan.activationFee).toLocaleString()}</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="w-[104px] shrink-0 text-[11px] text-muted">Contract</span>
-            <div className="flex-1">
-              <Select
-                value={info.contract.id}
-                onChange={(v) => setProp({ contract: v })}
-                options={contractsForSymbol(symbol).map((c) => ({ value: c.id, label: c.label }))}
-              />
+          {info.perp ? (
+            <PerpSizing prop={prop} info={info} setProp={setProp} />
+          ) : (
+            <>
+            <div className="flex items-center gap-2">
+              <span className="w-[104px] shrink-0 text-[11px] text-muted">Contract</span>
+              <div className="flex-1">
+                <Select
+                  value={info.contract.id}
+                  onChange={(v) => setProp({ contract: v })}
+                  options={contractsForSymbol(symbol).map((c) => ({ value: c.id, label: c.label }))}
+                />
+              </div>
+            </div>
+            <NumRow label={`Qty (max ${info.limit})`} value={info.contracts} min={1} max={info.limit} step={1} onChange={(v) => setProp({ contracts: v })} />
+            <NumRow label="Comm. $/side" value={prop.commissionPerSide} min={0} max={5} step={0.05} onChange={(v) => setProp({ commissionPerSide: v })} hint="Per contract, per side" />
+            <NumRow label="Slippage (tk)" value={prop.slippageTicks} min={0} max={8} step={0.25} onChange={(v) => setProp({ slippageTicks: v })} hint="Ticks per fill (0.25 pt on NQ/ES)" />
+            {info.proxy && (
+              <div className="flex items-center gap-2" title="ETF bars are scaled by this ratio to price futures. Seeded from the latest GEX snapshot.">
+                <span className="w-[104px] shrink-0 text-[11px] text-muted">
+                  {symbol}→{info.contract.family}
+                </span>
+                <input
+                  type="number"
+                  step={0.01}
+                  value={info.priceScale}
+                  onChange={(e) => setProp({ ratio: { ...prop.ratio, [symbol]: Number(e.target.value) } })}
+                  className="field flex-1 !px-1 !py-0.5 text-right"
+                />
+                <span className="rounded-[2px] border border-amber-dim px-1 text-[9px] text-amber">proxy</span>
+              </div>
+            )}
+            </>
+          )}
+          <div className="flex items-center gap-2" title="Re-run the strategy with the same entries and exits and coin-flip directions, and score it against them. Each twin is a full run.">
+            <span className="w-[104px] shrink-0 text-[11px] text-muted">Coin-flip twins</span>
+            <div className="grid flex-1 grid-cols-3 gap-1">
+              {[0, 50, 200].map((n) => (
+                <button key={n} onClick={() => setProp({ twins: n })} className={`btn !py-0.5 text-[10px] ${(prop.twins || 0) === n ? 'btn-active' : ''}`}>
+                  {n === 0 ? 'off' : n}
+                </button>
+              ))}
             </div>
           </div>
-          <NumRow label={`Qty (max ${info.limit})`} value={info.contracts} min={1} max={info.limit} step={1} onChange={(v) => setProp({ contracts: v })} />
-          <NumRow label="Comm. $/side" value={prop.commissionPerSide} min={0} max={5} step={0.05} onChange={(v) => setProp({ commissionPerSide: v })} hint="Per contract, per side" />
-          <NumRow label="Slippage (tk)" value={prop.slippageTicks} min={0} max={8} step={0.25} onChange={(v) => setProp({ slippageTicks: v })} hint="Ticks per fill (0.25 pt on NQ/ES)" />
-          {info.proxy && (
-            <div className="flex items-center gap-2" title="ETF bars are scaled by this ratio to price futures. Seeded from the latest GEX snapshot.">
-              <span className="w-[104px] shrink-0 text-[11px] text-muted">
-                {symbol}→{info.contract.family}
-              </span>
-              <input
-                type="number"
-                step={0.01}
-                value={info.priceScale}
-                onChange={(e) => setProp({ ratio: { ...prop.ratio, [symbol]: Number(e.target.value) } })}
-                className="field flex-1 !px-1 !py-0.5 text-right"
-              />
-              <span className="rounded-[2px] border border-amber-dim px-1 text-[9px] text-amber">proxy</span>
-            </div>
-          )}
 
           <details className="mt-0.5">
             <summary className="cursor-pointer font-mono text-[10px] tracking-[0.12em] text-dim uppercase hover:text-ink">
               rules {info.plan.overridden.length > 0 && `· ${info.plan.overridden.length} edited`}
             </summary>
             <div className="mt-1.5 flex flex-col gap-1">
-              {RULE_FIELDS.filter((f) => !f.evalOnly || info.plan.hasEval).map((f) => {
+              {RULE_FIELDS.filter((f) => (!f.evalOnly || info.plan.hasEval) && (perpFirm ? !FUTURES_ONLY_FIELDS.has(f.key) : !f.perpOnly)).map((f) => {
                 const raw = info.plan[f.key]
                 const value = f.list ? raw?.[0] : raw
                 const shown = value === null || value === undefined ? '' : f.pct ? Number((value * 100).toFixed(2)) : value
@@ -559,7 +595,7 @@ function PropSection() {
               })}
               <div className="flex items-center justify-between text-[10px] text-dim">
                 <span>
-                  Preset as of {PROP_ASOF}. Verify on{' '}
+                  Preset as of {firm.asof || PROP_ASOF}. Verify on{' '}
                   <a href={firm.url} target="_blank" rel="noreferrer" className="text-muted underline">
                     {firm.url.replace('https://', '')}
                   </a>
@@ -573,6 +609,55 @@ function PropSection() {
         </div>
       )}
     </Section>
+  )
+}
+
+/** Sizing and costs for a perps prop account. Blank cost fields use the firm's rates. */
+function PerpSizing({ prop, info, setProp }) {
+  const inst = info.costs.instrument
+  const byRisk = prop.perpSizing !== 'notional'
+  const bps = (key, label, value, hint) => (
+    <label className="flex items-center gap-2" title={hint}>
+      <span className={`w-[104px] shrink-0 truncate text-[11px] ${prop[key] != null && prop[key] !== '' ? 'text-amber' : 'text-muted'}`}>{label}</span>
+      <input
+        type="number"
+        step={0.05}
+        min={0}
+        value={prop[key] ?? ''}
+        placeholder={String(value)}
+        onChange={(e) => setProp({ [key]: e.target.value === '' ? null : Number(e.target.value) })}
+        className="field flex-1 !px-1 !py-0.5 text-right"
+      />
+    </label>
+  )
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <span className="w-[104px] shrink-0 text-[11px] text-muted">Size by</span>
+        <div className="grid flex-1 grid-cols-2 gap-1">
+          {[['risk', 'risk / trade'], ['notional', 'notional']].map(([id, label]) => (
+            <button key={id} onClick={() => setProp({ perpSizing: id })} className={`btn !py-0.5 text-[10px] ${(byRisk ? 'risk' : 'notional') === id ? 'btn-active' : ''}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {byRisk ? (
+        <NumRow label="Risk (% of start)" value={prop.riskPct} min={0.1} max={5} step={0.1} onChange={(v) => setProp({ riskPct: v })} hint="Loss at the stop, as % of the starting balance. Notional = risk ÷ stop distance." />
+      ) : (
+        <NumRow label="Notional (× start)" value={prop.leverage} min={0.1} max={40} step={0.1} onChange={(v) => setProp({ leverage: v })} hint="Fixed notional per trade, as a multiple of the starting balance" />
+      )}
+      <p className="text-[10px] leading-snug text-dim">
+        {info.market.id} · <span className="num text-muted">${Math.round(info.notional).toLocaleString()}</span> notional ·{' '}
+        <span className="num text-muted">{info.leverage.toFixed(2)}×</span>
+        {inst.maxNotional > 0 ? <> of {(inst.maxNotional / info.plan.startBalance).toFixed(0)}× max</> : ' · leverage cap not checked'}
+        {info.capped && <span className="text-amber"> · capped</span>}
+        {info.proxy && <span className="text-amber"> · {info.market.symbol} bars as a proxy</span>}
+      </p>
+      {bps('commissionBps', 'Comm. bp/fill', inst.commissionBps, 'Commission per fill, bps of notional. Blank = MFP rate.')}
+      {bps('slippageBps', 'Slippage bp/fill', inst.slippageBps, "MFP's worst-case market-order bound for this notional. Blank = that bound.")}
+      {bps('swapDailyBps', 'Swap bp/day', inst.swapDailyBps, 'Charged hourly on open notional, long or short. Blank = MFP rate.')}
+    </>
   )
 }
 

@@ -42,8 +42,23 @@ const EXIT_REASON = {
   END: 'end-of-data',
 }
 
+const BAR_SECONDS = { '1m': 60, '2m': 120, '5m': 300, '15m': 900, '30m': 1800, '60m': 3600, '1h': 3600, '4h': 14400, '1d': 86400 }
+
 /**
- * `costs.instrument` switches sizing from "fraction of equity" to a fixed
+ * `costs.instrument` with `kind: 'perp'` sizes a perpetual future the way a
+ * perps prop firm (MyFundedPerps) charges it: `{ kind: 'perp', riskUsd |
+ * notional, maxNotional, commissionBps, slippageBps, swapDailyBps }`.
+ *   - size: `riskUsd` ÷ the stop distance when `risk.stopPct` is set, else a
+ *     fixed `notional`; capped at `maxNotional`. Neither depends on the running
+ *     balance, so the prop replay below stays valid.
+ *   - commission: bps of each fill's notional, both legs.
+ *   - slippage: bps against you on every fill (MFP publishes a worst-case
+ *     bound per notional tier; `prop/perps.js` picks it).
+ *   - swap: `swapDailyBps` ÷ 24 of the position's notional at every UTC hour
+ *     boundary it is open across, marked at the bar's close. Folded into the
+ *     trade's fees.
+ *
+ * Otherwise `costs.instrument` switches sizing from "fraction of equity" to a fixed
  * number of futures contracts: `{ pointValue, tickSize, contracts,
  * commissionPerSide, slippageTicks, priceScale }`. `priceScale` turns ETF bars
  * into futures points (QQQ → NQ) on the research plane; it is 1 on real
@@ -70,10 +85,16 @@ export function runBacktest({ dataset, strategy, params, costs, risk, window }) 
   const wStart = Math.max(0, window?.start ?? 0)
   const wEnd = Math.min(n - 1, window?.end ?? n - 1)
 
-  const inst = c.instrument && c.instrument.contracts > 0 && c.instrument.pointValue > 0 ? c.instrument : null
-  const slip = c.slippageBps / 10000
-  const slipPts = inst ? (inst.slippageTicks || 0) * (inst.tickSize || 0) : 0
-  const commission = inst ? (inst.commissionPerSide || 0) * inst.contracts : c.commissionPerTrade
+  const ci = c.instrument
+  const perp = ci?.kind === 'perp' ? ci : null
+  const fut = !perp && ci && ci.kind !== 'perp' && ci.contracts > 0 && ci.pointValue > 0 ? ci : null
+  const inst = perp || fut
+  const slip = (perp ? perp.slippageBps || 0 : c.slippageBps) / 10000
+  const slipPts = fut ? (fut.slippageTicks || 0) * (fut.tickSize || 0) : 0
+  const commission = fut ? (fut.commissionPerSide || 0) * fut.contracts : c.commissionPerTrade
+  const feeFor = perp ? (fill, q) => (fill * q * (perp.commissionBps || 0)) / 10000 : () => commission
+  const swapRate = perp ? (perp.swapDailyBps || 0) / 10000 / 24 : 0
+  const barSec = BAR_SECONDS[ds.interval] || (n > 1 ? ds.time[1] - ds.time[0] : 0)
   const scale = inst?.priceScale > 0 ? inst.priceScale : 1
   const scaled = (arr) => (scale === 1 ? arr : Float64Array.from(arr, (v) => v * scale))
   const O = scaled(ds.open)
@@ -114,18 +135,21 @@ export function runBacktest({ dataset, strategy, params, costs, risk, window }) 
   // next open and the "stop" becomes one-bar churn.
   let lockout = 0
 
-  const buyFill = inst ? (px) => px + slipPts : (px) => px * (1 + slip)
-  const sellFill = inst ? (px) => Math.max(0, px - slipPts) : (px) => px * (1 - slip)
+  let swapPaid = 0
+  const buyFill = fut ? (px) => px + slipPts : (px) => px * (1 + slip)
+  const sellFill = fut ? (px) => Math.max(0, px - slipPts) : (px) => px * (1 - slip)
 
   const closePosition = (i, rawPrice, reason) => {
     const fill = pos > 0 ? sellFill(rawPrice) : buyFill(rawPrice)
     const gross = pos > 0 ? (fill - entryPrice) * qty : (entryPrice - fill) * qty
+    const exitFee = feeFor(fill, qty)
     cash += pos > 0 ? fill * qty : -fill * qty
-    cash -= commission
+    cash -= exitFee
     // Both legs are commissioned, and slippage is already inside the fills, so
     // `pnl` and `pnlPct` are what actually landed in the account. The Monte
     // Carlo resamples `pnlPct`, which would flatter the fan if it were gross.
-    const fees = entryFee + commission
+    // Swap was taken from cash as it accrued.
+    const fees = entryFee + exitFee + swapPaid
     const net = gross - fees
     const notional = entryPrice * qty
     trades.push({
@@ -156,14 +180,20 @@ export function runBacktest({ dataset, strategy, params, costs, risk, window }) 
   const openPosition = (i, dir, rawPrice) => {
     const fill = dir > 0 ? buyFill(rawPrice) : sellFill(rawPrice)
     if (!(fill > 0)) return
-    qty = inst ? inst.contracts * inst.pointValue : Math.max(0, eq * c.sizePct) / fill
+    if (perp) {
+      const want = perp.riskUsd > 0 && r.stopPct > 0 ? perp.riskUsd / (r.stopPct / 100) : perp.notional || 0
+      qty = Math.min(want, perp.maxNotional > 0 ? perp.maxNotional : Infinity) / fill
+    } else {
+      qty = fut ? fut.contracts * fut.pointValue : Math.max(0, eq * c.sizePct) / fill
+    }
     if (!(qty > 0)) {
       qty = 0
       return
     }
+    entryFee = feeFor(fill, qty)
     cash -= dir > 0 ? fill * qty : -fill * qty
-    cash -= commission
-    entryFee = commission
+    cash -= entryFee
+    swapPaid = 0
     pos = dir
     entryPrice = fill
     entryIdx = i
@@ -257,7 +287,16 @@ export function runBacktest({ dataset, strategy, params, costs, risk, window }) 
       eq = cash
     }
 
-    // 4 — mark to market
+    // 4 — swap on what is still open across an hour boundary, then mark
+    if (swapRate && pos !== 0 && barSec > 0) {
+      const t = ds.time[i]
+      const hours = Math.floor((t + barSec) / 3600) - Math.floor(t / 3600)
+      if (hours > 0) {
+        const charge = hours * swapRate * C[i] * qty
+        cash -= charge
+        swapPaid += charge
+      }
+    }
     eq = cash + pos * qty * C[i]
     equity[i] = eq
     if (inst) {
