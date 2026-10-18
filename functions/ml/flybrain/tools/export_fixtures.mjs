@@ -10,6 +10,7 @@ const { createJiti } = require('jiti')
 const jiti = createJiti(import.meta.url)
 const { resolvePlan, sizesFor, FIRMS, SIZES, PROP_ASOF } = jiti(path.join(frontend, 'lib/backtest/prop/firms.js'))
 const { runProp } = jiti(path.join(frontend, 'lib/backtest/prop/stats.js'))
+const { perpMarket, ratesFor, leverageFor } = jiti(path.join(frontend, 'lib/backtest/prop/perps.js'))
 const { sharpeInference, deflatedSharpe, normCdf, normInv } = jiti(path.join(frontend, 'lib/backtest/stats.js'))
 const { mulberry32 } = jiti(path.join(frontend, 'lib/backtest/metrics.js'))
 const out = path.resolve(here, '../fixtures')
@@ -42,6 +43,14 @@ write('prop_parity.json',{result,time,...opts,cases})
 const mfpPlans = []
 for (const plan of Object.keys(FIRMS.mfp.plans)) for (const size of sizesFor('mfp', plan)) for (const dll of FIRMS.mfp.plans[plan].dllOptional ? [true,false] : [true]) mfpPlans.push(resolvePlan({firm:'mfp', plan, size:size.id, dll}))
 write('mfp_plans.json', {asof:FIRMS.mfp.asof, plans:mfpPlans})
+// MFP market costs under Elite, for Python research; slippage band ceilings of Infinity export as null.
+const elite = resolvePlan({firm:'mfp', plan:'elite', size:'50k', dll:true})
+const mfpMarkets = {}
+for (const symbol of ['BTC-USD', 'ETH-USD', 'SOL-USD']) {
+  const m = perpMarket(symbol)
+  mfpMarkets[m.id] = {...m, ...ratesFor(m, elite), leverage: leverageFor(m, elite)}
+}
+write('mfp_markets.json', {asof:FIRMS.mfp.asof, plan:'elite', markets:mfpMarkets})
 function mfpPath(balance, wild) {
   const scale = balance / 50000
   const r = {equity:[], barLo:[], barHi:[], barOpen:[], positions:[], trades:[]}
