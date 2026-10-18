@@ -105,6 +105,7 @@ export function runBacktest({ dataset, strategy, params, costs, risk, window }) 
   let mfe = 0
   let mae = 0
   let entryFee = 0
+  let entrySlip = 0
   let pending = null   // target position queued for next bar's open
   let barsInMarket = 0
   let prevTarget = 0
@@ -119,6 +120,7 @@ export function runBacktest({ dataset, strategy, params, costs, risk, window }) 
 
   const closePosition = (i, rawPrice, reason) => {
     const fill = pos > 0 ? sellFill(rawPrice) : buyFill(rawPrice)
+    const exitSlip = Math.abs(fill - rawPrice) * qty
     const gross = pos > 0 ? (fill - entryPrice) * qty : (entryPrice - fill) * qty
     cash += pos > 0 ? fill * qty : -fill * qty
     cash -= commission
@@ -141,6 +143,11 @@ export function runBacktest({ dataset, strategy, params, costs, risk, window }) 
       pnlPct: notional > 0 ? net / notional : 0,
       grossPct: pos > 0 ? fill / entryPrice - 1 : entryPrice / fill - 1,
       fees,
+      // Dollars lost to slippage on both legs. Already inside the fills, so
+      // `pnl + slippage + fees` is what the trade would have made at the quote.
+      slippage: entrySlip + exitSlip,
+      stopPrice: stopPrice || null,
+      targetPrice: targetPrice || null,
       bars: i - entryIdx,
       reason,
       mfe,
@@ -164,6 +171,7 @@ export function runBacktest({ dataset, strategy, params, costs, risk, window }) 
     cash -= dir > 0 ? fill * qty : -fill * qty
     cash -= commission
     entryFee = commission
+    entrySlip = Math.abs(fill - rawPrice) * qty
     pos = dir
     entryPrice = fill
     entryIdx = i

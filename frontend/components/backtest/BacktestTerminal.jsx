@@ -302,10 +302,21 @@ function useKeyboard() {
           s.setAdvanced(true)
           s.saveSlot(e.key.toUpperCase())
           break
+        case 'j':
+        case 'J':
+          e.preventDefault()
+          s.stepTrade(-1)
+          break
+        case 'k':
+        case 'K':
+          e.preventDefault()
+          s.stepTrade(1)
+          break
         case '?':
           s.toggleShortcuts(true)
           break
         case 'Escape':
+          if (!s.paletteOpen && !s.shortcutsOpen) s.selectTrade(null)
           s.togglePalette(false)
           s.toggleShortcuts(false)
           break
