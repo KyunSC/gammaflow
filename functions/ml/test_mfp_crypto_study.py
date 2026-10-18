@@ -126,6 +126,14 @@ class Book(unittest.TestCase):
         self.assertTrue(np.isfinite(ev["ev"]))
 
 
+    def test_daily_series_has_one_value_per_block_day(self):
+        m = market(flat_walk(3 * 1440))
+        trades = st.run_book(m, [st.Signal(10, 1, 100.0, None, 100), st.Signal(1500, -1, 100.0, None, 1600)])
+        d = st.daily(m, trades, np.array([1.0, 2.0]))
+        self.assertEqual(d.tolist(), [1.0, 2.0, 0.0])
+        self.assertEqual(st.daily(m, [], np.array([])).tolist(), [0.0, 0.0, 0.0])
+
+
 class Signals(unittest.TestCase):
     def test_c4_breaks_the_et_open_range(self):
         # 2021-03-01 is EST: 09:30 ET = 14:30 UTC. Build one weekday with a range then an upside break at 10:05 ET.
@@ -135,7 +143,7 @@ class Signals(unittest.TestCase):
         px[start:start + 30] = np.tile([99.0, 101.0], 15)
         px[start + 35:] = 102.0
         m = market(px)
-        sigs = st.signals_c4(m, stop="opposite", mult=2.0)
+        sigs = st.signals_c4(m, stop="opposite", m=2.0)
         self.assertEqual(len(sigs), 1)
         s = sigs[0]
         self.assertEqual((s.sig, s.side, s.stop, s.target), (start + 35, 1, 3.0, 6.0))
@@ -159,7 +167,7 @@ class Signals(unittest.TestCase):
         px2 = px.copy()
         px2[fri + 1:] += 5000  # a weekend gap up far beyond ATR
         m = market(px2, t0=t0)
-        sigs = {s.sig: s for s in st.signals_c5(m, g=0.5, s_mult=1.0)}
+        sigs = {s.sig: s for s in st.signals_c5(m, g=0.5, s=1.0)}
         self.assertIn(sun, sigs)
         s = sigs[sun]
         self.assertEqual(s.side, -1)
@@ -196,6 +204,15 @@ class Specs(unittest.TestCase):
             self.assertLessEqual(len(cfgs), 4)
             self.assertIn(spec["primary"], cfgs)
             self.assertIn(sid, st.SIGNALS)
+
+    def test_every_config_runs(self):
+        rng = np.random.default_rng(9)
+        n = 30 * 1440
+        m = market(30000 * np.exp(np.cumsum(rng.normal(0, 5e-4, n))))
+        m.funding = pd.DataFrame(dict(time=T0 + 28800 * np.arange(90), funding_rate=rng.normal(1e-4, 1e-4, 90)))
+        for sid in st.SPECS:
+            for params in st.configs(sid):
+                st.run_book(m, st.SIGNALS[sid](m, **params))
 
     def test_hashes_are_stable_and_distinct(self):
         hs = [st.spec_hash(s, p) for s in st.SPECS for p in st.configs(s)]

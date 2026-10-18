@@ -54,12 +54,12 @@ RISK_USD = 0.01 * PLAN["startBalance"]
 N_TWINS = 2000
 EV_PATHS = 200
 EV_BLOCK_DAYS = 7
-EV_HORIZON_DAYS = 365
+EV_HORIZON_DAYS = 1460  # MFP has no time limit; a short horizon censors slow books into "eval-open" and drops them
 EV_SEED = 42
 R_BOOT = 4000
 R_BOOT_BLOCK = 10
 SEED = 7
-LOOKAHEAD_HOURS = 4
+LOOKAHEAD_FRAC = 0.25  # the planted bug peeks this far into each trade's time-exit window
 COIN_CONTROLS = 200
 STALE_RUN = 3  # consecutive zero-volume bars that count as a hole: the archive can fill an outage with flat bars
 
@@ -123,6 +123,20 @@ def spec_hash(spec_id: str, params: dict) -> str:
 
 # ---------------------------------------------------------------- market data
 
+def iso(t) -> str:
+    return pd.Timestamp(int(t), unit="s", tz="UTC").isoformat()
+
+
+def run_starts(key: np.ndarray) -> np.ndarray:
+    """Index of the first element of each run of equal values."""
+    return np.r_[0, np.flatnonzero(np.diff(key)) + 1]
+
+
+def true_range(h: np.ndarray, l: np.ndarray, c: np.ndarray) -> np.ndarray:
+    prev = np.r_[np.nan, c[:-1]]
+    return np.fmax(h - l, np.fmax(np.abs(h - prev), np.abs(l - prev)))
+
+
 @dataclass
 class Market:
     symbol: str
@@ -143,26 +157,26 @@ class Market:
         self.holes_before = np.cumsum(np.r_[False, np.diff(self.t) > 60] | self.stale)
         self.market = MARKETS[SYMBOLS.get(self.symbol, self.symbol)]
 
+    def _zero_runs(self) -> list[tuple[int, int]]:
+        """[start, end) of each run of zero-volume bars."""
+        edges = np.flatnonzero(np.diff(np.r_[False, self.v == 0, False].astype(int)))
+        return list(zip(edges[::2], edges[1::2]))
+
     def _stale_runs(self) -> np.ndarray:
-        zero = np.r_[False, self.v == 0, False]
-        edges = np.flatnonzero(np.diff(zero.astype(int)))
         out = np.zeros(self.n, bool)
-        for a, b in zip(edges[::2], edges[1::2]):
+        for a, b in self._zero_runs():
             if b - a >= STALE_RUN:
                 out[a:b] = True
         return out
 
     def stale_report(self) -> dict:
-        zero = np.r_[False, self.v == 0, False]
-        edges = np.flatnonzero(np.diff(zero.astype(int)))
-        runs = sorted(((b - a, a) for a, b in zip(edges[::2], edges[1::2])), reverse=True)
+        runs = sorted(((b - a, a) for a, b in self._zero_runs()), reverse=True)
         return dict(zero_volume_bars=int((self.v == 0).sum()), stale_bars=int(self.stale.sum()),
-                    longest=[dict(at=pd.Timestamp(self.t[a], unit="s", tz="UTC").isoformat(), bars=int(k)) for k, a in runs[:10]])
+                    longest=[dict(at=iso(self.t[a]), bars=int(k)) for k, a in runs[:10]])
 
     def holes(self) -> list[dict]:
         i = np.flatnonzero(np.diff(self.t) > 60)
-        return [dict(after=pd.Timestamp(self.t[k], unit="s", tz="UTC").isoformat(), missing_bars=int((self.t[k + 1] - self.t[k]) // 60 - 1))
-                for k in i]
+        return [dict(after=iso(self.t[k]), missing_bars=int((self.t[k + 1] - self.t[k]) // 60 - 1)) for k in i]
 
     def at_or_after(self, ts) -> np.ndarray:
         return np.searchsorted(self.t, ts, side="left")
@@ -180,13 +194,11 @@ class Bars:
     v: np.ndarray
 
     def atr(self, n: int) -> np.ndarray:
-        prev = np.r_[np.nan, self.c[:-1]]
-        tr = np.fmax(self.h - self.l, np.fmax(np.abs(self.h - prev), np.abs(self.l - prev)))
-        return pd.Series(tr).rolling(n).mean().to_numpy()
+        return pd.Series(true_range(self.h, self.l, self.c)).rolling(n).mean().to_numpy()
 
 
 def aggregate(m: Market, key: np.ndarray) -> Bars:
-    first = np.r_[0, np.flatnonzero(np.diff(key)) + 1]
+    first = run_starts(key)
     last = np.r_[first[1:] - 1, m.n - 1]
     return Bars(first, last, m.o[first], np.maximum.reduceat(m.h, first), np.minimum.reduceat(m.l, first), m.c[last],
                 np.add.reduceat(m.v, first))
@@ -257,12 +269,10 @@ def signals_c2(m: Market, q: float, h: int) -> list[Signal]:
     return out
 
 
-def signals_c3(m: Market, k: float, mult: float) -> list[Signal]:
+def signals_c3(mk: Market, k: float, m: float) -> list[Signal]:
     f = SPECS["C3"]["fixed"]
-    hb = aggregate(m, m.t // 3600)
-    prev = np.r_[np.nan, hb.c[:-1]]
-    tr = np.fmax(hb.h - hb.l, np.fmax(np.abs(hb.h - prev), np.abs(hb.l - prev)))
-    atr = pd.Series(tr).shift(1).rolling(f["atr_hours"]).mean().to_numpy()
+    hb = aggregate(mk, mk.t // 3600)
+    atr = pd.Series(true_range(hb.h, hb.l, hb.c)).shift(1).rolling(f["atr_hours"]).mean().to_numpy()
     vq = pd.Series(hb.v).shift(1).rolling(f["vol_hours"]).quantile(f["vol_q"]).to_numpy()
     move = hb.c - hb.o
     out = []
@@ -270,23 +280,23 @@ def signals_c3(m: Market, k: float, mult: float) -> list[Signal]:
         side = -int(np.sign(move[j]))
         stop = (hb.c[j] - hb.l[j] if side > 0 else hb.h[j] - hb.c[j]) + f["pad_atr"] * atr[j]
         s = int(hb.last[j])
-        out.append(Signal(s, side, stop, mult * stop, end_by_time(m, s, f["hold_hours"] * 3600)))
+        out.append(Signal(s, side, stop, m * stop, end_by_time(mk, s, f["hold_hours"] * 3600)))
     return out
 
 
-def signals_c4(m: Market, stop: str, mult: float) -> list[Signal]:
+def signals_c4(mk: Market, stop: str, m: float) -> list[Signal]:
     out = []
-    first = np.r_[0, np.flatnonzero(np.diff(m.ny_date)) + 1]
-    for a, b in zip(first, np.r_[first[1:], m.n]):
-        if m.ny_dow[a] >= 5:
+    first = run_starts(mk.ny_date)
+    for a, b in zip(first, np.r_[first[1:], mk.n]):
+        if mk.ny_dow[a] >= 5:
             continue
-        mins = m.ny_min[a:b]
+        mins = mk.ny_min[a:b]
         rng = np.flatnonzero((mins >= 570) & (mins < 600)) + a
         if len(rng) != 30:
             continue
-        hi, lo = m.h[rng].max(), m.l[rng].min()
+        hi, lo = mk.h[rng].max(), mk.l[rng].min()
         win = np.flatnonzero((mins >= 600) & (mins < 900)) + a
-        out_side = np.sign((m.c[win] > hi).astype(int) - (m.c[win] < lo).astype(int))
+        out_side = np.sign((mk.c[win] > hi).astype(int) - (mk.c[win] < lo).astype(int))
         hit = np.flatnonzero(out_side)
         flat = np.flatnonzero(mins < 960)
         if not len(hit) or not len(flat):
@@ -294,13 +304,13 @@ def signals_c4(m: Market, stop: str, mult: float) -> list[Signal]:
         s, side = int(win[hit[0]]), int(out_side[hit[0]])
         ref = lo if side > 0 else hi
         level = ref if stop == "opposite" else (hi + lo) / 2
-        dist = abs(m.c[s] - level)
+        dist = abs(mk.c[s] - level)
         if dist > 0:
-            out.append(Signal(s, side, dist, mult * dist, int(flat[-1] + a)))
+            out.append(Signal(s, side, dist, m * dist, int(flat[-1] + a)))
     return out
 
 
-def signals_c5(m: Market, g: float, s_mult: float) -> list[Signal]:
+def signals_c5(m: Market, g: float, s: float) -> list[Signal]:
     atr = daily_atr_before(m, SPECS["C5"]["fixed"]["atr_days"])
     fri = np.flatnonzero((m.ny_dow == 4) & (m.ny_min == 16 * 60 + 59))
     out = []
@@ -314,7 +324,7 @@ def signals_c5(m: Market, g: float, s_mult: float) -> list[Signal]:
         if not np.isfinite(a) or abs(gap) <= g * a:
             continue
         end = int(m.at_or_after(ny_time(day, 7, 16))) - 1
-        out.append(Signal(sun, -int(np.sign(gap)), s_mult * abs(gap), abs(gap), end))
+        out.append(Signal(sun, -int(np.sign(gap)), s * abs(gap), abs(gap), end))
     return out
 
 
@@ -391,7 +401,7 @@ def simulate(m: Market, e: int, sg: Signal, side: int) -> Leg:
     cl[-1] = pnl
     lo[-1], hi[-1] = min(lo[-1], pnl), max(hi[-1], pnl)
     hr = m.t[e:e + j + 1] // 3600
-    f = np.r_[0, np.flatnonzero(np.diff(hr)) + 1]
+    f = run_starts(hr)
     last = np.r_[f[1:] - 1, j]
     pos = np.full(len(f), float(side))
     pos[-1] = 0.0
@@ -448,6 +458,11 @@ def excess(rl: np.ndarray, rs: np.ndarray, dirs: np.ndarray, p_long: float) -> n
     return taken(rl, rs, dirs) - (p_long * rl + (1 - p_long) * rs)
 
 
+def coin(rng: np.random.Generator, shape, p_long: float) -> np.ndarray:
+    """+1 with probability p_long, else -1."""
+    return np.where(rng.random(shape) < p_long, 1, -1)
+
+
 def r_test(rl: np.ndarray, rs: np.ndarray, dirs: np.ndarray, p_long: float | None = None, n_twins: int = N_TWINS,
            seed: int = SEED) -> dict:
     """Mean net R of `dirs` against twins drawing each trade's side with P(long) = p_long (default: dirs' long share)."""
@@ -457,7 +472,7 @@ def r_test(rl: np.ndarray, rs: np.ndarray, dirs: np.ndarray, p_long: float | Non
     pl = long_share(dirs) if p_long is None else p_long
     r = taken(rl, rs, dirs)
     rng = np.random.default_rng(seed)
-    twin = taken(rl, rs, np.where(rng.random((n_twins, n)) < pl, 1, -1)).mean(1)
+    twin = taken(rl, rs, coin(rng, (n_twins, n), pl)).mean(1)
     ex = excess(rl, rs, dirs, pl)
     boot = ex[block_idx(n, R_BOOT, min(R_BOOT_BLOCK, n), rng)].mean(1)
     return dict(trades=n, p_long=pl, mean_r=float(r.mean()), twin_mean_r=float(twin.mean()),
@@ -526,7 +541,7 @@ def account_ev(b: Book, dirs: np.ndarray, paths: int = EV_PATHS) -> dict:
     result, time = book_result(b, dirs)
     s = run_prop(result, time, PLAN, PLAN["startBalance"], paths=paths, block_size=EV_BLOCK_DAYS, horizon=EV_HORIZON_DAYS,
                  seed=EV_SEED, keep_attempts=False, replay_history=False)["bootstrap"]
-    return {k: s[k] for k in ("ev", "passRate", "pPayout", "meanTake", "meanPayouts", "outcomes")}
+    return {k: s[k] for k in ("ev", "passRate", "pPayout", "meanTake", "meanPayouts", "outcomes", "censored")}
 
 
 _POOL_BOOK: Book | None = None
@@ -547,7 +562,7 @@ def ev_test(b: Book, dirs: np.ndarray, n_twins: int, paths: int, workers: int, s
     own = account_ev(b, dirs, paths)
     pl = long_share(dirs)
     rng = np.random.default_rng(seed + 1)
-    jobs = [(np.where(rng.random(len(dirs)) < pl, 1, -1), paths) for _ in range(n_twins)]
+    jobs = [(coin(rng, len(dirs), pl), paths) for _ in range(n_twins)]
     with Pool(workers, initializer=_pool_init, initargs=(b,)) as pool:
         evs = np.array(pool.map(_pool_ev, jobs, chunksize=max(1, n_twins // (workers * 8))))
     return dict(strategy=own, twins=n_twins, paths=paths, twin_ev_mean=float(evs.mean()),
@@ -557,15 +572,15 @@ def ev_test(b: Book, dirs: np.ndarray, n_twins: int, paths: int, workers: int, s
 
 # ---------------------------------------------------------------- controls
 
-def lookahead_dirs(m: Market, trades: list[Trade], hours: int = LOOKAHEAD_HOURS) -> np.ndarray:
-    """Planted bug: the side of the price `hours` after entry. Must pass."""
+def lookahead_dirs(m: Market, trades: list[Trade], frac: float = LOOKAHEAD_FRAC) -> np.ndarray:
+    """Planted bug: the side of the price `frac` of the way from entry to the time exit. Must pass."""
     e = np.array([t.entry for t in trades])
-    later = np.minimum(m.at_or_after(m.t[e] + hours * 3600), m.n - 1)
+    later = e + (frac * (np.array([t.sig.end for t in trades]) - e)).astype(int)
     return np.where(m.c[later] >= m.o[e], 1, -1)
 
 
 def coin_dirs(n: int, seed: int) -> np.ndarray:
-    return np.where(np.random.default_rng(seed).random(n) < 0.5, 1, -1)
+    return coin(np.random.default_rng(seed), n, 0.5)
 
 
 # ---------------------------------------------------------------- reporting
@@ -615,19 +630,27 @@ def study_symbol(m: Market, n_twins: int) -> tuple[dict, dict]:
     return rows, books
 
 
-def deflate(rows: list[dict], books: list[list[Trade]]) -> None:
-    """Deflated Sharpe per config against every config tried (both symbols): on net R, and on R over the twins."""
+def daily(m: Market, trades: list[Trade], per_trade: np.ndarray) -> np.ndarray:
+    """Per-trade values summed by UTC exit day over every day of the block, so every config has the same length."""
+    out = np.zeros(int(m.t[-1] // 86400 - m.t[0] // 86400) + 1)
+    if trades:
+        np.add.at(out, np.array([m.t[t.legs[int(d)].exit] // 86400 for t, d in zip(trades, mirrors(trades)[2])]) - m.t[0] // 86400, per_trade)
+    return out
+
+
+def deflate(rows: list[dict], books: list[tuple[Market, list[Trade]]]) -> None:
+    """Deflated Sharpe of each config's daily R against every config tried (both symbols): on net R, and on R over
+    the twins. Daily, not per trade, because trade counts differ 40-fold across specs."""
     series = {"raw": [], "excess": []}
-    for trades in books:
+    for m, trades in books:
         rl, rs, dirs = mirrors(trades) if trades else (np.array([]),) * 3
-        series["raw"].append(taken(rl, rs, dirs) if len(dirs) else None)
-        series["excess"].append(excess(rl, rs, dirs, long_share(dirs)) if len(dirs) else None)
+        series["raw"].append(daily(m, trades, taken(rl, rs, dirs)))
+        series["excess"].append(daily(m, trades, excess(rl, rs, dirs, long_share(dirs)) if trades else rl))
     for name, xs in series.items():
-        infs = [sharpe_inference(x.tolist(), ppy=1) if x is not None and len(x) > 1 else None for x in xs]
-        trials = [i["sr"] for i in infs if i]
+        infs = [sharpe_inference(x.tolist(), ppy=365) for x in xs]
+        trials = [i["sr"] for i in infs]
         for row, inf in zip(rows, infs):
-            if inf:
-                row.setdefault("dsr", {})[name] = dict(sr=inf["sr"], **deflated_sharpe(inf, trials))
+            row.setdefault("dsr", {})[name] = dict(sharpe=inf["sharpe"], **deflated_sharpe(inf, trials))
 
 
 def main(argv=None) -> int:
@@ -649,13 +672,13 @@ def main(argv=None) -> int:
             holes = m.holes()
             rows, books[sym] = study_symbol(m, a.twins)
             results["symbols"][sym] = dict(
-                first=pd.Timestamp(m.t[0], unit="s", tz="UTC").isoformat(), last=pd.Timestamp(m.t[-1], unit="s", tz="UTC").isoformat(),
+                first=iso(m.t[0]), last=iso(m.t[-1]),
                 bars=m.n, holes=len(holes), stale=m.stale_report(), missing_bars=int(sum(h["missing_bars"] for h in holes)),
                 largest_holes=sorted(holes, key=lambda h: -h["missing_bars"])[:10], funding_prints=len(m.funding),
-                funding_first=pd.Timestamp(int(m.funding["time"].min()), unit="s", tz="UTC").isoformat() if len(m.funding) else None,
+                funding_first=iso(m.funding["time"].min()) if len(m.funding) else None,
                 rows=rows)
         keys = [(sym, k) for sym in SYMBOLS for k in books[sym]]
-        deflate([results["symbols"][s]["rows"][k] for s, k in keys], [books[s][k] for s, k in keys])
+        deflate([results["symbols"][s]["rows"][k] for s, k in keys], [(markets[s], books[s][k]) for s, k in keys])
         # EV: each spec's a-priori config and its train-best config (by excess over twins), plus controls on C4's primary.
         for sym, m in markets.items():
             rows = results["symbols"][sym]["rows"]
