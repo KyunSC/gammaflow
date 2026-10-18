@@ -443,6 +443,9 @@ function PropSection() {
   const firm = FIRMS[prop.firm] || FIRM_LIST[0]
   const plans = Object.values(firm.plans)
   const perpFirm = firm.instrument === 'perp'
+  // The plan resolves even when the symbol or sizing can't be traded, so the
+  // firm, plan and sizing controls stay reachable to fix it.
+  const plan = info?.plan || (prop.enabled ? resolvePlan(prop) : null)
 
   return (
     <Section title="account" right={info?.plan?.overridden?.length ? <span className="text-[10px] text-amber">edited</span> : null}>
@@ -461,10 +464,9 @@ function PropSection() {
           firm&apos;s evaluation, drawdown and payout rules, and prices the account — some strategies only pay when the
           fee caps the downside, and some rules pay a coin flip.
         </p>
-      ) : info.error ? (
-        <p className="text-[10px] leading-snug text-neg">{info.error}</p>
       ) : (
         <div className="flex flex-col gap-1.5">
+          {info.error && <p className="text-[10px] leading-snug text-neg">{info.error}</p>}
           {FIRM_LIST.length > 1 && (
             <Select
               value={prop.firm}
@@ -488,7 +490,7 @@ function PropSection() {
                 <button
                   key={sz.id}
                   onClick={() => setProp({ size: sz.id })}
-                  className={`btn flex flex-col items-center !px-1 !py-1 ${info.plan.size === sz.id ? 'btn-active' : ''}`}
+                  className={`btn flex flex-col items-center !px-1 !py-1 ${plan.size === sz.id ? 'btn-active' : ''}`}
                   title={`${p.planLabel} ${sz.label}: max loss $${p.maxLoss.toLocaleString()}${perpFirm ? ' (static)' : `, up to ${p.maxMinis} minis / ${p.maxMinis * 10} micros`}`}
                 >
                   <span className="text-[11px]">{sz.label}</span>
@@ -498,33 +500,33 @@ function PropSection() {
             })}
           </div>
           <p className="text-[10px] leading-snug text-dim">
-            {info.plan.hasEval && <>Target <span className="num text-muted">${info.plan.profitTarget.toLocaleString()}</span> · </>}
-            Max loss <span className="num text-muted">${info.plan.maxLoss.toLocaleString()}</span> ·
-            Daily <span className="num text-muted">{info.plan.dailyLossLimit ? `$${info.plan.dailyLossLimit.toLocaleString()}` : 'none'}</span>
+            {plan.hasEval && <>Target <span className="num text-muted">${plan.profitTarget.toLocaleString()}</span> · </>}
+            Max loss <span className="num text-muted">${plan.maxLoss.toLocaleString()}</span> ·
+            Daily <span className="num text-muted">{plan.dailyLossLimit ? `$${plan.dailyLossLimit.toLocaleString()}` : 'none'}</span>
             {perpFirm ? (
               <> · static floor, hard daily limit, NY-midnight days</>
             ) : (
               <>
-                {' '}· Up to <span className="num text-muted">{info.plan.maxMinis}</span> minis / <span className="num text-muted">{info.plan.maxMinis * 10}</span> micros
+                {' '}· Up to <span className="num text-muted">{plan.maxMinis}</span> minis / <span className="num text-muted">{plan.maxMinis * 10}</span> micros
               </>
             )}
           </p>
-          {info.plan.dllOptional && (
+          {plan.dllOptional && (
             <div className="flex items-center gap-2">
               <span className="w-[104px] shrink-0 text-[11px] text-muted">Daily limit</span>
               <button onClick={() => setProp({ dll: !prop.dll })} className={`btn flex-1 !py-1 ${prop.dll ? 'btn-active' : ''}`}>
-                {prop.dll ? (info.plan.dailyLossLimit ? `on · $${info.plan.dailyLossLimit.toLocaleString()}` : 'on · none at this size') : 'off'}
+                {prop.dll ? (plan.dailyLossLimit ? `on · $${plan.dailyLossLimit.toLocaleString()}` : 'on · none at this size') : 'off'}
               </button>
             </div>
           )}
           <div className="flex items-baseline justify-between font-mono text-[11px]">
             <span className="text-muted">Account price</span>
-            <span className="num text-ink">${(info.plan.price + info.plan.activationFee).toLocaleString()}</span>
+            <span className="num text-ink">${(plan.price + plan.activationFee).toLocaleString()}</span>
           </div>
 
-          {info.perp ? (
+          {perpFirm ? (
             <PerpSizing prop={prop} info={info} setProp={setProp} />
-          ) : (
+          ) : info.error ? null : (
             <>
             <div className="flex items-center gap-2">
               <span className="w-[104px] shrink-0 text-[11px] text-muted">Contract</span>
@@ -569,14 +571,14 @@ function PropSection() {
 
           <details className="mt-0.5">
             <summary className="cursor-pointer font-mono text-[10px] tracking-[0.12em] text-dim uppercase hover:text-ink">
-              rules {info.plan.overridden.length > 0 && `· ${info.plan.overridden.length} edited`}
+              rules {plan.overridden.length > 0 && `· ${plan.overridden.length} edited`}
             </summary>
             <div className="mt-1.5 flex flex-col gap-1">
-              {RULE_FIELDS.filter((f) => (!f.evalOnly || info.plan.hasEval) && (perpFirm ? !FUTURES_ONLY_FIELDS.has(f.key) : !f.perpOnly)).map((f) => {
-                const raw = info.plan[f.key]
+              {RULE_FIELDS.filter((f) => (!f.evalOnly || plan.hasEval) && (perpFirm ? !FUTURES_ONLY_FIELDS.has(f.key) : !f.perpOnly)).map((f) => {
+                const raw = plan[f.key]
                 const value = f.list ? raw?.[0] : raw
                 const shown = value === null || value === undefined ? '' : f.pct ? Number((value * 100).toFixed(2)) : value
-                const edited = info.plan.overridden.includes(f.key)
+                const edited = plan.overridden.includes(f.key)
                 return (
                   <label key={f.key} className="flex items-center gap-2">
                     <span className={`w-[104px] shrink-0 truncate text-[11px] ${edited ? 'text-amber' : 'text-muted'}`}>{f.label}</span>
@@ -614,8 +616,8 @@ function PropSection() {
 
 /** Sizing and costs for a perps prop account. Blank cost fields use the firm's rates. */
 function PerpSizing({ prop, info, setProp }) {
-  const inst = info.costs.instrument
-  const byRisk = prop.perpSizing !== 'notional'
+  const inst = info.costs?.instrument
+  const byRisk = prop.perpSizing === 'risk'
   const bps = (key, label, value, hint) => (
     <label className="flex items-center gap-2" title={hint}>
       <span className={`w-[104px] shrink-0 truncate text-[11px] ${prop[key] != null && prop[key] !== '' ? 'text-amber' : 'text-muted'}`}>{label}</span>
@@ -647,16 +649,18 @@ function PerpSizing({ prop, info, setProp }) {
       ) : (
         <NumRow label="Notional (× start)" value={prop.leverage} min={0.1} max={40} step={0.1} onChange={(v) => setProp({ leverage: v })} hint="Fixed notional per trade, as a multiple of the starting balance" />
       )}
-      <p className="text-[10px] leading-snug text-dim">
-        {info.market.id} · <span className="num text-muted">${Math.round(info.notional).toLocaleString()}</span> notional ·{' '}
-        <span className="num text-muted">{info.leverage.toFixed(2)}×</span>
-        {inst.maxNotional > 0 ? <> of {(inst.maxNotional / info.plan.startBalance).toFixed(0)}× max</> : ' · leverage cap not checked'}
-        {info.capped && <span className="text-amber"> · capped</span>}
-        {info.proxy && <span className="text-amber"> · {info.market.symbol} bars as a proxy</span>}
-      </p>
-      {bps('commissionBps', 'Comm. bp/fill', inst.commissionBps, 'Commission per fill, bps of notional. Blank = MFP rate.')}
-      {bps('slippageBps', 'Slippage bp/fill', inst.slippageBps, "MFP's worst-case market-order bound for this notional. Blank = that bound.")}
-      {bps('swapDailyBps', 'Swap bp/day', inst.swapDailyBps, 'Charged hourly on open notional, long or short. Blank = MFP rate.')}
+      {inst && (
+        <p className="text-[10px] leading-snug text-dim">
+          {info.market.id} · <span className="num text-muted">${Math.round(info.notional).toLocaleString()}</span> notional ·{' '}
+          <span className="num text-muted">{info.leverage.toFixed(2)}×</span>
+          {inst.maxNotional > 0 ? <> of {(inst.maxNotional / info.plan.startBalance).toFixed(0)}× max</> : ' · leverage cap not checked'}
+          {info.capped && <span className="text-amber"> · capped</span>}
+          {info.proxy && <span className="text-amber"> · {info.market.symbol} bars as a proxy</span>}
+        </p>
+      )}
+      {inst && bps('commissionBps', 'Comm. bp/fill', inst.commissionBps, 'Commission per fill, bps of notional. Blank = MFP rate.')}
+      {inst && bps('slippageBps', 'Slippage bp/fill', inst.slippageBps, "MFP's worst-case market-order bound for this notional. Blank = that bound.")}
+      {inst && bps('swapDailyBps', 'Swap bp/day', inst.swapDailyBps, 'Charged hourly on open notional, long or short. Blank = MFP rate.')}
     </>
   )
 }

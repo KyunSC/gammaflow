@@ -109,7 +109,7 @@ export function perpSetup({ prop, plan, symbol, costs, risk }) {
   const market = perpMarket(symbol)
   if (!market) return { error: `${symbol} has no MyFundedPerps market — use crypto (BTC-USD …) or an index proxy (QQQ, SPY, NQ=F, ES=F)` }
   const start = plan.startBalance
-  const byRisk = prop.perpSizing !== 'notional'
+  const byRisk = prop.perpSizing === 'risk'
   if (byRisk && !(risk?.stopPct > 0)) return { error: 'Risk sizing needs a stop: set Stop (%) under exits, or size by notional' }
   const lev = leverageFor(market, plan)
   const maxNotional = lev ? lev * start : 0

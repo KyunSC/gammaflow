@@ -22,10 +22,10 @@ export const DEFAULT_PROP = {
   slippageTicks: 1,
   ratio: {},
   overrides: {},
-  // Perps firms (MyFundedPerps): risk per trade as % of the starting balance
-  // (needs a stop), or a fixed notional as a multiple of it. Blank cost fields
-  // use the firm's published rates.
-  perpSizing: 'risk',
+  // Perps firms (MyFundedPerps): a fixed notional as a multiple of the starting
+  // balance, or risk per trade as % of it (needs a stop). Blank cost fields use
+  // the firm's published rates.
+  perpSizing: 'notional',
   riskPct: 1,
   leverage: 1,
   commissionBps: null,
