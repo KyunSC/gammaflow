@@ -1,4 +1,4 @@
-"""Faithful Lucid replay port. Rule values come only from exported JS fixtures."""
+"""Faithful port of frontend/lib/backtest/prop (Lucid and MyFundedPerps). Rule values come only from exported JS fixtures."""
 from collections import Counter
 from functools import lru_cache
 from itertools import accumulate
@@ -12,12 +12,20 @@ EPS=1e-9
 
 
 @lru_cache(maxsize=None)
-def _plans():
-    return json.loads((Path(__file__).parent/'fixtures'/'lucid_plans.json').read_text())['plans']
+def _plans(firm='lucid'):
+    name='mfp_plans.json' if firm=='mfp' else 'lucid_plans.json'
+    return json.loads((Path(__file__).parent/'fixtures'/name).read_text())['plans']
 
 
-def resolve_plan(plan=config.PROP['plan'], size=config.PROP['size'], dll=config.PROP['dll']):
-    return dict(next(p for p in _plans() if p['plan']==plan and p['size']==size and p['dll']==dll))
+def resolve_plan(plan=config.PROP['plan'], size=config.PROP['size'], dll=config.PROP['dll'], firm='lucid'):
+    return dict(next(p for p in _plans(firm) if p['plan']==plan and p['size']==size and p['dll']==dll))
+
+
+def ny_day(time):
+    """time.js nyDay: calendar day number in America/New_York."""
+    import pandas as pd
+    local=pd.to_datetime(np.asarray(time,dtype=float),unit='s',utc=True).tz_convert('America/New_York').tz_localize(None)
+    return np.asarray((local.normalize()-pd.Timestamp(0)).days,dtype=float)
 
 
 def mulberry32(a):
@@ -34,15 +42,15 @@ def nth(values,k):
     return values[min(k,len(values)-1)] if values else None
 
 
-def build_day_table(result, time=None, initial_capital=None):
+def build_day_table(result, time=None, initial_capital=None, day_boundary='globex'):
     def get(camel,snake):
         if isinstance(result,dict): return result.get(camel)
-        return getattr(result,snake)
+        return getattr(result,snake,None)
     equity=np.asarray(get('equity','equity')); n=len(equity)
     time=np.asarray(time if time is not None else get('time','time'))
     capital=initial_capital if initial_capital is not None else get('initialCapital','initial_capital')
-    # Exact time.js convention: roll at 22:00 UTC in either DST regime.
-    day=np.floor((time+7200)/86400)
+    # Exact time.js conventions: Globex rolls at 22:00 UTC in either DST regime; 'ny' at New York midnight.
+    day=ny_day(time) if day_boundary=='ny' else np.floor((time+7200)/86400)
     starts=np.r_[0,np.flatnonzero(day[1:]!=day[:-1])+1]
     ends=np.r_[starts[1:]-1,n-1]
     # Each day's values are relative to the previous day's closing equity.
@@ -51,18 +59,35 @@ def build_day_table(result, time=None, initial_capital=None):
                     (('barLo','bar_lo'),('barHi','bar_hi'),('barOpen','bar_open'),('equity','equity')))
     flag=(np.abs(hi-lo)>EPS)|(np.abs(close)>EPS)|(np.abs(op)>EPS)
     # Lists: run_stage indexes these per bar inside every bootstrap path.
-    return dict(n=len(starts),start=starts.tolist(),end=ends.tolist(),active=np.logical_or.reduceat(flag,starts).astype(int).tolist(),
-                time=time[starts].tolist(),lo=lo.tolist(),hi=hi.tolist(),open=op.tolist(),close=close.tolist(),
-                min_lo=np.minimum.reduceat(lo,starts).tolist())
+    out=dict(n=len(starts),start=starts.tolist(),end=ends.tolist(),active=np.logical_or.reduceat(flag,starts).astype(int).tolist(),
+             time=time[starts].tolist(),lo=lo.tolist(),hi=hi.tolist(),open=op.tolist(),close=close.tolist(),
+             min_lo=np.minimum.reduceat(lo,starts).tolist(),max_hi=np.maximum.reduceat(hi,starts).tolist())
+    trades=get('trades','trades'); positions=get('positions','positions')
+    if trades is not None:
+        day_idx=np.repeat(np.arange(len(starts)),ends-starts+1); fills=np.zeros(len(starts),dtype=int)
+        for t in trades:
+            for b in (t['entryIdx'],t['exitIdx']):
+                if 0<=b<n: fills[day_idx[b]]=1
+        d0=day[starts]
+        out['fills']=fills.tolist(); out['span']=[max(1,int(d0[i+1]-d0[i])) if i+1<len(d0) else 1 for i in range(len(d0))]
+    if positions is not None:
+        pos=np.asarray(positions); out['flat']=[int(pos[e]==0) for e in ends]
+    return out
 
 
 def run_stage(days,next_day,k0,plan,stage):
     start=plan['startBalance']; lock_at=start+plan['lockOffset']
-    intraday=stage=='funded' and plan['fundedDrawdown']=='intraday'
+    mode=plan['fundedDrawdown'] if stage=='funded' else plan.get('evalDrawdown') or 'eod'
+    intraday=mode=='intraday'; fixed=mode=='static'
     dll=plan['dailyLossLimit'] or 0
-    bal=peak=start; locked=False; threshold=min(peak-plan['maxLoss'],lock_at)
-    active_days=best_day=dll_hits=cycle_active=cycle_profit_days=cycle_best=0
-    cycle_start=start; payouts=[]
+    dll_fails=plan.get('dllMode')=='fail'
+    target=start+(plan['profitTarget'] or 0)
+    pass_now=stage=='eval' and plan.get('passIntrabar') and not plan['evalMinDays'] and not plan['evalConsistency']
+    idle_limit=(plan.get('fundedInactivityDays' if stage=='funded' else 'evalInactivityDays') or 0) if 'fills' in days else 0
+    gross_cap=plan['lifetimeCap']/plan['split'] if plan.get('lifetimeCap') and plan['split']>0 else math.inf
+    bal=peak=start; locked=False; threshold=start-plan['maxLoss'] if fixed else min(peak-plan['maxLoss'],lock_at)
+    active_days=best_day=dll_hits=cycle_active=cycle_profit_days=cycle_best=idle=0
+    paid=0; cycle_start=start; payouts=[]
     def done(status,reason,k):
         return dict(status=status,reason=reason,days=k-k0,payouts=payouts,dllHits=dll_hits,balance=bal)
     k=k0
@@ -71,12 +96,16 @@ def run_stage(days,next_day,k0,plan,stage):
         if d<0: return done('open','end-of-data',k)
         s,e=days['start'][d],days['end'][d]
         day_base=bal; dll_level=day_base-dll if dll else -math.inf; pnl=None
-        safe = not intraday and day_base + days['min_lo'][d] > max(threshold, dll_level)
+        safe = (not intraday and day_base + days['min_lo'][d] > max(threshold, dll_level)
+                and not (pass_now and day_base + days['max_hi'][d] >= target))
         for i in (() if safe else range(s,e+1)):
             if intraday and not locked:
                 peak=max(peak,day_base+days['hi'][i]); threshold=min(peak-plan['maxLoss'],lock_at)
             worst=day_base+days['lo'][i]
-            if dll and worst<=dll_level and dll_level>threshold:
+            if dll_fails and worst<=dll_level and dll_level>threshold:
+                dll_hits+=1; bal=min(dll_level,day_base+days['open'][i])
+                return done('breached','daily-loss',k+1)
+            if not dll_fails and dll and worst<=dll_level and dll_level>threshold:
                 frozen=min(dll_level,day_base+days['open'][i]); dll_hits+=1
                 if frozen<=threshold:
                     bal=frozen
@@ -86,15 +115,24 @@ def run_stage(days,next_day,k0,plan,stage):
             if worst<=threshold:
                 bal=min(threshold,day_base+days['open'][i])
                 return done('breached','max-loss',k+1)
+            if pass_now and day_base+days['hi'][i]>=target:
+                bal=target
+                return done('passed','target',k+1)
         if pnl is None: pnl=days['close'][e]
         bal=day_base+pnl; act=days['active'][d]==1
         if act: active_days+=1
-        if not locked:
+        if not locked and not fixed:
             peak=max(peak,bal); threshold=min(peak-plan['maxLoss'],lock_at)
         if stage=='eval':
             best_day=max(best_day,pnl); profit=bal-start
             if active_days>=plan['evalMinDays'] and profit>=plan['profitTarget'] and (not plan['evalConsistency'] or best_day<=plan['evalConsistency']*profit+EPS):
                 return done('passed','target',k+1)
+        if idle_limit:
+            if days['fills'][d]: idle=0
+            else:
+                idle+=days['span'][d]
+                if idle>=idle_limit: return done('breached','inactivity',k+1)
+        if stage=='eval':
             k+=1
             continue
         if act: cycle_active+=1
@@ -102,16 +140,20 @@ def run_stage(days,next_day,k0,plan,stage):
         cycle_best=max(cycle_best,pnl); cycle_profit=bal-cycle_start; idx=len(payouts)
         goal=nth(plan['profitGoal'],idx) or 0
         eligible=(cycle_active>=plan['fundedMinDays'] and cycle_profit_days>=plan['minProfitDays'] and cycle_profit>0 and cycle_profit>=goal
-            and (not plan['fundedConsistency'] or cycle_best<=plan['fundedConsistency']*cycle_profit+EPS) and (not plan['buffer'] or bal>plan['buffer']))
+            and (not plan['fundedConsistency'] or cycle_best<=plan['fundedConsistency']*cycle_profit+EPS) and (not plan['buffer'] or bal>plan['buffer'])
+            and ('flat' not in days or days['flat'][d]==1))
         if eligible:
-            amount=plan['payoutFraction']*(bal-start) if plan['payoutFraction'] is not None else bal-max(plan['buffer'] or 0,start)
+            base=cycle_start if plan.get('payoutFrom')=='cycle' else start
+            amount=plan['payoutFraction']*(bal-start) if plan['payoutFraction'] is not None else bal-max(plan['buffer'] or 0,base)
             cap=nth(plan['payoutCap'],idx)
             if cap is not None and cap>0: amount=min(amount,cap)
-            amount=math.floor(amount)
+            amount=math.floor(min(amount,gross_cap-paid))
             if amount>=plan['minPayout']:
-                payouts.append(amount); bal-=amount; locked=True; threshold=lock_at
+                payouts.append(amount); paid+=amount; bal-=amount; locked=True
+                if plan.get('lockOnPayout',True) is not False: threshold=lock_at
                 cycle_start=bal; cycle_active=cycle_profit_days=cycle_best=0
-                if len(payouts)>=plan['maxPayouts']: return done('graduated','max-payouts',k+1)
+                if plan['maxPayouts'] and len(payouts)>=plan['maxPayouts']: return done('graduated','max-payouts',k+1)
+                if paid>=gross_cap-1: return done('graduated','lifetime-cap',k+1)
         k+=1
 
 
@@ -151,7 +193,7 @@ def run_prop(result,time=None,plan=None,initial_capital=None,paths=config.PROP['
              horizon=config.PROP['horizon'],seed=config.PROP['seed'],keep_attempts=True,replay_history=True):
     """replay_history=False skips the per-start-day replay; the bootstrap is unaffected."""
     plan=plan or resolve_plan()
-    days=build_day_table(result,time,initial_capital)
+    days=build_day_table(result,time,initial_capital,plan.get('dayBoundary') or 'globex')
     cum=[0.,*accumulate(days['close'][e] for e in days['end'])]
     historical=[]
     for s in range(days['n']) if replay_history else ():

@@ -44,4 +44,13 @@ class ParityTests(unittest.TestCase):
             self.assertIsNone(result['historical'])
             self.equal(result['bootstrap'],c['output']['bootstrap'])
 
+    def test_prop_mfp_plans(self):
+        # MyFundedPerps: static floors, hard DLL, NY-midnight days, flat-day payouts, inactivity, lifetime cap.
+        f=json.loads((BASE/'mfp_parity.json').read_text())
+        for c in f['cases']:
+            with self.subTest(plan=c['plan']['plan'],path=c['key'],dll=c['plan']['dll']):
+                r=f['results'][c['key']]
+                result=run_prop(r['result'],r['time'],c['plan'],c['plan']['startBalance'],paths=f['paths'],block_size=f['blockSize'],horizon=f['horizon'],seed=f['seed'],keep_attempts=False)
+                self.equal(result,c['output'])
+
 if __name__ == '__main__': unittest.main()

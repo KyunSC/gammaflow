@@ -15,7 +15,7 @@ const OUTCOMES = [
   { id: 'eval-open', label: 'eval unfinished', tone: 'text-dim', title: 'Data ran out mid-evaluation — excluded from every rate' },
   { id: 'funded-breached', label: 'funded, breached', tone: 'text-amber' },
   { id: 'funded-open', label: 'funded, data ended', tone: 'text-muted', title: 'Payouts so far are a lower bound' },
-  { id: 'graduated', label: 'moved to live', tone: 'text-pos', title: 'Hit the payout count that moves the account to live — not simulated further' },
+  { id: 'graduated', label: 'moved to live / capped', tone: 'text-pos', title: 'Hit the payout count that moves the account to live, or the lifetime payout cap — not simulated further' },
 ]
 
 /**
@@ -37,8 +37,9 @@ export default function PropPanel() {
   if (!prop.enabled) {
     return (
       <EmptyState action={<button className="btn" onClick={() => setProp({ enabled: true })}>switch to prop firm</button>}>
-        Prop mode trades NQ/ES futures under Lucid Trading&apos;s rules and prices each account, so you can see
-        whether a strategy pays as a funded account even when it doesn&apos;t on your own capital.
+        Prop mode trades NQ/ES futures under Lucid Trading&apos;s rules, or crypto and index perps under
+        MyFundedPerps&apos;, and prices each account, so you can see whether a strategy pays as a funded account even
+        when it doesn&apos;t on your own capital.
       </EmptyState>
     )
   }
@@ -54,7 +55,8 @@ export default function PropPanel() {
       <div className="hair-b flex flex-wrap items-center gap-3 bg-panel-2 px-2 py-1.5 font-mono text-[10px] text-dim">
         <span className="text-muted">
           {plan.planLabel} {plan.sizeLabel} · {fmtMoney(s.cost)}
-          {inst && <> · {inst.contracts} × {inst.contract}</>}
+          {inst?.kind === 'perp' && <> · {inst.market} · {inst.riskUsd > 0 ? `${fmtMoney(inst.riskUsd)} risk / trade` : `${fmtMoney(inst.notional)} notional`}</>}
+          {inst && inst.kind !== 'perp' && <> · {inst.contracts} × {inst.contract}</>}
         </span>
         <span className="flex-1" />
         <div className="flex gap-1">
@@ -104,6 +106,8 @@ export default function PropPanel() {
           </span>
         </div>
 
+        {pr.twins ? <TwinsBlock twins={pr.twins} /> : <TwinsOffer setProp={setProp} perp={plan.instrument === 'perp'} />}
+
         <NetHistogram nets={s.nets} cost={s.cost} />
 
         <div className="hair-t bg-panel-2 p-2 text-[10px] leading-snug text-dim">
@@ -116,9 +120,12 @@ export default function PropPanel() {
             {s.fundedOpen > 0 && ` ${s.fundedOpen} were still funded when data ended — their payouts are a lower bound.`}
           </p>
           <p className="mt-1">
-            Rules are replayed on bar extremes: a bar that touches a limit is assumed to hit it, and within a bar the
-            high comes before the low. News and the 5-second hold rule are not modelled.
-            {inst?.priceScale !== 1 && ` Futures are priced from ETF bars × ${inst?.priceScale} — a proxy that ignores basis and rolls.`}
+            Rules are replayed on bar extremes: a bar that touches a limit is assumed to hit it
+            {plan.instrument === 'perp'
+              ? ', and a bar that touches both the target and a floor is a breach. Equity is marked to market at each New York midnight; a payout needs a flat day end. The funded news window, per-market exposure caps beyond the leverage limit, and MFP\'s payout review are not modelled.'
+              : ', and within a bar the high comes before the low. News and the 5-second hold rule are not modelled.'}
+            {inst?.kind !== 'perp' && inst?.priceScale !== 1 && ` Futures are priced from ETF bars × ${inst?.priceScale} — a proxy that ignores basis and rolls.`}
+            {inst?.kind === 'perp' && result.config?.symbol && !/-USD$/.test(result.config.symbol) && ` ${inst.market} is priced from ${result.config.symbol} bars — a proxy that misses the perp's basis and weekend trading.`}
             {plan.overridden?.length > 0 && ` Edited rules: ${plan.overridden.join(', ')}.`}
           </p>
         </div>
@@ -129,11 +136,59 @@ export default function PropPanel() {
   )
 }
 
+/** The strategy against the same trades with coin-flip directions. */
+function TwinsBlock({ twins }) {
+  const t = twins
+  const beats = t.pEv <= 0.05 && t.pMeanTrade <= 0.05
+  return (
+    <div className="hair-t bg-panel px-2 py-1.5">
+      <p className="font-mono text-[9px] tracking-[0.14em] text-dim uppercase">
+        vs {t.n} coin-flip twins · same entries, exits and size · P(long) {fmtPctAbs(t.pLong)}
+      </p>
+      <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 font-mono text-[11px] sm:grid-cols-4">
+        <span title="Bootstrap EV per purchase of the strategy minus the twins' mean, same resampled days">
+          EV over twins <span className={`num ${signClass(t.evOverTwins)}`}>{fmtMoneySigned(t.evOverTwins)}</span>
+        </span>
+        <span title="Twins' mean bootstrap EV per purchase: what the rules pay these trades with no edge">
+          twins EV <span className={`num ${signClass(t.twins.meanEv)}`}>{fmtMoneySigned(t.twins.meanEv)}</span>
+        </span>
+        <span title="(1 + twins with EV ≥ the strategy's) ÷ (1 + twins)">
+          p (EV) <span className="num text-ink">{t.pEv.toFixed(3)}</span>
+        </span>
+        <span title="Same, on mean net P&L per trade">
+          p (trade) <span className="num text-ink">{t.pMeanTrade.toFixed(3)}</span>
+        </span>
+      </div>
+      <p className={`mt-0.5 text-[10px] ${beats ? 'text-pos' : 'text-dim'}`}>
+        {beats
+          ? 'Beats the twins on both counts at 5%. One run on data you have already looked at is not a test; score it once on held-out data.'
+          : 'Not distinguishable from a coin flip on these trades.'}
+      </p>
+    </div>
+  )
+}
+
+function TwinsOffer({ setProp, perp }) {
+  return (
+    <div className="hair-t flex items-center gap-2 bg-panel px-2 py-1.5 text-[10px] text-dim">
+      <span className="flex-1">
+        {perp
+          ? 'On MyFundedPerps a coin flip can be +EV. Score this against the same trades with random directions before trusting the EV.'
+          : 'Score this against the same trades with coin-flip directions to see whether the entries matter.'}
+      </span>
+      <button className="btn !px-2 !py-0.5" onClick={() => setProp({ twins: 50 })}>
+        run 50 twins
+      </button>
+    </div>
+  )
+}
+
 function verdict(pr) {
   const cash = pr.historical.meanCashPnl
   const ev = pr.historical.ev
   if (!Number.isFinite(ev)) return 'Not enough resolved attempts to judge.'
-  if (ev > 0 && cash <= 0) return 'Prop-only edge: the fee caps the losing paths while the winners still pay out.'
+  if (pr.twins && ev > 0 && pr.twins.pEv > 0.05) return 'Positive, but no better than the same trades with coin-flip directions: the rules are paying, not the entries.'
+  if (ev > 0 && cash <= 0) return 'Prop-only edge: the fee caps the losing paths while the winners still pay out. Check it against coin-flip twins.'
   if (ev > 0 && cash > 0) return 'Profitable both ways — compare the numbers for which uses capital better.'
   if (ev <= 0 && cash > 0) return 'Works on your own capital but the rules or payout caps eat it as a prop account.'
   return 'Loses both ways.'

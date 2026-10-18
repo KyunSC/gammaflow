@@ -63,14 +63,15 @@ export async function run(config) {
   const api = getWorker()
   if (!api) {
     const dataset = local(config.datasetId)
+    const strategy = getStrategy(config.strategyId)
     return attachProp(runBacktest({
       dataset,
-      strategy: getStrategy(config.strategyId),
+      strategy,
       params: config.params,
       costs: config.costs,
       risk: config.risk,
       window: config.window,
-    }), dataset, config)
+    }), dataset, config, { strategy })
   }
   return api.run(config)
 }

@@ -40,3 +40,12 @@ export function etMinuteOfDay(t) {
   const m = Math.floor(t / 60) + etOffsetMinutes(t)
   return ((m % 1440) + 1440) % 1440
 }
+
+/**
+ * Calendar-day number of a bar time in New York (days since 1970-01-01, local).
+ * Prop firms that reset at midnight America/New_York (MyFundedPerps) need this
+ * rather than `tradingDay`, which rolls at 22:00 UTC for the Globex session.
+ */
+export function nyDay(t) {
+  return Math.floor((t + etOffsetMinutes(t) * 60) / 86400)
+}

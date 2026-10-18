@@ -11,7 +11,7 @@
  *                censoring is rare.
  *
  * The number that answers "is this strategy worth running at a prop firm" is
- * EV per purchase: the expected 90%-split payouts minus the fee. It can be
+ * EV per purchase: the expected payouts after the split, minus the fee. It can be
  * positive where the cash account loses money — the fee caps the downside
  * while payouts keep the upside — and the aligned cash P&L sits beside it so
  * that difference is visible.
@@ -61,8 +61,8 @@ export function summarizeAttempts(attempts, plan) {
  * `result` is an engine result run with `costs.instrument` (so it carries the
  * bar extremes); `time` is the dataset's bar times.
  */
-export function runProp({ result, time, plan, initialCapital, bootstrap = true, paths = 1000, blockSize = 5, horizon = 250, seed = 42, keepAttempts = true }) {
-  if (!result.barLo) throw new Error('Prop replay needs a futures run (costs.instrument)')
+export function runProp({ result, time, plan, initialCapital, historical: withHistory = true, bootstrap = true, paths = 1000, blockSize = 5, horizon = 250, seed = 42, keepAttempts = true }) {
+  if (!result.barLo) throw new Error('Prop replay needs an instrument run (costs.instrument: futures or perp)')
   const days = buildDayTable({
     equity: result.equity,
     barLo: result.barLo,
@@ -72,6 +72,9 @@ export function runProp({ result, time, plan, initialCapital, bootstrap = true, 
     windowEnd: result.windowEnd,
     time,
     initialCapital,
+    dayBoundary: plan.dayBoundary,
+    trades: result.trades,
+    positions: result.positions,
   })
 
   // Cumulative cash-account P&L by day, for the aligned comparison.
@@ -79,7 +82,7 @@ export function runProp({ result, time, plan, initialCapital, bootstrap = true, 
   for (let d = 0; d < days.n; d++) cum[d + 1] = cum[d] + days.close[days.end[d]]
 
   const historical = []
-  for (let s = 0; s < days.n; s++) {
+  for (let s = 0; withHistory && s < days.n; s++) {
     const a = simulateAccount({ days, plan, next: (k) => (s + k < days.n ? s + k : -1) })
     a.startDay = s
     a.startTime = days.time[s]

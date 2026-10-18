@@ -7,6 +7,8 @@
 import { resolvePlan } from './firms'
 import { CONTRACTS, DEFAULT_RATIO, symbolFamily, contractsForSymbol, maxContracts } from './contracts'
 import { runProp } from './stats'
+import { perpSetup } from './perps'
+import { coinFlipTwins } from './twins'
 
 export const DEFAULT_PROP = {
   enabled: false,
@@ -20,6 +22,17 @@ export const DEFAULT_PROP = {
   slippageTicks: 1,
   ratio: {},
   overrides: {},
+  // Perps firms (MyFundedPerps): a fixed notional as a multiple of the starting
+  // balance, or risk per trade as % of it (needs a stop). Blank cost fields use
+  // the firm's published rates.
+  perpSizing: 'notional',
+  riskPct: 1,
+  leverage: 1,
+  commissionBps: null,
+  slippageBps: null,
+  swapDailyBps: null,
+  // Coin-flip twins to score against (0 = off): each is a full re-run.
+  twins: 0,
 }
 
 /** Contract to use for `symbol`: the chosen one when it matches the symbol's
@@ -44,6 +57,7 @@ export function ratioFor(prop, symbol) {
  * sizing, the account size and the flat-by rule, and leaves stops alone.
  */
 export function propSetup({ prop, symbol, costs, risk }) {
+  if (resolvePlan(prop).instrument === 'perp') return perpSetup({ prop, plan: resolvePlan(prop), symbol, costs, risk })
   const contract = contractFor(prop, symbol)
   if (!contract) return { error: `${symbol} has no futures mapping — prop mode trades NQ/ES only` }
   const plan = resolvePlan(prop)
@@ -74,15 +88,29 @@ export function propSetup({ prop, symbol, costs, risk }) {
   }
 }
 
-/** Adds `result.prop` when the run was configured with a plan. */
+/** Adds `result.prop` when the run was configured with a plan, and the
+ *  coin-flip twins when `config.twins` > 0 and `opts.strategy` is given. */
 export function attachProp(result, dataset, config, opts = {}) {
   if (!config.prop || !result.barLo) return result
+  const { strategy, ...replay } = opts
   result.prop = runProp({
     result,
     time: dataset.time,
     plan: config.prop,
     initialCapital: config.costs.initialCapital,
-    ...opts,
+    ...replay,
   })
+  if (config.twins > 0 && strategy) {
+    result.prop.twins = coinFlipTwins({
+      dataset,
+      strategy,
+      params: config.params,
+      costs: config.costs,
+      risk: config.risk,
+      window: config.window,
+      plan: config.prop,
+      n: config.twins,
+    })
+  }
   return result
 }

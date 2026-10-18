@@ -23,6 +23,23 @@
  *   - payoutFraction f: request f × profit above the starting balance.
  *     null: request everything above `buffer`.
  *   - arrays indexed by payout number repeat their last value.
+ *
+ * MyFundedPerps, as of 2026-10-18, from its own docs (docs.myfundedperpetuals.com:
+ * Challenges and Rules, Elite Accounts, Payouts, Commissions and Fees, Breaches)
+ * except where marked third-party. Its rules differ in kind, not just in value,
+ * so the plan carries extra modes that `account.js` reads:
+ *   - drawdown 'static'   threshold = start − maxLoss and never trails;
+ *     `lockOnPayout` moves it to start + lockOffset on the first payout
+ *     (Select / Prime / Signature) or leaves it for life (Elite)
+ *   - dllMode 'fail'      touching the daily floor fails the account (Lucid's
+ *     'flatten' only ends the day)
+ *   - dayBoundary 'ny'    the day resets at midnight America/New_York
+ *   - passIntrabar        the evaluation passes the moment equity, open P&L
+ *     included, touches the target
+ *   - payoutFrom 'cycle'  profit is counted from the balance after the last
+ *     payout; whatever a payout leaves behind can never be withdrawn
+ *   - lifetimeCap         trader take (after split) across all payouts
+ *   - inactivity          calendar days without a fill that close the account
  */
 
 export const PROP_ASOF = 'Sep 2026'
@@ -33,6 +50,61 @@ export const SIZES = [
   { id: '100k', label: '100K', balance: 100000 },
   { id: '150k', label: '150K', balance: 150000 },
 ]
+
+const MFP_SIZES = [
+  { id: '5k', label: '5K', balance: 5000 },
+  { id: '10k', label: '10K', balance: 10000 },
+  { id: '25k', label: '25K', balance: 25000 },
+  { id: '50k', label: '50K', balance: 50000 },
+  { id: '100k', label: '100K', balance: 100000 },
+]
+
+/**
+ * One MyFundedPerps plan in the shape `resolvePlan` reads. Rules are quoted as
+ * fractions of the starting balance, so they are expanded per size here; sizes
+ * a plan does not sell are null. Select / Prime / Signature sell 10K–100K and
+ * Elite 5K–50K; their list prices for the first three come from
+ * comparefuturesprop.com (rules reviewed 2026-09-29), not from MFP.
+ */
+function mfpPlan({ id, label, blurb, sizes = ['10k', '25k', '50k', '100k'], target, maxLoss, dllOptional = false, price, priceNoDll = null, minPayoutPct = 0, lockOnPayout = true, boosted = false }) {
+  const pick = (list) => MFP_SIZES.map((s) => (sizes.includes(s.id) ? list[sizes.indexOf(s.id)] : null))
+  const pct = (f) => MFP_SIZES.map((s) => (sizes.includes(s.id) ? Math.round(f * s.balance) : null))
+  const zeros = MFP_SIZES.map(() => 0)
+  return {
+    id,
+    label,
+    blurb,
+    sizes,
+    dllOptional,
+    boosted,
+    price: pick(price),
+    priceNoDll: priceNoDll ? pick(priceNoDll) : null,
+    activationFee: zeros,
+    maxLoss: pct(maxLoss),
+    maxMinis: zeros,
+    dailyLossLimit: pct(0.03),
+    dllMode: 'fail',
+    dayBoundary: 'ny',
+    inactivity: { eval: 30, funded: 7 },
+    lifetimeCap: 100000,
+    eval: { profitTarget: pct(target), consistency: 0, minDays: 0, drawdown: 'static', passIntrabar: true },
+    funded: {
+      drawdown: 'static',
+      lockOnPayout,
+      consistency: 0,
+      minDays: 0,
+      minProfitDays: 0,
+      minDayProfit: zeros,
+      profitGoal: zeros,
+      buffer: zeros,
+      payoutFraction: null,
+      payoutFrom: 'cycle',
+      payoutCap: MFP_SIZES.map(() => null),
+      minPayout: minPayoutPct ? pct(minPayoutPct) : null,
+      maxPayouts: null,
+    },
+  }
+}
 
 const STD_MAX_LOSS = [1000, 2000, 3000, 4500]
 const STD_MAX_MINIS = [2, 4, 6, 10]
@@ -148,6 +220,58 @@ export const FIRMS = {
       },
     },
   },
+  mfp: {
+    id: 'mfp',
+    label: 'MyFundedPerps',
+    url: 'https://docs.myfundedperpetuals.com',
+    asof: '2026-10-18',
+    instrument: 'perp',
+    split: 0.8,
+    minPayout: 100,
+    lockOffset: 0,
+    flatByEt: 0,
+    sizes: MFP_SIZES,
+    plans: {
+      elite: mfpPlan({
+        id: 'elite',
+        label: 'Elite',
+        blurb: '10% target, 5% static floor that never moves, on-demand payouts, cheaper and boosted NAS100/SP500/gold/oil. 3% DLL or none.',
+        sizes: ['5k', '10k', '25k', '50k'],
+        target: 0.1,
+        maxLoss: 0.05,
+        dllOptional: true,
+        price: [49, 95, 249, 495],
+        priceNoDll: [89, 175, 449, 889],
+        minPayoutPct: 0.01,
+        lockOnPayout: false,
+        boosted: true,
+      }),
+      select: mfpPlan({
+        id: 'select',
+        label: 'Select',
+        blurb: '9% target, 3% static floor that locks at the start balance on the first payout. Prices are third-party.',
+        target: 0.09,
+        maxLoss: 0.03,
+        price: [40, 100, 190, 360],
+      }),
+      prime: mfpPlan({
+        id: 'prime',
+        label: 'Prime',
+        blurb: '12% target, 5% static floor that locks at the start balance on the first payout. Prices are third-party.',
+        target: 0.12,
+        maxLoss: 0.05,
+        price: [60, 160, 300, 595],
+      }),
+      signature: mfpPlan({
+        id: 'signature',
+        label: 'Signature',
+        blurb: '10% target, 6% static floor that locks at the start balance on the first payout. Prices are third-party.',
+        target: 0.1,
+        maxLoss: 0.06,
+        price: [90, 225, 430, 870],
+      }),
+    },
+  },
 }
 
 export const FIRM_LIST = Object.values(FIRMS)
@@ -161,42 +285,59 @@ const asList = (v) => (Array.isArray(v) ? v : [v])
 export function resolvePlan({ firm = 'lucid', plan = 'flex', size = '50k', dll = true, overrides = {} } = {}) {
   const f = FIRMS[firm] || FIRMS.lucid
   const p = f.plans[plan] || Object.values(f.plans)[0]
-  const si = Math.max(0, SIZES.findIndex((s) => s.id === size))
-  const start = SIZES[si].balance
+  const sizes = f.sizes || SIZES
+  const offered = sizesFor(f.id, p.id)
+  const pickSize = offered.find((s) => s.id === size) || offered.find((s) => s.id === '50k') || offered[0]
+  const si = sizes.indexOf(pickSize)
+  const start = pickSize.balance
   const fu = p.funded
+  // A plan sold only with its daily limit (MFP Select / Prime / Signature) ignores the toggle.
+  const withDll = p.dllOptional === false ? true : Boolean(dll)
 
   const base = {
     firm: f.id,
     firmLabel: f.label,
+    instrument: f.instrument || 'futures',
     plan: p.id,
     planLabel: p.label,
-    size: SIZES[si].id,
-    sizeLabel: SIZES[si].label,
-    dll: Boolean(dll),
+    size: pickSize.id,
+    sizeLabel: pickSize.label,
+    dll: withDll,
+    dllOptional: p.dllOptional !== false,
     startBalance: start,
-    price: dll ? p.price[si] : p.priceNoDll[si],
+    price: withDll ? p.price[si] : p.priceNoDll[si],
     activationFee: p.activationFee[si],
     maxLoss: p.maxLoss[si],
     lockOffset: f.lockOffset,
     maxMinis: p.maxMinis[si],
-    dailyLossLimit: dll ? p.dailyLossLimit[si] : null,
+    dailyLossLimit: withDll ? p.dailyLossLimit[si] : null,
+    dllMode: p.dllMode || 'flatten',
+    dayBoundary: p.dayBoundary || 'globex',
     flatByEt: f.flatByEt,
+    boosted: Boolean(p.boosted),
     hasEval: Boolean(p.eval),
     profitTarget: p.eval ? p.eval.profitTarget[si] : 0,
     evalConsistency: p.eval ? p.eval.consistency : 0,
     evalMinDays: p.eval ? p.eval.minDays : 0,
+    evalDrawdown: p.eval?.drawdown || 'eod',
+    passIntrabar: Boolean(p.eval?.passIntrabar),
+    evalInactivityDays: p.inactivity?.eval || 0,
     fundedDrawdown: fu.drawdown,
+    lockOnPayout: fu.lockOnPayout !== false,
     fundedConsistency: fu.consistency,
     fundedMinDays: fu.minDays,
+    fundedInactivityDays: p.inactivity?.funded || 0,
     minProfitDays: fu.minProfitDays,
     minDayProfit: fu.minDayProfit[si],
     profitGoal: asList(fu.profitGoal[si]),
     buffer: fu.buffer[si],
     payoutFraction: fu.payoutFraction,
+    payoutFrom: fu.payoutFrom || 'start',
     payoutCap: asList(fu.payoutCap[si]),
-    minPayout: f.minPayout,
+    minPayout: fu.minPayout?.[si] ?? f.minPayout,
     split: f.split,
     maxPayouts: fu.maxPayouts,
+    lifetimeCap: p.lifetimeCap || null,
   }
   const out = { ...base }
   for (const [k, v] of Object.entries(overrides || {})) {
@@ -206,6 +347,14 @@ export function resolvePlan({ firm = 'lucid', plan = 'flex', size = '50k', dll =
   }
   out.overridden = Object.keys(overrides || {}).filter((k) => k in base && JSON.stringify(out[k]) !== JSON.stringify(base[k]))
   return out
+}
+
+/** Account sizes a plan sells, in display order. */
+export function sizesFor(firm = 'lucid', plan) {
+  const f = FIRMS[firm] || FIRMS.lucid
+  const p = f.plans[plan] || Object.values(f.plans)[0]
+  const sizes = f.sizes || SIZES
+  return p.sizes ? sizes.filter((s) => p.sizes.includes(s.id)) : sizes
 }
 
 /** Value for payout number `k` (0-based) from a per-payout list. */
