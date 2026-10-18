@@ -12,6 +12,7 @@ const KEYS = [
   ['W', 'Run walk-forward'],
   ['M', 'Run Monte Carlo'],
   ['A B C', 'Pin the current run to a compare slot'],
+  ['J  K', 'Inspect the previous / next trade'],
   ['?', 'This sheet'],
   ['Esc', 'Close'],
 ]
