@@ -12,6 +12,7 @@ import TrendLogicTable from '../../../components/TrendLogicTable'
 import DrawingsInspector from '../../../components/DrawingsInspector'
 import { DEFAULT_CHART_COLORS, CHART_COLORS_STORAGE_KEY, DEFAULT_TIMEZONE, TIMEZONE_STORAGE_KEY } from '../../../components/chartDefaults'
 import { INDICATORS_STORAGE_KEY, INDICATOR_OVERRIDES_STORAGE_KEY } from '../../../components/indicators'
+import { useVariantPage } from '../../../variants/UiVariant'
 
 const HISTORICAL_CACHE_PREFIX = 'historicalDataCache:'
 // Older than this and we treat the cache as too stale to seed — saves a flash
@@ -39,7 +40,12 @@ const writeHistoricalCache = (key, data, lastFetched) => {
   } catch { /* quota exceeded — ignore */ }
 }
 
-export default function TickerDetail({ params }) {
+export default function TickerPage(props) {
+  const Variant = useVariantPage('Ticker')
+  return Variant ? <Variant {...props} /> : <TickerDetail {...props} />
+}
+
+function TickerDetail({ params }) {
   const { symbol: rawSymbol } = use(params)
   const symbol = decodeURIComponent(rawSymbol)
   const router = useRouter()

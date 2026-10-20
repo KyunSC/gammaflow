@@ -6,7 +6,8 @@ import { useBacktest } from '../../lib/backtest/store'
 const KEYS = [
   ['⌘K', 'Command palette'],
   ['R', 'Run backtest'],
-  ['1 – 4', 'Strategy family: technical, gamma, model, custom'],
+  ['Alt 1 – 4', 'Strategy family: technical, gamma, model, custom'],
+  ['1 – 0  `', 'Switch UI design (` = original)'],
   ['[  ]', 'Step the focused parameter down / up'],
   ['S', 'Run parameter sweep'],
   ['W', 'Run walk-forward'],

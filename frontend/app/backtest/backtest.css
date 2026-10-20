@@ -15,6 +15,7 @@
 @source './';
 @source '../../components/backtest/';
 @source '../../lib/backtest/';
+@source '../../variants/';
 
 @theme {
   /* Canvas and structure */

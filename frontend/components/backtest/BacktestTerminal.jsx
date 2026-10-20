@@ -266,7 +266,17 @@ function useKeyboard() {
       const tag = e.target?.tagName
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || e.metaKey || e.ctrlKey) return
       const s = useBacktest.getState()
-
+      // Plain digits switch the whole UI design (variants/UiVariant.jsx), so
+      // strategy families moved to Alt+1–4. e.code, because Alt rewrites e.key on macOS.
+      if (e.altKey) {
+        const fam = FAMILIES.find((f) => e.code === `Digit${f.hotkey}`)
+        if (fam) {
+          e.preventDefault()
+          const first = strategiesForPlane(s.plane, s.dataset).find((st) => st.family === fam.id)
+          if (first && getStrategy(s.strategyId).family !== fam.id) s.setStrategy(first.id)
+        }
+        return
+      }
       switch (e.key) {
         case 'r':
         case 'R':
@@ -309,13 +319,6 @@ function useKeyboard() {
           s.togglePalette(false)
           s.toggleShortcuts(false)
           break
-        default: {
-          const fam = FAMILIES.find((f) => f.hotkey === e.key)
-          if (fam) {
-            const first = strategiesForPlane(s.plane, s.dataset).find((st) => st.family === fam.id)
-            if (first && getStrategy(s.strategyId).family !== fam.id) s.setStrategy(first.id)
-          }
-        }
       }
     }
     document.addEventListener('keydown', onKey)

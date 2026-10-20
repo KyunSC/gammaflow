@@ -1,6 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { useVariantPage } from '../../variants/UiVariant'
 
 // visx + framer-motion + cmdk + lightweight-charts are a meaningful download.
 // Loading the terminal only on this route keeps them out of the dashboard's
@@ -14,6 +15,7 @@ const BacktestTerminal = dynamic(() => import('../../components/backtest/Backtes
   ),
 })
 
-export default function BacktestPage() {
-  return <BacktestTerminal />
+export default function BacktestPage(props) {
+  const Variant = useVariantPage('Backtest')
+  return Variant ? <Variant {...props} /> : <BacktestTerminal />
 }

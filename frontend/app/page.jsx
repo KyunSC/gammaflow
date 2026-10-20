@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Dashboard from '../components/Dashboard'
+import { useVariantPage } from '../variants/UiVariant'
 
 const EQUITIES_TICKERS = ['ES=F', 'NQ=F', 'SPY', 'QQQ', '^VIX', 'XEQT.TO']
 const CRYPTO_TICKERS = ['BTC-USD', 'ETH-USD', 'SOL-USD']
@@ -48,7 +49,12 @@ function SkeletonCard() {
   )
 }
 
-export default function Home() {
+export default function HomePage(props) {
+  const Variant = useVariantPage('Home')
+  return Variant ? <Variant {...props} /> : <Home {...props} />
+}
+
+function Home() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [warmingUp, setWarmingUp] = useState(false)
