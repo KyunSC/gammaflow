@@ -1,0 +1,650 @@
+/* Variant 01 — dashboard and ticker pages, plus the top bar every page shares.
+   CSS module: every class is hashed, and the few rules that restyle shared
+   components (.timeframe-selector, .indicator-button, …) are nested under
+   .root so they only apply inside this variant. */
+
+.root {
+  --bg: #0b0c0e;
+  --surface: #131519;
+  --surface-2: #171a1f;
+  --surface-3: #1c2027;
+  --line: #22262d;
+  --line-2: #2e343d;
+  --ink: #e6e8eb;
+  --muted: #a0a7af;
+  --dim: #808891;
+  --faint: #5a616b;
+  --amber: #e8b339;
+  --amber-dim: #8a6a22;
+  --cyan: #5aa3b8;
+  --pos: #4caf50;
+  --neg: #ff6b6b;
+  --violet: #9d90e8;
+  --sans: var(--v01-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: var(--v01-mono), ui-monospace, 'SF Mono', Menlo, monospace;
+
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  font-feature-settings: 'tnum' 1;
+}
+
+.root :focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+.root a {
+  color: inherit;
+}
+
+/* ── shared top bar ───────────────────────────────────────────────────── */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+
+.brand {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--amber);
+  text-decoration: none;
+}
+
+.nav {
+  display: flex;
+  gap: 4px;
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.navLink:hover {
+  color: var(--ink);
+}
+
+.navActive {
+  color: var(--ink);
+  border-bottom-color: var(--amber);
+}
+
+.barRight {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+/* ── generic bits ─────────────────────────────────────────────────────── */
+
+.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.pos { color: var(--pos); }
+.neg { color: var(--neg); }
+.flat { color: var(--dim); }
+
+.button {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: 2px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: var(--dim);
+}
+
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border-left: 2px solid var(--amber-dim);
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.statusError {
+  border-left-color: var(--neg);
+}
+
+.statusTitle {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ── dashboard ────────────────────────────────────────────────────────── */
+
+.home {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 16px 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 264px;
+  gap: 40px;
+  align-items: start;
+}
+
+.pageHead {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+}
+
+.h1 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.meta {
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.group + .group {
+  margin-top: 32px;
+}
+
+.h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+
+.quotes {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.quotes col.cSym { width: 84px; }
+.quotes col.cLast { width: 110px; }
+.quotes col.cChg { width: 96px; }
+.quotes col.cPct { width: 84px; }
+.quotes col.cVol { width: 92px; }
+
+@media (max-width: 600px) {
+  .quotes col.cSym { width: auto; }
+  .quotes col.cLast { width: 84px; }
+  .quotes col.cChg { width: 76px; }
+  .quotes col.cPct { width: 72px; }
+}
+
+.quotes th {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dim);
+  text-align: right;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line-2);
+  white-space: nowrap;
+}
+
+.quotes th:first-child,
+.quotes th:nth-child(2) {
+  text-align: left;
+}
+
+.quotes td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.quotes tbody tr {
+  position: relative;
+}
+
+.quotes tbody tr:hover {
+  background: var(--surface);
+}
+
+.quotes tbody tr:focus-within {
+  background: var(--surface);
+}
+
+.symCell {
+  text-align: left !important;
+  width: 92px;
+}
+
+/* The symbol link stretches over the whole row, so the row is one click
+   target and one tab stop. */
+.symLink {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--cyan) !important;
+  text-decoration: none;
+}
+
+.symLink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.symLink:focus-visible {
+  outline: none;
+}
+
+.symLink:focus-visible::after {
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
+}
+
+.showNarrow {
+  display: none;
+}
+
+.nameCell {
+  text-align: left !important;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: normal !important;
+}
+
+.nameNote {
+  display: block;
+  font-size: 12px;
+  color: var(--neg);
+}
+
+.last {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.cellDim {
+  font-family: var(--mono);
+  color: var(--dim);
+}
+
+.loadingCell {
+  font-family: var(--mono);
+  color: var(--faint);
+}
+
+.aside {
+  padding-top: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.aside h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+
+.aside p {
+  margin: 0 0 10px;
+}
+
+.aside ul {
+  margin: 0 0 12px;
+  padding-left: 16px;
+}
+
+.aside li {
+  margin: 2px 0;
+}
+
+.cta {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 7px 12px;
+  background: var(--amber);
+  color: #0b0c0e !important;
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+  border-radius: 2px;
+}
+
+.cta:hover {
+  background: #f2c04a;
+}
+
+.footnote {
+  margin-top: 16px !important;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+@media (max-width: 860px) {
+  .home {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .aside {
+    padding-top: 0;
+    border-top: 1px solid var(--line);
+    padding-top: 20px;
+  }
+}
+
+@media (max-width: 600px) {
+  .hideNarrow {
+    display: none;
+  }
+  .quotes td,
+  .quotes th {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .symCell {
+    width: auto;
+  }
+  .showNarrow {
+    display: block;
+    font-size: 11px;
+    color: var(--dim);
+    white-space: normal;
+    line-height: 1.3;
+  }
+}
+
+/* ── ticker page ──────────────────────────────────────────────────────── */
+
+.ticker {
+  padding: 16px 16px 32px;
+}
+
+.tickerHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin-bottom: 12px;
+}
+
+.tickerSym {
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.tickerName {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.livePrice {
+  font-family: var(--mono);
+  font-size: 18px;
+}
+
+.tickerFacts {
+  font-size: 12px;
+  color: var(--dim);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+}
+
+.factWarn {
+  color: var(--amber);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+  align-self: center;
+}
+
+.crumbSep {
+  color: var(--faint);
+  align-self: center;
+}
+
+.chartArea {
+  position: relative;
+}
+
+.chartPlaceholder {
+  height: max(450px, calc(100vh - 360px));
+  border: 1px solid var(--line);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.chartPlaceholder strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.placeholderNote {
+  max-width: 52ch;
+  color: var(--dim);
+  font-size: 12px;
+}
+
+/* Restyle the shared chart controls — only inside this variant. */
+
+.root :global(.timeframe-selector) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.root :global(.selector-group) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.root :global(.selector-group label) {
+  font-size: 12px;
+  color: var(--dim);
+  margin: 0 8px 0 0;
+}
+
+.root :global(.selector-group button) {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: 0;
+  margin-left: -1px;
+  padding: 4px 8px;
+  transition: none;
+}
+
+.root :global(.selector-group label + button) {
+  margin-left: 0;
+  border-radius: 2px 0 0 2px;
+}
+
+.root :global(.selector-group button:last-child) {
+  border-radius: 0 2px 2px 0;
+}
+
+.root :global(.selector-group button:hover:not(:disabled)) {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.root :global(.selector-group button.active) {
+  position: relative;
+  color: var(--bg);
+  background: var(--cyan);
+  border-color: var(--cyan);
+}
+
+.root :global(.selector-group button.disabled),
+.root :global(.selector-group button.disabled:hover) {
+  background: transparent;
+  color: var(--faint);
+  opacity: 1;
+  text-decoration: line-through;
+  text-decoration-color: var(--line-2);
+}
+
+.root :global(.indicator-button),
+.root :global(.chart-type-button),
+.root :global(.settings-button) {
+  font: inherit;
+  font-size: 13px;
+  gap: 6px;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: 2px;
+  padding: 4px 10px;
+  transition: none;
+}
+
+.root :global(.indicator-button:hover),
+.root :global(.chart-type-button:hover),
+.root :global(.settings-button:hover) {
+  color: var(--ink);
+  background: var(--surface-3);
+  border-color: var(--dim);
+}
+
+.root :global(.indicator-button.has-active) {
+  border-color: var(--cyan);
+  background: rgba(90, 163, 184, 0.1);
+}
+
+.root :global(.indicator-dropdown),
+.root :global(.chart-type-dropdown) {
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.root :global(.indicator-option),
+.root :global(.chart-type-option) {
+  font-size: 13px;
+  color: var(--muted);
+  transition: none;
+}
+
+.root :global(.indicator-option:hover),
+.root :global(.chart-type-option:hover) {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.root :global(.chart-container) {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.root :global(.chart-with-trend) {
+  gap: 12px;
+}
+
+.root :global(.trend-logic-table) {
+  margin: 0;
+  border-radius: 0;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.root :global(.trend-logic-table th),
+.root :global(.trend-logic-table .trend-tf) {
+  background: var(--surface-2);
+}
+
+.root :global(.settings-popup) {
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: 2px;
+}
+
+.root :global(.settings-title) {
+  color: var(--ink);
+}
+
+@media (max-width: 760px) {
+  .tools {
+    margin-left: 0;
+  }
+  .root :global(.chart-with-trend) {
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Tool menus open from the right edge, so they never run off the page. */
+.tools :global(.indicator-dropdown),
+.tools :global(.chart-type-dropdown) {
+  left: auto;
+  right: 0;
+}
