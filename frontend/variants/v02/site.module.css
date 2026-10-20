@@ -1,0 +1,474 @@
+/*
+ * Lab Ledger — the market board and the chart page. Same canvas, hairlines
+ * and type as /backtest. Shared chart controls keep their global class names,
+ * so they are restyled here under the page's local class only.
+ */
+.page {
+  --bg: #0c0d0f;
+  --bg2: #121418;
+  --bg3: #191c21;
+  --hair: #1f2328;
+  --hair2: #2d323a;
+  --ink: #e9eaec;
+  --muted: #a0a6ae;
+  --dim: #767d87;
+  --amber: #e8b339;
+  --amber-dim: #8a6a22;
+  --cyan: #5a9fb3;
+  --pos: #5cb860;
+  --neg: #ff6b6b;
+  --mono: var(--v02-mono), ui-monospace, 'SF Mono', Menlo, monospace;
+  --sans: var(--v02-sans), -apple-system, BlinkMacSystemFont, sans-serif;
+
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-feature-settings: 'tnum' 1;
+}
+.page :global(:focus-visible) {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+}
+.page a {
+  color: var(--amber);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ── bar ───────────────────────────────────────────────────────────────── */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 20px;
+  padding: 9px 20px;
+  border-bottom: 1px solid var(--hair);
+}
+.brand {
+  font-weight: 600;
+  color: var(--amber);
+}
+.nav,
+.crumbs {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  font-size: 12.5px;
+}
+.crumbs {
+  gap: 8px;
+}
+.nav {
+  margin-left: auto;
+}
+.crumbs + .nav {
+  margin-left: auto;
+}
+.page .navLink {
+  color: var(--muted);
+  text-decoration: none;
+}
+.page .navLink:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.navOn {
+  color: var(--ink);
+}
+.sep {
+  color: var(--dim);
+}
+
+/* ── board ─────────────────────────────────────────────────────────────── */
+.board {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 28px 20px 48px;
+}
+.boardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-bottom: 14px;
+}
+.h1 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.status {
+  font-size: 12px;
+  color: var(--dim);
+}
+.alert {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-left: 2px solid var(--neg);
+  background: rgba(255, 107, 107, 0.06);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.alert strong {
+  color: var(--neg);
+  font-weight: 600;
+}
+.alertMore {
+  margin-top: 4px;
+  color: var(--dim);
+}
+.quotes {
+  width: 100%;
+  border-collapse: collapse;
+}
+.quotes thead th {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dim);
+  text-align: left;
+  padding: 0 12px 6px;
+  border-bottom: 1px solid var(--hair2);
+}
+.quotes thead th.num {
+  text-align: right;
+}
+.groupRow th {
+  padding: 18px 12px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+  border-bottom: 1px solid var(--hair);
+}
+.row {
+  position: relative;
+  border-bottom: 1px solid var(--hair);
+}
+.row:hover {
+  background: var(--bg2);
+}
+.row td,
+.row th {
+  padding: 9px 12px;
+  vertical-align: baseline;
+}
+.colSym {
+  text-align: left;
+  font-weight: 400;
+}
+.page .rowLink {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+/* The whole row is the link's hit area. */
+.page .rowLink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.page .rowLink:focus-visible {
+  outline: none;
+}
+.page .rowLink:focus-visible::after {
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
+}
+.sym {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 13.5px;
+  color: var(--ink);
+  min-width: 5ch;
+}
+.name {
+  font-size: 12px;
+  color: var(--dim);
+}
+.rowErr {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--neg);
+}
+.num {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+.vol {
+  color: var(--dim);
+  font-size: 12px;
+}
+.up {
+  color: var(--pos);
+}
+.down {
+  color: var(--neg);
+}
+.na {
+  color: var(--hair2);
+}
+.skel {
+  display: inline-block;
+  width: 6ch;
+  height: 0.8em;
+  vertical-align: -1px;
+  background: var(--bg3);
+  border-radius: 1px;
+}
+.foot {
+  margin-top: 14px;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+
+/* ── chart page ────────────────────────────────────────────────────────── */
+.chartPage {
+  padding: 14px 20px 24px;
+}
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+.tickerH1 {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.tickerName {
+  color: var(--muted);
+  font-size: 13px;
+}
+.live {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--ink);
+}
+.liveTag {
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--pos);
+}
+.gexNote {
+  font-size: 12px;
+  color: var(--dim);
+  margin-left: auto;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  margin: 12px 0 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hair);
+}
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Shared selector triggers: one quiet style, text labels. */
+.page :global(.indicator-button),
+.page :global(.chart-type-button),
+.page :global(.settings-button) {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--hair2);
+  border-radius: 2px;
+  padding: 5px 10px;
+  transition: none;
+}
+.page :global(.indicator-button:hover),
+.page :global(.chart-type-button:hover),
+.page :global(.settings-button:hover) {
+  color: var(--ink);
+  background: var(--bg3);
+  border-color: var(--dim);
+}
+.page :global(.indicator-button.has-active),
+.page :global(.indicator-button.has-active:hover) {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+  background: rgba(232, 179, 57, 0.08);
+}
+.page :global(.indicator-dropdown),
+.page :global(.chart-type-dropdown) {
+  background: var(--bg2);
+  border: 1px solid var(--hair2);
+  border-radius: 2px;
+  box-shadow: none;
+}
+.page :global(.indicator-option),
+.page :global(.chart-type-option) {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.page :global(.indicator-option:hover),
+.page :global(.chart-type-option:hover) {
+  background: var(--bg3);
+  color: var(--ink);
+}
+.page :global(.indicator-option.active),
+.page :global(.chart-type-option.active) {
+  color: var(--amber);
+  background: rgba(232, 179, 57, 0.08);
+}
+.page :global(.drawing-icon) {
+  color: var(--dim);
+}
+.page :global(.settings-popup) {
+  background: var(--bg2);
+  border: 1px solid var(--hair2);
+  border-radius: 2px;
+}
+.page :global(.settings-title) {
+  color: var(--ink);
+}
+.page :global(.settings-reset-button) {
+  border-color: var(--hair2);
+  color: var(--muted);
+  border-radius: 2px;
+}
+.page :global(.settings-reset-button:hover) {
+  background: var(--bg3);
+  color: var(--ink);
+}
+.page :global(.chart-container) {
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+}
+.page :global(.trend-logic-table) {
+  border-radius: 0;
+  margin: 0;
+}
+
+/* Timeframe */
+.tf {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+}
+.seg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px;
+}
+.segLabel {
+  font-size: 11.5px;
+  color: var(--dim);
+  margin-right: 7px;
+}
+.segBtn {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.segBtn:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--bg3);
+}
+.segBtn:disabled {
+  color: #3a3f47;
+  cursor: not-allowed;
+}
+.segOn,
+.segOn:hover:not(:disabled) {
+  color: var(--bg);
+  background: var(--cyan);
+}
+
+.chartState {
+  min-height: min(520px, 60vh);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px 28px;
+  border: 1px dashed var(--hair2);
+}
+.chartStateErr {
+  border-color: rgba(255, 107, 107, 0.35);
+}
+.stateTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.chartStateErr .stateTitle {
+  color: var(--neg);
+}
+.stateText {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  max-width: 64ch;
+}
+
+@media (max-width: 640px) {
+  .bar,
+  .chartPage {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .board {
+    padding: 20px 16px 40px;
+  }
+  .hideSm {
+    display: none;
+  }
+  .row td,
+  .row th {
+    padding: 9px 8px;
+  }
+  .quotes thead th,
+  .groupRow th {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .rowLink {
+    flex-direction: column;
+    gap: 1px;
+  }
+  .page .rowLink {
+    flex-direction: column;
+    gap: 1px;
+  }
+  .gexNote {
+    margin-left: 0;
+    width: 100%;
+  }
+}
