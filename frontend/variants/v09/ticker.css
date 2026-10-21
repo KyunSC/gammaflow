@@ -1,0 +1,178 @@
+/* Design 09: restyle of the shared chart-page components. Every selector is
+   scoped to :root[data-ui="09"] .v9t so the original and other designs keep
+   their own look. */
+:root[data-ui="09"] body:has(.v9t) {
+  background: #0b0c0e;
+}
+:root[data-ui="09"] .v9t button {
+  font-family: inherit;
+}
+:root[data-ui="09"] .v9t button:focus-visible,
+:root[data-ui="09"] .v9t select:focus-visible,
+:root[data-ui="09"] .v9t input:focus-visible {
+  outline: 2px solid #5aa3b8;
+  outline-offset: 1px;
+}
+
+/* Period / interval / tick bars: one hairline segmented row each. */
+:root[data-ui="09"] .v9t .timeframe-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+}
+:root[data-ui="09"] .v9t .selector-group {
+  gap: 0;
+  flex-wrap: wrap;
+}
+:root[data-ui="09"] .v9t .selector-group label {
+  color: #7a818b;
+  font-size: 12px;
+  margin-right: 8px;
+}
+:root[data-ui="09"] .v9t .selector-group button {
+  background: transparent;
+  color: #a3a9b1;
+  border: 1px solid #2c3138;
+  border-left-width: 0;
+  border-radius: 0;
+  padding: 3px 8px;
+  font-family: var(--v9-mono), ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  transition: none;
+}
+:root[data-ui="09"] .v9t .selector-group label + button {
+  border-left-width: 1px;
+  border-radius: 2px 0 0 2px;
+}
+:root[data-ui="09"] .v9t .selector-group button:last-child {
+  border-radius: 0 2px 2px 0;
+}
+:root[data-ui="09"] .v9t .selector-group button:hover {
+  background: #15181d;
+  color: #e8eaed;
+}
+:root[data-ui="09"] .v9t .selector-group button.active {
+  background: #e8b339;
+  color: #0b0c0e;
+  font-weight: 600;
+}
+/* Disabled values stay legible and are struck through, instead of vanishing. */
+:root[data-ui="09"] .v9t .selector-group button.disabled,
+:root[data-ui="09"] .v9t .selector-group button.disabled:hover {
+  background: transparent;
+  color: #4a5058;
+  opacity: 1;
+  text-decoration: line-through;
+  text-decoration-color: #3a4048;
+}
+
+/* Tool buttons: same quiet outline as the rest of this design. */
+:root[data-ui="09"] .v9t .indicator-button,
+:root[data-ui="09"] .v9t .chart-type-button,
+:root[data-ui="09"] .v9t .settings-button {
+  background: transparent;
+  border: 1px solid #2c3138;
+  border-radius: 2px;
+  color: #a3a9b1;
+  padding: 4px 9px;
+  font-size: 12.5px;
+  min-height: 28px;
+  transition: none;
+}
+:root[data-ui="09"] .v9t .indicator-button:hover,
+:root[data-ui="09"] .v9t .chart-type-button:hover,
+:root[data-ui="09"] .v9t .settings-button:hover {
+  background: #15181d;
+  color: #e8eaed;
+  border-color: #7a818b;
+}
+:root[data-ui="09"] .v9t .indicator-button.has-active {
+  color: #e8b339;
+  border-color: #8a6a22;
+  background: rgba(232, 179, 57, 0.07);
+}
+:root[data-ui="09"] .v9t .indicator-dropdown,
+:root[data-ui="09"] .v9t .chart-type-dropdown {
+  background: #0f1114;
+  border: 1px solid #2c3138;
+  border-radius: 2px;
+  box-shadow: none;
+}
+:root[data-ui="09"] .v9t .indicator-option,
+:root[data-ui="09"] .v9t .chart-type-option {
+  font-size: 13px;
+  transition: none;
+}
+:root[data-ui="09"] .v9t .indicator-option:hover,
+:root[data-ui="09"] .v9t .chart-type-option:hover,
+:root[data-ui="09"] .v9t .drawings-inspector-row:hover {
+  background: #1a1d23;
+}
+:root[data-ui="09"] .v9t .chart-type-option.active,
+:root[data-ui="09"] .v9t .indicator-option.active {
+  color: #e8b339;
+  background: rgba(232, 179, 57, 0.07);
+}
+:root[data-ui="09"] .v9t .drawing-icon {
+  color: #a3a9b1;
+}
+:root[data-ui="09"] .v9t .chart-type-group-label,
+:root[data-ui="09"] .v9t .drawings-inspector-section {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  color: #7a818b;
+}
+
+/* Chart: flat, framed by rules, full width. */
+:root[data-ui="09"] .v9t .chart-container {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+}
+:root[data-ui="09"] .v9t .chart-container a[href*="tradingview"] {
+  display: none !important;
+}
+:root[data-ui="09"] .v9t .trend-logic-table {
+  border-radius: 2px;
+  margin: 0;
+  background: #0f1114;
+}
+:root[data-ui="09"] .v9t .trend-logic-table th,
+:root[data-ui="09"] .v9t .trend-logic-table .trend-tf {
+  background: #15181d;
+  letter-spacing: 0;
+}
+
+/* Popups: no heavy shadow, square-ish corners, palette surfaces. */
+:root[data-ui="09"] .v9t .settings-popup,
+:root[data-ui="09"] .v9t .drawing-edit-popup,
+:root[data-ui="09"] .trend-logic-editor {
+  background: #0f1114;
+  border: 1px solid #2c3138;
+  border-radius: 2px;
+  box-shadow: none;
+}
+:root[data-ui="09"] .v9t .settings-title {
+  color: #e8eaed;
+}
+:root[data-ui="09"] .v9t .settings-reset-button {
+  border-color: #2c3138;
+  color: #a3a9b1;
+  border-radius: 2px;
+}
+:root[data-ui="09"] .v9t .settings-reset-button:hover {
+  background: #15181d;
+  color: #e8eaed;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-ui="09"] .v9t * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
