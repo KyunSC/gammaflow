@@ -1,0 +1,270 @@
+'use client'
+
+
+import { useEffect, useRef } from 'react'
+import { Command } from 'cmdk'
+import { useBacktest } from '../../../lib/backtest/store'
+import { strategiesForPlane, getStrategy } from '../../../lib/backtest/strategies'
+import { LIVE_SYMBOLS, LIVE_INTERVALS, LIVE_PERIODS } from '../../../lib/backtest/datasets'
+
+
+const KEYS = [
+  [['⌘', 'K'], 'Command palette (Ctrl K off a Mac)'],
+  [['R'], 'Run backtest'],
+  [['Alt', '1–4'], 'Strategy family: technical, gamma, model, custom'],
+  [['1–0', '`'], 'Switch UI design (` is the original)'],
+  [['[', ']'], 'Step the focused parameter down / up'],
+  [['↑', '↓'], 'Step through trades when the trade list has focus'],
+  [['S'], 'Run parameter sweep'],
+  [['W'], 'Run walk-forward'],
+  [['M'], 'Run Monte Carlo'],
+  [['A', 'B', 'C'], 'Pin the current run to a compare slot'],
+  [['?'], 'This sheet'],
+  [['Esc'], 'Close'],
+]
+
+/** Keyboard reference and the explanation of the run tally. */
+export function ShortcutSheet() {
+  const open = useBacktest((s) => s.shortcutsOpen)
+  const toggle = useBacktest((s) => s.toggleShortcuts)
+  const runCount = useBacktest((s) => s.runCount)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const prev = document.activeElement
+    ref.current?.focus()
+    return () => prev?.focus?.()
+  }, [open])
+
+  if (!open) return null
+  return (
+    <div className="v4-overlay" onClick={() => toggle(false)}>
+      <div
+        ref={ref}
+        className="v4-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="v4-keys-title"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-baseline justify-between">
+          <h2 id="v4-keys-title">Keyboard</h2>
+          <button className="text-[12px] text-dim hover:text-ink" onClick={() => toggle(false)}>Close</button>
+        </div>
+        <dl className="v4-keys">
+          {KEYS.map(([keys, label]) => (
+            <div key={label} className="contents">
+              <dt>{keys.map((k) => <span key={k} className="v4-kbd">{k}</span>)}</dt>
+              <dd>{label}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="mt-4 border-t border-hair pt-3 text-[12px] leading-relaxed text-muted">
+          <p>
+            <span className="v4-mono text-amber">{runCount.toLocaleString()}</span> simulations this session, counting
+            single runs, sweep cells and walk-forward trials alike.
+          </p>
+          <p className="mt-1 text-dim">
+            It is a data-snooping tally. The more of these you burn on one dataset, the more a good-looking Sharpe is
+            the maximum of many draws rather than an estimate of an edge.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Copied from components/backtest/CommandPalette.jsx: no blur or drop
+ * shadow, sentence case, and actions for Advanced-only panels now open
+ * Advanced so they don't silently switch a hidden tab.
+ *
+ * ⌘K. Everything reachable by mouse is reachable here, including the parameter
+ * list — which is generated from the strategy schema, so it never falls behind
+ * the panel it mirrors.
+ */
+export function CommandPalette() {
+  const open = useBacktest((s) => s.paletteOpen)
+  const togglePalette = useBacktest((s) => s.togglePalette)
+  const plane = useBacktest((s) => s.plane)
+  const strategyId = useBacktest((s) => s.strategyId)
+  const dataset = useBacktest((s) => s.dataset)
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        togglePalette()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [togglePalette])
+
+  if (!open) return null
+
+  const s = useBacktest.getState()
+  const strategy = getStrategy(strategyId)
+  const close = () => togglePalette(false)
+  const act = (fn) => () => {
+    fn()
+    close()
+  }
+
+  return (
+    <div className="v4-overlay" onClick={close}>
+      <Command
+        label="Command palette"
+        onClick={(e) => e.stopPropagation()}
+        // The global shortcut handler ignores keys typed into inputs, and the
+        // palette's search box is one — so Escape has to be handled here or the
+        // overlay stays up and swallows every click behind it.
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.stopPropagation()
+            close()
+          }
+        }}
+        className="w-[min(560px,100%)] overflow-hidden rounded-[3px] border border-hair-bright bg-panel-2"
+        loop
+      >
+        <Command.Input
+          autoFocus
+          placeholder="Run, switch strategy, jump to a parameter…"
+          className="w-full border-b border-hair bg-panel-2 px-3 py-2.5 text-[13px] text-ink placeholder:text-dim"
+        />
+        <Command.List className="max-h-[52vh] overflow-auto p-1">
+          <Command.Empty className="p-4 text-[12px] text-dim">Nothing matches.</Command.Empty>
+
+          <Group heading="Run">
+            <Item onSelect={act(s.run)} shortcut="R">Run backtest</Item>
+            <Item onSelect={act(() => { s.setAdvanced(true); s.setTab('sweep'); s.runSweep() })} shortcut="S">Run parameter sweep</Item>
+            <Item onSelect={act(() => { s.setAdvanced(true); s.setTab('wf'); s.runWalkForward() })} shortcut="W">Run walk-forward</Item>
+            <Item onSelect={act(() => { s.setAdvanced(true); s.setTab('mc'); s.runMonteCarlo() })} shortcut="M">Run Monte Carlo</Item>
+            <Item onSelect={act(() => { s.setAdvanced(true); s.setTab('costs'); s.runCostCurve() })}>Run cost ladder</Item>
+            <Item onSelect={act(s.toggleAutoRun)}>Toggle auto-run on parameter change</Item>
+          </Group>
+
+          <Group heading="Strategy">
+            {strategiesForPlane(plane, dataset).map((st) => (
+              <Item key={st.id} onSelect={act(() => s.setStrategy(st.id))} active={st.id === strategyId}>
+                {st.label} <span className="text-dim">— {st.blurb}</span>
+              </Item>
+            ))}
+          </Group>
+
+          <Group heading="Parameters">
+            {strategy.params
+              .filter((p) => !p.hidden && p.type === 'number')
+              .map((p) => (
+                <Item
+                  key={p.key}
+                  onSelect={act(() => s.setFocusedParam(p.key))}
+                  shortcut="[ ]"
+                >
+                  Focus {p.label} <span className="text-dim">= {s.currentParams()[p.key]}</span>
+                </Item>
+              ))}
+          </Group>
+
+          <Group heading="Dataset">
+            <Item onSelect={act(() => s.setPlane('research'))} active={plane === 'research'}>
+              Research plane — historical GEX + model predictions
+            </Item>
+            <Item onSelect={act(() => s.setPlane('live'))} active={plane === 'live'}>
+              Live plane — /api/historical
+            </Item>
+            {plane === 'research'
+              ? ['QQQ', 'SPY'].map((sym) => (
+                  <Item key={sym} onSelect={act(() => s.setResearchSymbol(sym))}>
+                    Load {sym} research dataset
+                  </Item>
+                ))
+              : LIVE_SYMBOLS.map((sym) => (
+                  <Item key={sym} onSelect={act(() => s.setLive({ liveSymbol: sym }))}>
+                    Load {sym}
+                  </Item>
+                ))}
+            {plane === 'live' &&
+              LIVE_INTERVALS.map((iv) => (
+                <Item key={iv} onSelect={act(() => s.setLive({ liveInterval: iv }))}>
+                  Interval {iv}
+                </Item>
+              ))}
+            {plane === 'live' &&
+              LIVE_PERIODS.map((p) => (
+                <Item key={p} onSelect={act(() => s.setLive({ livePeriod: p }))}>
+                  Period {p}
+                </Item>
+              ))}
+          </Group>
+
+          <Group heading="Panels">
+            {[
+              ['blotter', 'Trade blotter'],
+              ['sweep', 'Parameter sweep'],
+              ['wf', 'Walk-forward'],
+              ['mc', 'Monte Carlo'],
+              ['costs', 'Cost sensitivity'],
+              ['prop', 'Prop account'],
+              ['rules', 'Rule builder'],
+            ].map(([id, label]) => (
+              // Every tab but the trade list lives in Advanced, so open it too.
+              <Item key={id} onSelect={act(() => { if (id !== 'blotter') s.setAdvanced(true); s.setTab(id) })}>
+                Show {label}
+              </Item>
+            ))}
+          </Group>
+
+          <Group heading="Compare">
+            {['A', 'B', 'C'].map((slot) => (
+              <Item key={slot} onSelect={act(() => { s.setAdvanced(true); s.saveSlot(slot) })} shortcut={slot}>
+                Pin current run to slot {slot}
+              </Item>
+            ))}
+          </Group>
+
+          <Group heading="Sweep cells">
+            {(s.sweep.data?.cells || [])
+              .slice()
+              .sort((a, b) => b.sharpe - a.sharpe)
+              .slice(0, 8)
+              .map((c, i) => (
+                <Item key={i} onSelect={act(() => s.applySweepCell(c))}>
+                  Load {s.sweep.xKey}={c.x}, {s.sweep.yKey}={c.y}{' '}
+                  <span className="text-dim">— Sharpe {c.sharpe.toFixed(2)}</span>
+                </Item>
+              ))}
+          </Group>
+        </Command.List>
+      </Command>
+    </div>
+  )
+}
+
+function Group({ heading, children }) {
+  return (
+    <Command.Group
+      heading={heading}
+      className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-dim"
+    >
+      {children}
+    </Command.Group>
+  )
+}
+
+function Item({ children, onSelect, shortcut, active }) {
+  return (
+    <Command.Item
+      onSelect={onSelect}
+      className={`flex cursor-pointer items-center gap-2 rounded-[2px] px-2 py-1.5 text-[12px] ${
+        active ? 'text-amber' : 'text-muted'
+      } data-[selected=true]:bg-panel-3 data-[selected=true]:text-ink`}
+    >
+      <span className="flex-1 truncate">{children}</span>
+      {shortcut && <span className="v4-kbd">{shortcut}</span>}
+    </Command.Item>
+  )
+}

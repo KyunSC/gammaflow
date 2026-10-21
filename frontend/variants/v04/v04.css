@@ -1,0 +1,1321 @@
+/*
+ * UI 04 · Lab Ledger.
+ *
+ * Every selector starts with :root[data-ui="04"], because this file stays
+ * loaded after the switcher moves to another design. Plain CSS rather than a
+ * module so it can also restyle the shared components (Sweep, Compare, the
+ * chart toolbar dropdowns) that this design imports without copying.
+ *
+ * Palette is the product's own: near-black canvas, amber for the strategy
+ * and the one primary action, cyan for benchmarks and links, green / red for
+ * P&L only. Dim text is lifted from #5a616b to #6f7680 so 11px labels clear
+ * 4.5:1 on the canvas.
+ */
+
+:root[data-ui="04"] {
+  color-scheme: dark;
+}
+
+:root[data-ui="04"] body {
+  background: #0b0c0e;
+  color: #e6e8eb;
+}
+
+:root[data-ui="04"] .v4 {
+  --v4-bg: #0b0c0e;
+  --v4-bg-1: #111317;
+  --v4-bg-2: #171a1f;
+  --v4-rule: #22262d;
+  --v4-rule-2: #2e343d;
+  --v4-ink: #e6e8eb;
+  --v4-muted: #a1a7af;
+  --v4-dim: #6f7680;
+  --v4-amber: #e8b339;
+  --v4-amber-dim: #8a6a22;
+  --v4-cyan: #5aa5ba;
+  --v4-pos: #4caf50;
+  --v4-neg: #ff6b6b;
+  --v4-violet: #8d7ee0;
+  --v4-sans: var(--v4-font-sans, var(--font-inter)), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --v4-mono: var(--v4-font-mono, var(--font-jetbrains-mono)), ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Re-point the backtester's Tailwind tokens so the shared panels this
+     design imports pick up the same contrast fixes. */
+  --color-canvas: var(--v4-bg);
+  --color-panel: var(--v4-bg);
+  --color-panel-2: var(--v4-bg-1);
+  --color-panel-3: var(--v4-bg-2);
+  --color-dim: var(--v4-dim);
+  --color-muted: var(--v4-muted);
+  --color-cyan: var(--v4-cyan);
+  --color-violet: var(--v4-violet);
+
+  background: var(--v4-bg);
+  color: var(--v4-ink);
+  font-family: var(--v4-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  font-feature-settings: 'tnum' 1;
+}
+
+:root[data-ui="04"] .v4 *,
+:root[data-ui="04"] .v4 *::before,
+:root[data-ui="04"] .v4 *::after {
+  box-sizing: border-box;
+}
+
+/* The terminal's reset strips outlines from every control. Put one back,
+   for keyboard focus only. */
+:root[data-ui="04"] .v4 :focus-visible {
+  outline: 2px solid var(--v4-amber);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+:root[data-ui="04"] .v4 a {
+  color: inherit;
+}
+
+:root[data-ui="04"] .v4-mono {
+  font-family: var(--v4-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-ui="04"] .v4-pos { color: var(--v4-pos); }
+:root[data-ui="04"] .v4-neg { color: var(--v4-neg); }
+:root[data-ui="04"] .v4-flat { color: var(--v4-muted); }
+:root[data-ui="04"] .v4-amber { color: var(--v4-amber); }
+:root[data-ui="04"] .v4-dim { color: var(--v4-dim); }
+:root[data-ui="04"] .v4-muted { color: var(--v4-muted); }
+
+/* ── shared masthead (dashboard + ticker) ─────────────────────────────── */
+
+:root[data-ui="04"] .v4-page {
+  min-height: 100vh;
+}
+
+:root[data-ui="04"] .v4-mast {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  padding: 14px 24px 12px;
+  border-bottom: 1px solid var(--v4-rule);
+}
+
+:root[data-ui="04"] .v4-brand {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  color: var(--v4-ink);
+}
+
+:root[data-ui="04"] .v4-brand span {
+  color: var(--v4-amber);
+}
+
+:root[data-ui="04"] .v4-nav {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+}
+
+:root[data-ui="04"] .v4-nav a {
+  color: var(--v4-muted);
+  text-decoration: none;
+  padding-bottom: 2px;
+  border-bottom: 1px solid transparent;
+}
+
+:root[data-ui="04"] .v4-nav a:hover {
+  color: var(--v4-ink);
+}
+
+:root[data-ui="04"] .v4-nav a[aria-current='page'] {
+  color: var(--v4-ink);
+  border-bottom-color: var(--v4-amber);
+}
+
+:root[data-ui="04"] .v4-mast-meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--v4-dim);
+}
+
+:root[data-ui="04"] .v4-wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 24px 56px;
+}
+
+:root[data-ui="04"] .v4-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+:root[data-ui="04"] .v4-lede {
+  margin-top: 4px;
+  color: var(--v4-muted);
+  font-size: 13px;
+  max-width: 68ch;
+}
+
+:root[data-ui="04"] .v4-status {
+  font-size: 12px;
+  color: var(--v4-dim);
+}
+
+:root[data-ui="04"] .v4-status-warn {
+  color: var(--v4-amber);
+}
+
+:root[data-ui="04"] .v4-status-err {
+  color: var(--v4-neg);
+}
+
+:root[data-ui="04"] .v4-textbtn {
+  font: inherit;
+  color: var(--v4-cyan);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+:root[data-ui="04"] .v4-textbtn:hover {
+  color: var(--v4-ink);
+}
+
+/* ── dashboard: quote board ───────────────────────────────────────────── */
+
+:root[data-ui="04"] .v4-board-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  margin-bottom: 20px;
+}
+
+:root[data-ui="04"] .v4-group {
+  margin-top: 28px;
+}
+
+:root[data-ui="04"] .v4-group h2 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v4-muted);
+  padding-bottom: 6px;
+}
+
+:root[data-ui="04"] .v4-quotes {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+/* Fixed numeric columns so both groups line up down the page. */
+:root[data-ui="04"] .v4-quotes th:not(:first-child) {
+  width: 128px;
+}
+
+:root[data-ui="04"] .v4-quotes th {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--v4-dim);
+  text-align: right;
+  padding: 6px 12px;
+  border-top: 1px solid var(--v4-rule-2);
+  border-bottom: 1px solid var(--v4-rule);
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] .v4-quotes th:first-child,
+:root[data-ui="04"] .v4-quotes td:first-child {
+  text-align: left;
+  padding-left: 0;
+}
+
+:root[data-ui="04"] .v4-quotes td {
+  padding: 10px 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid var(--v4-rule);
+  text-align: right;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+
+:root[data-ui="04"] .v4-quotes td.v4-q-num {
+  font-family: var(--v4-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-ui="04"] .v4-quotes td.v4-q-last {
+  font-size: 15px;
+  color: var(--v4-ink);
+}
+
+:root[data-ui="04"] .v4-quotes tbody tr {
+  cursor: pointer;
+}
+
+:root[data-ui="04"] .v4-quotes tbody tr:hover td {
+  background: var(--v4-bg-1);
+}
+
+:root[data-ui="04"] .v4-q-sym {
+  font-family: var(--v4-mono);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--v4-ink);
+  text-decoration: none;
+}
+
+:root[data-ui="04"] .v4-q-sym:hover {
+  color: var(--v4-amber);
+}
+
+:root[data-ui="04"] .v4-q-name {
+  margin-left: 10px;
+  color: var(--v4-dim);
+  font-size: 12px;
+  white-space: normal;
+}
+
+:root[data-ui="04"] .v4-q-gex {
+  color: var(--v4-cyan);
+  font-size: 11px;
+  margin-left: 8px;
+}
+
+:root[data-ui="04"] .v4-q-err {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--v4-neg);
+  white-space: normal;
+}
+
+:root[data-ui="04"] .v4-q-wait {
+  color: var(--v4-rule-2);
+  animation: v4-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes v4-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+:root[data-ui="04"] .v4-next {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--v4-rule-2);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 24px;
+  align-items: baseline;
+}
+
+:root[data-ui="04"] .v4-next h2 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+:root[data-ui="04"] .v4-next p {
+  color: var(--v4-muted);
+  max-width: 70ch;
+  margin-top: 2px;
+}
+
+:root[data-ui="04"] .v4-cta {
+  display: inline-block;
+  font-weight: 600;
+  font-size: 13px;
+  color: #0b0c0e;
+  background: var(--v4-amber);
+  padding: 7px 14px;
+  border-radius: 3px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] .v4 a.v4-cta {
+  color: #0b0c0e;
+}
+
+:root[data-ui="04"] .v4-cta:hover {
+  background: #f2c04a;
+}
+
+@media (max-width: 640px) {
+  :root[data-ui="04"] .v4-mast { padding: 12px 16px 10px; }
+  :root[data-ui="04"] .v4-mast-meta { margin-left: 0; width: 100%; }
+  :root[data-ui="04"] .v4-wrap { padding: 20px 16px 40px; }
+  :root[data-ui="04"] .v4-quotes .v4-q-wide { display: none; }
+  :root[data-ui="04"] .v4-quotes td { padding: 10px 6px; }
+  :root[data-ui="04"] .v4-quotes th { padding: 6px 6px; }
+  :root[data-ui="04"] .v4-quotes th:not(:first-child) { width: 92px; }
+  :root[data-ui="04"] .v4-q-name { display: block; margin-left: 0; }
+  :root[data-ui="04"] .v4-q-gex { margin-left: 0; display: block; }
+  :root[data-ui="04"] .v4-next { grid-template-columns: 1fr; }
+}
+
+/* ── ticker page ─────────────────────────────────────────────────────── */
+
+:root[data-ui="04"] .v4-tk {
+  padding: 18px 24px 32px;
+}
+
+:root[data-ui="04"] .v4-tk-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+:root[data-ui="04"] .v4-tk-sym {
+  font-family: var(--v4-mono);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+:root[data-ui="04"] .v4-tk-name {
+  color: var(--v4-dim);
+  font-size: 13px;
+}
+
+:root[data-ui="04"] .v4-tk-last {
+  font-family: var(--v4-mono);
+  font-size: 18px;
+}
+
+:root[data-ui="04"] .v4-tk-tools {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+  padding: 8px 0;
+  border-top: 1px solid var(--v4-rule);
+  border-bottom: 1px solid var(--v4-rule);
+}
+
+:root[data-ui="04"] .v4-tf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+:root[data-ui="04"] .v4-tf-label {
+  font-size: 11px;
+  color: var(--v4-dim);
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] .v4-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+}
+
+:root[data-ui="04"] .v4-seg button {
+  font-family: var(--v4-mono);
+  font-size: 12px;
+  color: var(--v4-muted);
+  background: none;
+  border: none;
+  border-radius: 2px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+
+:root[data-ui="04"] .v4-seg button:hover:not(:disabled) {
+  color: var(--v4-ink);
+  background: var(--v4-bg-2);
+}
+
+:root[data-ui="04"] .v4-seg button[aria-pressed='true'] {
+  color: #0b0c0e;
+  background: var(--v4-cyan);
+}
+
+:root[data-ui="04"] .v4-seg button:disabled {
+  color: #3c424b;
+  cursor: not-allowed;
+}
+
+:root[data-ui="04"] .v4-select {
+  font-family: var(--v4-mono);
+  font-size: 12px;
+  color: var(--v4-ink);
+  background: var(--v4-bg-1);
+  border: 1px solid var(--v4-rule-2);
+  border-radius: 2px;
+  padding: 3px 6px;
+}
+
+:root[data-ui="04"] .v4-tk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* The shared dropdown triggers (Indicators, Draw, Objects, Chart type,
+   Settings) become quiet text buttons with one shared shape. */
+:root[data-ui="04"] .v4-tk .indicator-button,
+:root[data-ui="04"] .v4-tk .chart-type-button,
+:root[data-ui="04"] .v4-tk .settings-button {
+  font-family: var(--v4-sans);
+  font-size: 12px;
+  color: var(--v4-muted);
+  background: none;
+  border: 1px solid var(--v4-rule-2);
+  border-radius: 3px;
+  padding: 4px 9px;
+  height: 28px;
+  min-width: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: none;
+}
+
+:root[data-ui="04"] .v4-tk .indicator-button:hover,
+:root[data-ui="04"] .v4-tk .chart-type-button:hover,
+:root[data-ui="04"] .v4-tk .settings-button:hover {
+  color: var(--v4-ink);
+  border-color: var(--v4-dim);
+  background: var(--v4-bg-1);
+}
+
+:root[data-ui="04"] .v4-tk .indicator-button.has-active {
+  color: var(--v4-cyan);
+  border-color: #2f5f6d;
+  background: rgba(74, 144, 164, 0.08);
+}
+
+:root[data-ui="04"] .v4-tk .indicator-dropdown,
+:root[data-ui="04"] .v4-tk .chart-type-dropdown {
+  background: var(--v4-bg-1);
+  border: 1px solid var(--v4-rule-2);
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+:root[data-ui="04"] .v4-tk .indicator-dropdown {
+  left: auto;
+  right: 0;
+}
+
+:root[data-ui="04"] .v4-tk .indicator-option,
+:root[data-ui="04"] .v4-tk .chart-type-option {
+  font-family: var(--v4-sans);
+  font-size: 13px;
+}
+
+:root[data-ui="04"] .v4-tk .indicator-option:hover,
+:root[data-ui="04"] .v4-tk .chart-type-option:hover {
+  background: var(--v4-bg-2);
+}
+
+:root[data-ui="04"] .v4-tk .settings-popup {
+  background: var(--v4-bg-1);
+  border: 1px solid var(--v4-rule-2);
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+:root[data-ui="04"] .v4-tk-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--v4-amber);
+}
+
+:root[data-ui="04"] .v4-tk .chart-with-trend {
+  margin-top: 12px;
+}
+
+:root[data-ui="04"] .v4-tk .chart-container {
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--v4-rule);
+}
+
+:root[data-ui="04"] .v4-tk .trend-logic-table {
+  background: var(--v4-bg-1);
+  border: 1px solid var(--v4-rule);
+  border-radius: 0;
+  margin: 0;
+  font-family: var(--v4-sans);
+}
+
+:root[data-ui="04"] .v4-tk-stage {
+  margin-top: 12px;
+  height: max(450px, calc(100vh - 360px));
+  border: 1px solid var(--v4-rule);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0 clamp(16px, 6vw, 72px);
+  gap: 8px;
+}
+
+:root[data-ui="04"] .v4-tk-stage h2 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+:root[data-ui="04"] .v4-tk-stage p {
+  color: var(--v4-muted);
+  max-width: 62ch;
+}
+
+@media (max-width: 640px) {
+  :root[data-ui="04"] .v4-tk { padding: 14px 16px 24px; }
+  :root[data-ui="04"] .v4-tk-actions { margin-left: 0; }
+  :root[data-ui="04"] .v4-tk .chart-with-trend { flex-direction: column; }
+  :root[data-ui="04"] .v4-tk-stage { height: 420px; }
+}
+
+/* ── backtester ──────────────────────────────────────────────────────── */
+
+:root[data-ui="04"] .v4bt {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (max-width: 1023px) {
+  :root[data-ui="04"] .v4bt {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+}
+
+/* The research panels this design reuses unchanged speak in sentence case
+   here, like everything else. */
+:root[data-ui="04"] .v4bt .btn {
+  font-family: var(--v4-sans);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 3px 10px;
+  border-radius: 3px;
+  background: transparent;
+  border-color: var(--v4-rule-2);
+  color: var(--v4-muted);
+  transition: none;
+}
+
+:root[data-ui="04"] .v4bt .btn:hover:not(:disabled) {
+  background: var(--v4-bg-2);
+}
+
+:root[data-ui="04"] .v4bt .btn-active {
+  color: var(--v4-amber);
+  border-color: var(--v4-amber-dim);
+  background: rgba(232, 179, 57, 0.08);
+}
+
+:root[data-ui="04"] .v4bt .btn-primary {
+  color: #0b0c0e;
+  background: var(--v4-amber);
+  border-color: var(--v4-amber);
+  font-weight: 600;
+}
+
+:root[data-ui="04"] .v4bt .btn-primary:hover:not(:disabled) {
+  color: #0b0c0e;
+  background: #f2c04a;
+}
+
+:root[data-ui="04"] .v4bt .field {
+  background: var(--v4-bg);
+  border-color: var(--v4-rule-2);
+}
+
+:root[data-ui="04"] .v4bt .panel {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+:root[data-ui="04"] .v4bt .panel-label {
+  background: none;
+  font-family: var(--v4-sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--v4-ink);
+  padding: 8px 12px 6px;
+}
+
+:root[data-ui="04"] .v4bt .switch {
+  border-radius: 8px;
+}
+
+:root[data-ui="04"] .v4bt input[type='range'] {
+  accent-color: var(--v4-amber);
+}
+
+/* Region heads: the only sentence-case semibold in the terminal. */
+:root[data-ui="04"] .v4-rh {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px 6px;
+  min-height: 32px;
+  flex: none;
+}
+
+:root[data-ui="04"] .v4-rh h2,
+:root[data-ui="04"] .v4-rh h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v4-ink);
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] .v4-rh .v4-rh-meta {
+  font-size: 11px;
+  color: var(--v4-dim);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] .v4-rh .v4-rh-right {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px 10px;
+  font-size: 11px;
+  color: var(--v4-dim);
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* Top bar */
+:root[data-ui="04"] .v4-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--v4-rule);
+  font-size: 12px;
+  flex: none;
+}
+
+:root[data-ui="04"] .v4-top-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] .v4-top-brand b {
+  font-weight: 600;
+  color: var(--v4-ink);
+}
+
+:root[data-ui="04"] .v4-top-brand span {
+  color: var(--v4-amber);
+  font-weight: 500;
+}
+
+:root[data-ui="04"] .v4-top-ds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  color: var(--v4-muted);
+  min-width: 0;
+}
+
+:root[data-ui="04"] .v4-top-ds .v4-sym {
+  font-family: var(--v4-mono);
+  color: var(--v4-ink);
+  font-weight: 500;
+}
+
+:root[data-ui="04"] .v4-top-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+:root[data-ui="04"] .v4-top button {
+  color: var(--v4-muted);
+}
+
+:root[data-ui="04"] .v4-top button:hover {
+  color: var(--v4-ink);
+}
+
+:root[data-ui="04"] .v4-kbd {
+  font-family: var(--v4-mono);
+  font-size: 11px;
+  padding: 0 5px;
+  border: 1px solid var(--v4-rule-2);
+  border-radius: 3px;
+  color: var(--v4-muted);
+  line-height: 18px;
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+}
+
+:root[data-ui="04"] .v4-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--v4-rule);
+  border-left: 2px solid var(--v4-amber);
+  font-size: 12px;
+  color: var(--v4-amber);
+  flex: none;
+}
+
+:root[data-ui="04"] .v4-banner.v4-banner-err {
+  border-left-color: var(--v4-neg);
+  color: var(--v4-neg);
+}
+
+/* Result: the answer, then what qualifies it. */
+:root[data-ui="04"] .v4-result {
+  padding: 10px 14px 0;
+  flex: none;
+}
+
+:root[data-ui="04"] .v4-figs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 30px;
+}
+
+:root[data-ui="04"] .v4-fig {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+:root[data-ui="04"] .v4-fig-label {
+  font-size: 11px;
+  color: var(--v4-dim);
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] .v4-fig-val {
+  font-family: var(--v4-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] .v4-fig-lead .v4-fig-val {
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+:root[data-ui="04"] .v4-fig-sub {
+  font-family: var(--v4-mono);
+  font-size: 11px;
+  color: var(--v4-dim);
+  white-space: nowrap;
+  min-height: 16px;
+}
+
+:root[data-ui="04"] .v4-caveats {
+  margin-top: 10px;
+  padding: 7px 0 9px;
+  border-top: 1px solid var(--v4-rule);
+  border-bottom: 1px solid var(--v4-rule);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 18px;
+  font-size: 12px;
+  color: var(--v4-muted);
+}
+
+:root[data-ui="04"] .v4-caveats > b {
+  font-weight: 600;
+  color: var(--v4-ink);
+}
+
+:root[data-ui="04"] .v4-caveats .v4-cv {
+  position: relative;
+  padding-left: 0;
+}
+
+:root[data-ui="04"] .v4-caveats button {
+  text-decoration: underline;
+  text-decoration-color: var(--v4-rule-2);
+  text-underline-offset: 2px;
+}
+
+:root[data-ui="04"] .v4-caveats button:hover {
+  color: var(--v4-ink);
+}
+
+/* Setup column */
+:root[data-ui="04"] .v4-setup {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border-right: 1px solid var(--v4-rule);
+}
+
+:root[data-ui="04"] .v4-setup-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 14px 16px;
+}
+
+:root[data-ui="04"] .v4-sec {
+  padding: 12px 0 14px;
+  border-bottom: 1px solid var(--v4-rule);
+}
+
+:root[data-ui="04"] .v4-sec:last-child {
+  border-bottom: none;
+}
+
+:root[data-ui="04"] .v4-sec-h {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+:root[data-ui="04"] .v4-sec-h h3,
+:root[data-ui="04"] .v4-sec > summary h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v4-ink);
+}
+
+:root[data-ui="04"] .v4-sec-h .v4-sec-right {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--v4-dim);
+}
+
+:root[data-ui="04"] details.v4-sec > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+:root[data-ui="04"] details.v4-sec > summary::-webkit-details-marker {
+  display: none;
+}
+
+:root[data-ui="04"] details.v4-sec > summary .v4-sum {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--v4-dim);
+  max-width: 65%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] details.v4-sec > summary::after {
+  content: '+';
+  font-family: var(--v4-mono);
+  color: var(--v4-dim);
+  width: 10px;
+  text-align: right;
+}
+
+:root[data-ui="04"] details.v4-sec[open] > summary::after {
+  content: '−';
+}
+
+:root[data-ui="04"] details.v4-sec[open] > summary {
+  margin-bottom: 8px;
+}
+
+:root[data-ui="04"] .v4-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+}
+
+:root[data-ui="04"] .v4-row-label {
+  width: 108px;
+  flex: none;
+  font-size: 12px;
+  color: var(--v4-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] .v4-row.v4-focused {
+  box-shadow: inset 2px 0 0 var(--v4-amber);
+  padding-left: 6px;
+  margin-left: -8px;
+}
+
+:root[data-ui="04"] .v4-row.v4-focused .v4-row-label {
+  color: var(--v4-amber);
+}
+
+:root[data-ui="04"] .v4-note {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--v4-dim);
+}
+
+:root[data-ui="04"] .v4-seg2 {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  border: 1px solid var(--v4-rule-2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+:root[data-ui="04"] .v4-seg2 button {
+  font-size: 12px;
+  padding: 4px 6px;
+  color: var(--v4-muted);
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] .v4-seg2 button + button {
+  border-left: 1px solid var(--v4-rule-2);
+}
+
+:root[data-ui="04"] .v4-seg2 button:hover {
+  color: var(--v4-ink);
+  background: var(--v4-bg-2);
+}
+
+:root[data-ui="04"] .v4-seg2 button[aria-pressed='true'] {
+  color: var(--v4-amber);
+  background: rgba(232, 179, 57, 0.08);
+}
+
+:root[data-ui="04"] .v4-runbar {
+  flex: none;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--v4-rule);
+  background: var(--v4-bg);
+}
+
+:root[data-ui="04"] .v4-run {
+  width: 100%;
+  font-weight: 600;
+  font-size: 13px;
+  color: #0b0c0e;
+  background: var(--v4-amber);
+  border-radius: 3px;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+:root[data-ui="04"] .v4-run:hover:not(:disabled) {
+  background: #f2c04a;
+}
+
+:root[data-ui="04"] .v4-run .v4-kbd {
+  border-color: rgba(11, 12, 14, 0.35);
+  color: rgba(11, 12, 14, 0.75);
+  line-height: 16px;
+}
+
+/* Tabs */
+:root[data-ui="04"] .v4-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-width: 0;
+}
+
+:root[data-ui="04"] .v4-tabs [role='tab'] {
+  font-size: 12px;
+  color: var(--v4-dim);
+  padding: 2px 8px 5px;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] .v4-tabs [role='tab']:hover {
+  color: var(--v4-ink);
+}
+
+:root[data-ui="04"] .v4-tabs [role='tab'][aria-selected='true'] {
+  color: var(--v4-ink);
+  border-bottom-color: var(--v4-amber);
+}
+
+/* Regions in the main column */
+:root[data-ui="04"] .v4-region {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+:root[data-ui="04"] .v4-region-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+:root[data-ui="04"] .v4-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+:root[data-ui="04"] .v4-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 20px;
+  font-size: 12px;
+  color: var(--v4-muted);
+  max-width: 60ch;
+}
+
+/* Trade list */
+:root[data-ui="04"] .v4-trades-head,
+:root[data-ui="04"] .v4-trade {
+  display: grid;
+  align-items: center;
+  column-gap: 10px;
+  padding: 0 12px;
+  font-family: var(--v4-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+:root[data-ui="04"] .v4-trades-head {
+  font-family: var(--v4-sans);
+  color: var(--v4-dim);
+  border-bottom: 1px solid var(--v4-rule);
+  height: 24px;
+}
+
+:root[data-ui="04"] .v4-trades-head button {
+  text-align: inherit;
+  color: inherit;
+}
+
+:root[data-ui="04"] .v4-trades-head button:hover,
+:root[data-ui="04"] .v4-trades-head button[aria-sort] {
+  color: var(--v4-ink);
+}
+
+:root[data-ui="04"] .v4-trade {
+  color: var(--v4-muted);
+  cursor: pointer;
+  border-bottom: 1px solid #15171b;
+}
+
+:root[data-ui="04"] .v4-trade:hover {
+  background: var(--v4-bg-1);
+}
+
+:root[data-ui="04"] .v4-trade[aria-selected='true'] {
+  background: rgba(232, 179, 57, 0.1);
+  box-shadow: inset 2px 0 0 var(--v4-amber);
+  color: var(--v4-ink);
+}
+
+:root[data-ui="04"] .v4-trades-list:focus-visible {
+  outline-offset: -2px;
+}
+
+:root[data-ui="04"] .v4-r { text-align: right; }
+
+:root[data-ui="04"] .v4-hole {
+  color: var(--v4-amber);
+}
+
+:root[data-ui="04"] .v4-foot {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  padding: 5px 12px;
+  border-top: 1px solid var(--v4-rule);
+  font-size: 11px;
+  color: var(--v4-dim);
+}
+
+/* Metrics rail */
+:root[data-ui="04"] .v4-dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+:root[data-ui="04"] .v4-dl dt {
+  color: var(--v4-dim);
+  padding: 3px 0;
+  border-bottom: 1px solid #15171b;
+}
+
+:root[data-ui="04"] .v4-dl dd {
+  font-family: var(--v4-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  padding: 3px 0;
+  border-bottom: 1px solid #15171b;
+  color: var(--v4-muted);
+}
+
+:root[data-ui="04"] .v4-honesty {
+  margin: 10px 12px 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--v4-rule-2);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--v4-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Resize handles: a hairline with a wider hit area. */
+:root[data-ui="04"] .v4-handle {
+  position: relative;
+  background: var(--v4-rule);
+  flex: none;
+}
+
+:root[data-ui="04"] .v4-handle[aria-orientation='vertical'],
+:root[data-ui="04"] .v4-handle-v {
+  width: 1px;
+}
+
+:root[data-ui="04"] .v4-handle-h {
+  height: 1px;
+}
+
+:root[data-ui="04"] .v4-handle::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+}
+
+:root[data-ui="04"] .v4-handle:hover,
+:root[data-ui="04"] .v4-handle[data-separator='active'],
+:root[data-ui="04"] .v4-handle:focus-visible {
+  background: var(--v4-amber-dim);
+}
+
+/* Overlays: shortcut sheet and command palette */
+:root[data-ui="04"] .v4-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh 16px 16px;
+  background: rgba(5, 6, 7, 0.72);
+}
+
+:root[data-ui="04"] .v4-dialog {
+  width: min(480px, 100%);
+  max-height: 76vh;
+  overflow: auto;
+  background: var(--v4-bg-1);
+  border: 1px solid var(--v4-rule-2);
+  border-radius: 3px;
+  padding: 16px 18px;
+}
+
+:root[data-ui="04"] .v4-dialog h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+:root[data-ui="04"] .v4-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--v4-muted);
+}
+
+:root[data-ui="04"] .v4-keys dt {
+  display: flex;
+  gap: 3px;
+  justify-content: flex-end;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-ui="04"] .v4 *,
+  :root[data-ui="04"] .v4 *::before,
+  :root[data-ui="04"] .v4 *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+:root[data-ui="04"] .v4-ink { color: var(--v4-ink); }
+
+/* Programmatic focus lands on the dialog itself; the ring is for keys. */
+:root[data-ui="04"] .v4 .v4-dialog:focus {
+  outline: none;
+}
+
+/* Shared panels title themselves in lower case ("compare"). */
+:root[data-ui="04"] .v4bt .panel-label > span:first-child::first-letter {
+  text-transform: uppercase;
+}
