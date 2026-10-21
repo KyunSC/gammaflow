@@ -1,0 +1,70 @@
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+  min-height: 40px;
+  padding: 6px 16px;
+  border-bottom: 1px solid #20242a;
+  background: #0b0c0e;
+  font-family: var(--v9-sans, var(--font-inter)), -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+  color: #a3a9b1;
+}
+.brand {
+  font-family: var(--v9-mono, var(--font-jetbrains-mono)), ui-monospace, Menlo, monospace;
+  font-weight: 600;
+  font-size: 13px;
+  color: #e8b339;
+  text-decoration: none;
+  letter-spacing: 0.02em;
+}
+.links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.link {
+  padding: 4px 8px;
+  border-radius: 2px;
+  color: #a3a9b1;
+  text-decoration: none;
+}
+.link:hover {
+  color: #e8eaed;
+  background: #15181d;
+}
+.link[aria-current='page'] {
+  color: #e8eaed;
+  box-shadow: inset 0 -2px 0 #e8b339;
+  border-radius: 0;
+}
+.extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+}
+.right {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+.brand:focus-visible,
+.link:focus-visible {
+  outline: 2px solid #5aa3b8;
+  outline-offset: 1px;
+}
+@media (max-width: 640px) {
+  .bar {
+    padding: 6px 12px;
+    gap: 4px 12px;
+  }
+  .right {
+    margin-left: 0;
+    width: 100%;
+  }
+}

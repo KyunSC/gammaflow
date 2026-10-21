@@ -1,0 +1,332 @@
+/*
+ * Design 09 — "Lab Ledger", backtester styles.
+ *
+ * Every selector starts with :root[data-ui="09"] so nothing leaks into the
+ * other designs once this file has loaded. Primitives sit in the components
+ * layer (Tailwind utilities still win over them); the few overrides of the
+ * shared panels' tiny type sizes are unlayered on purpose.
+ */
+
+/* ── tokens ─────────────────────────────────────────────────────────────
+   Same brand: amber leads, cyan for interaction and benchmarks, the
+   dashboard's P/L greens and reds. Surfaces are flattened (panel-2 equals
+   panel, so the shared panels lose their striped title bars) and the dim
+   text is lifted to clear 4.5:1 on the canvas. */
+:root[data-ui="09"] .v9 {
+  --color-canvas: #0b0c0e;
+  --color-panel: #0f1114;
+  --color-panel-2: #0f1114;
+  --color-panel-3: #1a1d23;
+  --color-hair: #20242a;
+  --color-hair-bright: #2c3138;
+  --color-ink: #e8eaed;
+  --color-muted: #a3a9b1;
+  --color-dim: #7a818b;
+  --color-amber: #e8b339;
+  --color-amber-dim: #8a6a22;
+  --color-cyan: #5aa3b8;
+  --color-pos: #5cbf60;
+  --color-neg: #ff6b6b;
+  --color-violet: #9a8cf0;
+  --v9-gap: rgba(232, 179, 57, 0.22);
+  --v9-focus: #5aa3b8;
+
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Visible focus everywhere. backtest.css removes outlines on every control;
+   this puts a ring back for keyboard users only. */
+:root[data-ui="09"] .v9 :focus-visible {
+  outline: 2px solid var(--v9-focus) !important;
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+:root[data-ui="09"] body:has(.v9) {
+  background: #0b0c0e;
+}
+
+@layer components {
+  /* Text button: the default control. No box until hovered. */
+  :root[data-ui="09"] .v9 .v9-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid var(--color-hair-bright);
+    border-radius: 2px;
+    color: var(--color-muted);
+    font-size: 12px;
+    line-height: 1.3;
+    white-space: nowrap;
+    background: transparent;
+  }
+  :root[data-ui="09"] .v9 .v9-btn:hover:not(:disabled) {
+    color: var(--color-ink);
+    border-color: var(--color-dim);
+  }
+  :root[data-ui="09"] .v9 .v9-btn[aria-pressed='true'],
+  :root[data-ui="09"] .v9 .v9-btn.is-on {
+    color: var(--color-amber);
+    border-color: var(--color-amber-dim);
+    background: rgba(232, 179, 57, 0.07);
+  }
+  :root[data-ui="09"] .v9 .v9-run {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: 2px;
+    background: var(--color-amber);
+    color: #0b0c0e;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  :root[data-ui="09"] .v9 .v9-run:hover:not(:disabled) {
+    background: #f2c04a;
+  }
+  :root[data-ui="09"] .v9 .v9-link {
+    color: var(--color-cyan);
+    text-decoration: underline;
+    text-decoration-color: rgba(90, 163, 184, 0.4);
+    text-underline-offset: 2px;
+  }
+  :root[data-ui="09"] .v9 .v9-link:hover {
+    text-decoration-color: currentColor;
+  }
+
+  /* Segmented control: one hairline box, options separated by rules. */
+  :root[data-ui="09"] .v9 .v9-seg {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    border: 1px solid var(--color-hair-bright);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  :root[data-ui="09"] .v9 .v9-seg > button {
+    padding: 5px 6px;
+    font-size: 12px;
+    color: var(--color-muted);
+    border-left: 1px solid var(--color-hair-bright);
+    white-space: nowrap;
+  }
+  :root[data-ui="09"] .v9 .v9-seg > button:first-child {
+    border-left: 0;
+  }
+  :root[data-ui="09"] .v9 .v9-seg > button:hover {
+    color: var(--color-ink);
+  }
+  :root[data-ui="09"] .v9 .v9-seg > button[aria-pressed='true'] {
+    color: #0b0c0e;
+    background: var(--color-amber);
+    font-weight: 600;
+  }
+
+  :root[data-ui="09"] .v9 .v9-field {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hair-bright);
+    border-radius: 2px;
+    padding: 4px 6px;
+    width: 100%;
+  }
+  :root[data-ui="09"] .v9 .v9-field:focus {
+    border-color: var(--color-cyan);
+  }
+
+  :root[data-ui="09"] .v9 .v9-range {
+    appearance: none;
+    -webkit-appearance: none;
+    height: 18px;
+    background: transparent;
+    cursor: pointer;
+    accent-color: var(--color-amber);
+  }
+  :root[data-ui="09"] .v9 .v9-range::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--color-hair-bright);
+  }
+  :root[data-ui="09"] .v9 .v9-range::-moz-range-track {
+    height: 2px;
+    background: var(--color-hair-bright);
+  }
+  :root[data-ui="09"] .v9 .v9-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 14px;
+    margin-top: -6px;
+    border-radius: 1px;
+    background: var(--color-amber);
+  }
+  :root[data-ui="09"] .v9 .v9-range::-moz-range-thumb {
+    width: 10px;
+    height: 14px;
+    border: 0;
+    border-radius: 1px;
+    background: var(--color-amber);
+  }
+
+  /* Square toggle: a filled block when on — reads as a state, not a pill. */
+  :root[data-ui="09"] .v9 .v9-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-muted);
+  }
+  :root[data-ui="09"] .v9 .v9-toggle::before {
+    content: '';
+    width: 12px;
+    height: 12px;
+    flex: none;
+    border: 1px solid var(--color-dim);
+    border-radius: 2px;
+  }
+  :root[data-ui="09"] .v9 .v9-toggle[aria-checked='true'] {
+    color: var(--color-ink);
+  }
+  :root[data-ui="09"] .v9 .v9-toggle[aria-checked='true']::before {
+    border-color: var(--color-amber);
+    background: var(--color-amber);
+    box-shadow: inset 0 0 0 2px var(--color-canvas);
+  }
+
+  :root[data-ui="09"] .v9 .v9-h {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-ink);
+    letter-spacing: 0;
+  }
+  :root[data-ui="09"] .v9 .v9-label {
+    font-size: 11px;
+    color: var(--color-dim);
+  }
+  :root[data-ui="09"] .v9 .v9-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  :root[data-ui="09"] .v9 .v9-kbd {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 0 4px;
+    border: 1px solid var(--color-hair-bright);
+    border-radius: 2px;
+    color: var(--color-muted);
+  }
+
+  /* Tabs: underlined, not boxed. */
+  :root[data-ui="09"] .v9 .v9-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 2px;
+    border-bottom: 1px solid var(--color-hair);
+  }
+  :root[data-ui="09"] .v9 .v9-tab {
+    padding: 7px 10px 6px;
+    font-size: 12px;
+    color: var(--color-dim);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+  }
+  :root[data-ui="09"] .v9 .v9-tab:hover {
+    color: var(--color-ink);
+  }
+  :root[data-ui="09"] .v9 .v9-tab[aria-selected='true'] {
+    color: var(--color-ink);
+    border-bottom-color: var(--color-amber);
+  }
+  :root[data-ui="09"] .v9 .v9-tab .v9-count {
+    margin-left: 5px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-dim);
+  }
+
+  :root[data-ui="09"] .v9 details.v9-more > summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  :root[data-ui="09"] .v9 details.v9-more > summary::-webkit-details-marker {
+    display: none;
+  }
+  :root[data-ui="09"] .v9 details.v9-more > summary .v9-caret {
+    display: inline-block;
+    width: 10px;
+    color: var(--color-dim);
+  }
+  :root[data-ui="09"] .v9 details.v9-more[open] > summary .v9-caret {
+    transform: rotate(90deg);
+  }
+
+  /* ── shared panels re-skinned inside this design ─────────────────────
+     Sweep / walk-forward / Monte Carlo / costs / prop / rules / benchmark
+     are imported unchanged; their primitives are restyled here. */
+  :root[data-ui="09"] .v9 .btn {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    letter-spacing: 0;
+    text-transform: none;
+    padding: 4px 9px;
+    background: transparent;
+    border-color: var(--color-hair-bright);
+  }
+  :root[data-ui="09"] .v9 .btn-active {
+    color: var(--color-amber);
+    border-color: var(--color-amber-dim);
+    background: rgba(232, 179, 57, 0.07);
+  }
+  :root[data-ui="09"] .v9 .btn-primary {
+    color: #0b0c0e;
+    background: var(--color-amber);
+    border-color: var(--color-amber);
+  }
+  :root[data-ui="09"] .v9 .field,
+  :root[data-ui="09"] .v9 .chip {
+    border-color: var(--color-hair-bright);
+  }
+  :root[data-ui="09"] .v9 .field:focus {
+    border-color: var(--color-cyan);
+  }
+}
+
+/* The shared panels set some labels at 9px. Lift the floor to 10.5px inside
+   this design — unlayered so it beats the utility layer. */
+:root[data-ui="09"] .v9 .v9-shared .text-\[9px\] {
+  font-size: 10.5px;
+}
+:root[data-ui="09"] .v9 .v9-shared .text-\[10px\] {
+  font-size: 11px;
+}
+:root[data-ui="09"] .v9 .v9-shared .tracking-\[0\.14em\],
+:root[data-ui="09"] .v9 .v9-shared .tracking-\[0\.12em\] {
+  letter-spacing: 0.06em;
+}
+/* Walk-forward fold cards: rules instead of boxes. */
+:root[data-ui="09"] .v9 .v9-shared .rounded-\[2px\].border.border-hair.bg-panel-2 {
+  border-width: 0 0 1px 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 6px 0;
+}
+
+/* lightweight-charts attribution link */
+:root[data-ui="09"] .v9 a[href*='tradingview'] {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-ui="09"] .v9 * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
