@@ -1,0 +1,98 @@
+'use client'
+
+// Variant 05 copy of components/ChartTypeSelector.jsx: the button shows the
+// current chart type as text next to its glyph.
+
+import { useState, useRef, useEffect } from 'react'
+
+const CHART_TYPES = [
+  { group: 'Bars', items: [
+    { id: 'ohlc', label: 'OHLC Bars' },
+    { id: 'hlc', label: 'HLC Bars' },
+    { id: 'highlow', label: 'High/Low Bars' },
+  ]},
+  { group: 'Candlesticks', items: [
+    { id: 'candlestick', label: 'Candlesticks' },
+    { id: 'candlestick-trend', label: 'Candlesticks (Trend)' },
+    { id: '3d-candlestick', label: '3D Candlesticks' },
+    { id: 'hollow', label: 'Candlesticks (Hollow)' },
+    { id: 'candlestick-flat', label: 'Candlesticks (Flat)' },
+  ]},
+  { group: 'Line', items: [
+    { id: 'line', label: 'Line' },
+    { id: 'line-shaded', label: 'Line (Shaded)' },
+    { id: 'line-gradient', label: 'Line (Gradient)' },
+    { id: 'square-line', label: 'Square Line' },
+    { id: 'square-line-shaded', label: 'Square Line (Shaded)' },
+    { id: 'square-line-gradient', label: 'Square Line (Gradient)' },
+  ]},
+]
+
+function findLabel(id) {
+  for (const group of CHART_TYPES) {
+    const item = group.items.find(t => t.id === id)
+    if (item) return item.label
+  }
+  return 'Candlesticks'
+}
+
+export default function ChartTypeSelector({ chartType, onSelect }) {
+  const [open, setOpen] = useState(false)
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setOpen(false)
+      }
+    }
+    if (open) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [open])
+
+  return (
+    <div className="chart-type-selector" ref={dropdownRef}>
+      <button
+        className="chart-type-button"
+        onClick={() => setOpen(prev => !prev)}
+        title={findLabel(chartType)}
+        aria-expanded={open}
+      >
+        {findLabel(chartType)}
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" suppressHydrationWarning>
+          <line x1="3" y1="2" x2="3" y2="4" />
+          <rect x="1" y="4" width="4" height="7" rx="0" />
+          <line x1="3" y1="11" x2="3" y2="14" />
+          <line x1="8" y1="1" x2="8" y2="3" />
+          <rect x="6" y="3" width="4" height="8" rx="0" />
+          <line x1="8" y1="11" x2="8" y2="14" />
+          <line x1="13" y1="3" x2="13" y2="5" />
+          <rect x="11" y="5" width="4" height="6" rx="0" />
+          <line x1="13" y1="11" x2="13" y2="15" />
+        </svg>
+      </button>
+      {open && (
+        <div className="chart-type-dropdown">
+          {CHART_TYPES.map((group, gi) => (
+            <div key={group.group}>
+              {gi > 0 && <div className="chart-type-divider" />}
+              <div className="chart-type-group-label">{group.group}</div>
+              {group.items.map(t => (
+                <button
+                  key={t.id}
+                  className={`chart-type-option${t.id === chartType ? ' active' : ''}`}
+                  onClick={() => {
+                    onSelect(t.id)
+                    setOpen(false)
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
