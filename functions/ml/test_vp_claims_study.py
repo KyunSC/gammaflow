@@ -2,7 +2,7 @@
 import json
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -12,6 +12,16 @@ import pandas as pd
 import vp_claims_study as vp
 
 T = vp.TICK
+SPEC_SHA = "1dcb2bad4a7db98b"   # vp.script_sha(): vp_claims_study.py + amt_lucid_study.py; any change shows up here
+
+
+def trading_days(n, start=date(2023, 1, 3)):
+    days, d = [], start
+    while len(days) < n:
+        if d.weekday() < 5 and d not in vp.NYSE_HOLIDAYS:
+            days.append(d)
+        d += timedelta(days=1)
+    return days
 
 
 def sess(rows, start=vp.OPEN, inst=None):
@@ -52,20 +62,59 @@ class Profile(unittest.TestCase):
         s = {date(2020, 3, 12): dict(inst=1), date(2020, 3, 13): dict(inst=2), date(2020, 3, 16): dict(inst=2)}
         self.assertEqual(vp.pairs(s), [(date(2020, 3, 13), date(2020, 3, 16))])
 
+    def test_pairs_need_the_previous_trading_day(self):
+        days = [date(2023, 1, 3), date(2023, 1, 9),                  # a hole: Jan 4-6 missing
+                date(2023, 1, 13), date(2023, 1, 17),                # MLK Monday between: still adjacent
+                date(2023, 4, 6), date(2023, 4, 10),                 # Good Friday between
+                date(2023, 11, 22), date(2023, 11, 27)]              # half-day Friday dropped: not adjacent
+        s = {d: dict(inst=None) for d in days}
+        self.assertEqual(vp.pairs(s), [(date(2023, 1, 13), date(2023, 1, 17)), (date(2023, 4, 6), date(2023, 4, 10))])
+        self.assertEqual(vp.prev_session(date(2012, 10, 31)), date(2012, 10, 26))   # Sandy closure
+
 
 class T1(unittest.TestCase):
-    lv = dict(poc=104.0, vwap=104.0, range=10.0)
+    lv = dict(poc=104.0, vwap=103.0, mid=103.0, close=101.0, val=102.0, vah=106.0, low=98.0, high=108.0, range=10.0,
+              width=0, hvn=[], lvn=[], base=392, nbins=41, poc_bin=24)
 
-    def test_touch_and_mirror(self):
-        s = sess([(100, 100.5, 99.5, 100)] * 5 + [(100, 104.25, 99, 103)] + [(103, 103.5, 102.5, 103)] * 384)
-        self.assertEqual(vp.t1_touches(self.lv, s), (1, 0))          # mirror = 96, never traded
+    def day(self, high, low=99.5):
+        """Open 100; one 10:00 bar reaches `high` and `low`."""
+        rows = [(100, 100.25, 99.75, 100)] * 30 + [(100, high, low, 100)] + [(100, 100.25, 99.75, 100)] * 359
+        return sess(rows)
+
+    def test_session_touch_mirror_and_control(self):
+        hits, weight, lv = vp.t1_session(self.lv, self.day(104.25))
+        cell, touch, mirror = lv["poc"]
+        self.assertEqual((touch, mirror), (1, 0))                    # mirror = 96, never traded
+        self.assertAlmostEqual(hits[cell] / weight[cell], 1.0)       # 104.25 shares the POC's cell and was reached
+        far = vp.t1_session(self.lv, self.day(102.0))
+        self.assertEqual(far[2]["poc"][1], 0)
+        self.assertAlmostEqual(far[0][cell], 0.0)
 
     def test_first_five_minutes_ignored(self):
         s = sess([(100, 104.5, 99.5, 100)] + [(100, 100.5, 99.5, 100)] * 389)
-        self.assertEqual(vp.t1_touches(self.lv, s), (0, 0))
+        self.assertEqual(vp.t1_session(self.lv, s)[2]["poc"][1:], (0, 0))
 
     def test_too_close_skipped(self):
-        self.assertIsNone(vp.t1_touches(dict(poc=100.5, range=10.0), flat_day()))
+        lv = dict(self.lv, poc=100.5)
+        self.assertNotIn("poc", vp.t1_session(lv, flat_day())[2])
+
+    def run_t1(self, highs):
+        days = trading_days(len(highs) + 1)
+        sessions = {d: self.day(h) for d, h in zip(days, [100.25] + highs)}
+        with mock.patch.object(vp, "prior_levels", return_value=self.lv):
+            return vp.t1(sessions)["poc"]
+
+    def test_reversion_alone_is_not_a_magnet(self):
+        # half the days run far enough to pass the POC, half don't: the POC is reached exactly as often as any
+        # prior-range price that far up, so no excess, though touch - mirror says +0.5
+        r = self.run_t1([105.0, 102.0] * 20)
+        self.assertAlmostEqual(r["mean"], 0.0)
+        self.assertAlmostEqual(r["minus_mirror"]["mean"], 0.5)
+
+    def test_stopping_at_the_poc_is_excess(self):
+        r = self.run_t1([104.0] * 40)                                # reaches the POC, never the tick past it
+        self.assertAlmostEqual(r["mean"], 1.0)
+        self.assertGreater(r["lower_alpha"], 0)
 
 
 class T2(unittest.TestCase):
@@ -82,6 +131,25 @@ class T2(unittest.TestCase):
 
     def test_ambiguous(self):
         self.assertEqual(vp.first_passage(100.0, 2.0, self.path([(100, 102.5, 97.5, 100)])), "ambiguous")
+
+    def test_approach_bar_run_up_is_not_a_reversal(self):
+        # the approach bar comes up from 97.75; its low printed before the touch, so it is not "back"
+        pre = [(98, 98.25, 97.75, 98)] * 20
+        s = sess(pre + [(98, 100.5, 97.75, 100.25), (100.25, 102.5, 100, 102.25)] + [(102, 102.25, 101.75, 102)] * 368)
+        self.assertEqual(vp.first_passage(100.0, 2.0, s), "through")
+        s = sess(pre + [(98, 102.5, 97.75, 102.25)] + [(102, 102.25, 101.75, 102)] * 369)   # one-bar breakout
+        self.assertEqual(vp.first_passage(100.0, 2.0, s), "through")
+
+    def test_strata_and_stratified_difference(self):
+        lv = dict(val=99.0, vah=101.0, range=10.0)
+        self.assertEqual(vp.t2_stratum(100.0, lv, 100.5), 3)         # inside VA, near the open
+        self.assertEqual(vp.t2_stratum(106.0, lv, 100.0), 2)         # outside the VA, 0.6x the range away
+        # Simpson: LVNs sit where pass-through is high for every kind; within each stratum LVN = HVN
+        thr = np.zeros((3, vp.T2_NSTRATA)); tot = np.zeros((3, vp.T2_NSTRATA))
+        tot[0, 0], thr[0, 0], tot[0, 1], thr[0, 1] = 90, 18, 10, 8      # HVN: mostly in the 20% stratum
+        tot[1, 0], thr[1, 0], tot[1, 1], thr[1, 1] = 10, 2, 90, 72      # LVN: mostly in the 80% stratum
+        self.assertGreater(thr[1].sum() / tot[1].sum() - thr[0].sum() / tot[0].sum(), 0.4)
+        self.assertAlmostEqual(vp.strat_diff(thr, tot, 1, 0), 0.0)
 
     def test_open_when_unresolved(self):
         self.assertEqual(vp.first_passage(100.0, 2.0, self.path([])), "open")
@@ -149,6 +217,15 @@ class T3(unittest.TestCase):
         s = sess([(100, 100.25, 99.75, 100)] * 390)
         r = vp.bracket2(s, 1, 0, 2.0, 1.0, 2.0, False, 0.09)
         self.assertAlmostEqual(r, (100 - T - (100 + T) - 0.09) / 2.0)
+        r2 = vp.bracket2(s, 1, 0, 2.0, 1.0, 2.0, False, 0.18, slip=2)
+        self.assertAlmostEqual(r2, (100 - 2 * T - (100 + 2 * T) - 0.18) / 2.0)
+
+    def test_bracket2_slip_keeps_planned_levels(self):
+        # long, planned entry 100.25, stop 98.25; a bar to 98.25 stops both the 1-tick and the 2-tick replays
+        s = sess([(100, 100.25, 99.75, 100), (100, 100, 98.25, 98.5)] + [(98.5, 98.75, 98.25, 98.5)] * 5)
+        self.assertAlmostEqual(vp.bracket2(s, 1, 0, 2.0, 1.0, 2.0, False, 0.0), (98.25 - T - (100 + T)) / 2.0)
+        self.assertAlmostEqual(vp.bracket2(s, 1, 0, 2.0, 1.0, 2.0, False, 0.0, slip=2),
+                               (98.25 - 2 * T - (100 + 2 * T)) / 2.0)
 
     def test_plan_skips_entry_through_stop(self):
         dp = dict(side=-1, e=0, h5=100.0, l5=99.0, val=95.0, poc=97.0, vah=100.0)
@@ -156,14 +233,16 @@ class T3(unittest.TestCase):
         self.assertIsNone(vp.t3_plan(dp, s, 1))
 
     def test_edge_nets_out_the_coin(self):
-        mk = lambda r, f: dict(day=date(2015, 1, 5), dir=1, r=r, r_flip=f)
+        mk = lambda r, f: dict(day=date(2015, 1, 5), dir=1, r=r, r_flip=f, r_2x=r - .1, friction_r=.1, stop_ticks=6)
         sc = vp.t3_score(dict(bal=[mk(-0.2, -0.6)] * 3, twin=[mk(0.1, 0.1)] * 3), False)
         self.assertAlmostEqual(sc["edge"], 0.2)                     # worse R than the twin, better than its coin
         self.assertAlmostEqual(sc["twin_edge"], 0.0)
+        self.assertAlmostEqual(sc["mean_2x"], -0.3)
+        self.assertEqual(sc["stop_ticks_median"], 6)
 
     def test_selection_rule(self):
-        def cell(n, mean, twin):
-            return dict(trades=n, mean=mean, edge=mean, twin_edge=twin)
+        def cell(n, mean, twin, mean_2x=None):
+            return dict(trades=n, mean=mean, edge=mean, twin_edge=twin, mean_2x=mean if mean_2x is None else mean_2x)
         names = [vp.cell_name(p) for p in vp.T3_GRID]
         ex = {sym: dict(t3={n: cell(10, 1.0, 0.0) for n in names}) for sym in ("SPY", "QQQ")}
         self.assertIsNone(vp.select_t3(ex))                          # too few trades everywhere
@@ -172,6 +251,8 @@ class T3(unittest.TestCase):
         ex["SPY"]["t3"][names[5]] = cell(80, 0.5, 0.6)              # loses to its twin: ineligible
         ex["QQQ"]["t3"][names[5]] = cell(70, 0.5, 0.0)
         self.assertEqual(vp.select_t3(ex)["cell"], names[3])
+        ex["QQQ"]["t3"][names[3]] = cell(70, 0.1, -0.1, mean_2x=-0.05)  # dies at doubled friction
+        self.assertIsNone(vp.select_t3(ex))
 
 
 class Inference(unittest.TestCase):
@@ -181,39 +262,88 @@ class Inference(unittest.TestCase):
 
     def test_verdicts(self):
         good = dict(mean=.1, lower_alpha=.01)
-        res = dict(t1=dict(poc=good), t2=dict(lvn_minus_hvn=good, placebo_minus_hvn=dict(mean=-.01)), t3=None)
+        t1 = dict(poc=good, vwap=dict(mean=.05), mid=dict(mean=0.0), close=dict(mean=None))
+        res = dict(t1=t1, t2=dict(lvn_minus_hvn=good, placebo_minus_hvn=dict(mean=-.01)), t3=None)
         v = vp.verdicts(res)
         self.assertEqual((v["T1"], v["T2"]), ("PASS", "FAIL"))
         self.assertTrue(v["T3"].startswith("DROPPED"))
+        t1["vwap"] = dict(mean=.12)                                  # VWAP pulls harder: the profile adds nothing
+        self.assertEqual(vp.verdicts(res)["T1"], "FAIL")
 
 
 class Guards(unittest.TestCase):
-    def run_main(self, out, *argv):
-        with mock.patch.object(vp, "OUT", out), mock.patch("sys.argv", ["vp", *argv]), \
-             mock.patch.object(vp, "load_es", side_effect=AssertionError("ES must not be read")):
-            return vp.main()
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.out = Path(self.tmp.name)
+        self.prereg, self.looks = self.out / "prereg.json", self.out / "looks.log"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_main(self, *argv, es=None):
+        load = mock.Mock(return_value=es) if es is not None else mock.Mock(side_effect=AssertionError("ES must not be read"))
+        with mock.patch.object(vp, "OUT", self.out), mock.patch.object(vp, "PREREG", self.prereg), \
+             mock.patch.object(vp, "LOOKS", self.looks), mock.patch("sys.argv", ["vp", *argv]), \
+             mock.patch.object(vp, "load_es", load), mock.patch.object(vp, "run_all", return_value=dict()) as run:
+            return vp.main(), run
+
+    def freeze_ok(self):
+        (self.out / "explore.json").write_text(json.dumps(dict(script_sha=vp.script_sha(), selected_t3=None)))
+        with mock.patch.object(vp, "select_t3", return_value=None):
+            return self.run_main("--freeze")[0]
+
+    def test_spec_hash_pinned(self):
+        self.assertEqual(vp.script_sha(), SPEC_SHA, "spec changed: update SPEC_SHA in the same commit, on purpose")
+        self.assertIn(Path(vp.HERE / "amt_lucid_study.py"), vp.SPEC_FILES)
+
+    def test_prereg_and_looks_are_committed_paths(self):
+        self.assertEqual(vp.PREREG.parent, vp.HERE)
+        self.assertEqual(vp.LOOKS.parent, vp.HERE)
 
     def test_confirm_needs_freeze_and_same_script(self):
-        with tempfile.TemporaryDirectory() as d:
-            out = Path(d)
-            self.assertEqual(self.run_main(out, "--confirm"), 1)
-            (out / "preregistered.json").write_text(json.dumps(dict(script_sha="0" * 16, t3=None)))
-            self.assertEqual(self.run_main(out, "--confirm"), 1)
-            self.assertFalse((out / "confirm.lock").exists())
+        self.assertEqual(self.run_main("--confirm")[0], 1)
+        self.prereg.write_text(json.dumps(dict(script_sha="0" * 16, t3=None)))
+        self.assertEqual(self.run_main("--confirm")[0], 1)
+        self.assertFalse(self.looks.exists())
 
     def test_confirm_refuses_second_look(self):
-        with tempfile.TemporaryDirectory() as d:
-            out = Path(d)
-            (out / "preregistered.json").write_text(json.dumps(dict(script_sha=vp.script_sha(), t3=None)))
-            (out / "confirm.lock").write_text("script=x at then\n")
-            self.assertEqual(self.run_main(out, "--confirm"), 1)
+        self.prereg.write_text(json.dumps(dict(script_sha=vp.script_sha(), t3=None)))
+        self.looks.write_text("script=x sessions=2500 at then\n")
+        self.assertEqual(self.run_main("--confirm")[0], 1)
+
+    def test_confirm_refuses_partial_download_without_spending_the_look(self):
+        self.prereg.write_text(json.dumps(dict(script_sha=vp.script_sha(), t3=None)))
+        partial = {d: {} for d in trading_days(1200, start=date(2012, 1, 3))}     # ~2012-2016 only
+        rc, run = self.run_main("--confirm", es=partial)
+        self.assertEqual(rc, 1)
+        run.assert_not_called()
+        self.assertFalse(self.looks.exists())
+
+    def test_confirm_logs_the_look_before_scoring(self):
+        self.prereg.write_text(json.dumps(dict(script_sha=vp.script_sha(), t3=None)))
+        full = {d: {} for d in trading_days(2600, start=date(2012, 1, 3)) if d <= vp.CONFIRM_END}
+        seen = []
+        with mock.patch.object(vp, "verdicts", side_effect=lambda r: seen.append(self.looks.read_text()) or {}), \
+             mock.patch.object(vp, "report"):
+            rc, run = self.run_main("--confirm", es=full)
+        self.assertEqual(rc, 0)
+        self.assertIn(f"script={vp.script_sha()}", seen[0])
+        self.assertEqual(self.run_main("--confirm", es=full)[0], 1)
 
     def test_freeze_once(self):
-        with tempfile.TemporaryDirectory() as d:
-            out = Path(d)
-            (out / "explore.json").write_text(json.dumps(dict(selected_t3=None)))
-            self.assertEqual(self.run_main(out, "--freeze"), 0)
-            self.assertEqual(self.run_main(out, "--freeze"), 1)
+        self.assertEqual(self.freeze_ok(), 0)
+        self.assertEqual(self.freeze_ok(), 1)
+
+    def test_freeze_refuses_stale_explore(self):
+        (self.out / "explore.json").write_text(json.dumps(dict(script_sha="0" * 16, selected_t3={"cell": "x"})))
+        self.assertEqual(self.run_main("--freeze")[0], 1)
+        self.assertFalse(self.prereg.exists())
+
+    def test_freeze_recomputes_the_pick(self):
+        (self.out / "explore.json").write_text(json.dumps(dict(script_sha=vp.script_sha(), selected_t3={"cell": "edited"})))
+        with mock.patch.object(vp, "select_t3", return_value=None):
+            self.assertEqual(self.run_main("--freeze")[0], 0)
+        self.assertIsNone(json.loads(self.prereg.read_text())["t3"])
 
     def test_load_es_window_and_single_contract(self):
         idx = pd.date_range("2021-12-30 14:30", periods=390, freq="1min", tz="UTC")
