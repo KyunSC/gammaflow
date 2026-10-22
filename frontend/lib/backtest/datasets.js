@@ -11,6 +11,8 @@
  * ask where its bars came from.
  */
 
+import { INTERVAL_SECONDS } from './time'
+
 const NA = Number.NaN
 export const ENGINE_VERSION = '2'
 
@@ -103,7 +105,7 @@ export async function loadLiveDataset({ symbol, period, interval, signal }) {
   if (!res.ok) throw new Error(`Historical fetch failed (${res.status})`)
   const json = await res.json()
   if (json.unavailable) throw new Error('Historical service temporarily unavailable — retry shortly')
-  const seconds = { '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400 }[interval]
+  const seconds = INTERVAL_SECONDS[interval]
   const rows = (Array.isArray(json) ? json : json.data || []).filter(r => {
     const t = /^\d{4}-\d{2}-\d{2}$/.test(r.time) ? Date.parse(`${r.time}T00:00:00Z`) / 1000 : Number(r.time)
     return t + seconds <= Date.now() / 1000

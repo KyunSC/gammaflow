@@ -3,10 +3,11 @@
 import { useBacktest } from '../../lib/backtest/store'
 import { getStrategy, strategiesForPlane, FAMILIES, STRATEGIES } from '../../lib/backtest/strategies'
 import { LIVE_SYMBOLS, LIVE_PERIODS, LIVE_INTERVALS } from '../../lib/backtest/datasets'
-import { propSetup } from '../../lib/backtest/prop'
+import { propSetup, newsRuleFor } from '../../lib/backtest/prop'
 import { FIRMS, FIRM_LIST, SIZES, PROP_ASOF, resolvePlan } from '../../lib/backtest/prop/firms'
 import { FUTURES_LIVE_SYMBOLS, contractsForSymbol } from '../../lib/backtest/prop/contracts'
 import { fmtCompact } from '../../lib/backtest/format'
+import { IMPACT_OPTIONS, RETRIEVED as NEWS_RETRIEVED } from '../../lib/backtest/news'
 import Panel from './Panel'
 
 /**
@@ -340,13 +341,22 @@ function RiskSection() {
   const risk = useBacktest((s) => s.risk)
   const setRisk = useBacktest((s) => s.setRisk)
   const propOn = useBacktest((s) => s.prop.enabled)
+  const prop = useBacktest((s) => s.prop)
 
   const flat = propOn || risk.flatAtSessionEnd
+  // In prop mode the plan's news rule applies unless the user set or cleared one.
+  const plan = propOn ? resolvePlan(prop) : null
+  const news = newsRuleFor(risk, plan)
+  const firmNews = Boolean(news) && news === plan?.news
+  const uncovered = useBacktest((s) => s.result?.newsUncoveredBars || 0)
+  const newsSkipped = useBacktest((s) => Boolean(s.result?.newsSkipped))
+  const setNews = (patch) => setRisk({ newsBlackout: { impact: news?.impact || 'high', beforeMin: news?.beforeMin ?? 5, afterMin: news?.afterMin ?? 15, ...patch } })
   const summary = [
     risk.stopPct ? `stop ${risk.stopPct}%` : null,
     risk.targetPct ? `target ${risk.targetPct}%` : null,
     risk.maxBars ? `${risk.maxBars} bars` : null,
     flat ? 'flat at close' : null,
+    news?.impact ? `flat ${news.impact} news` : null,
     risk.allowShort ? null : 'long only',
   ].filter(Boolean).join(' · ') || 'strategy exits only'
 
@@ -372,6 +382,41 @@ function RiskSection() {
           <span className="flex-1" />
           <Switch checked={risk.allowShort} onChange={(v) => setRisk({ allowShort: v })} />
         </div>
+        <div
+          className="flex items-center gap-2"
+          title={`Scheduled US releases (CPI, NFP, FOMC, ISM…), calendar as of ${NEWS_RETRIEVED}. High = ForexFactory's red folder, medium = orange, low = yellow; the tiers are ours.`}
+        >
+          <span className="w-[104px] shrink-0 text-[11px] text-muted">Flat for news</span>
+          <span className="flex-1" />
+          <div className="w-[136px]">
+            <Select
+              value={news?.impact || 'off'}
+              onChange={(v) => (v === 'off' ? setRisk({ newsBlackout: plan?.news ? false : null }) : setNews({ impact: v }))}
+              options={[{ value: 'off', label: 'Off' }, ...IMPACT_OPTIONS.map((o) => ({ value: o.id, label: o.label }))]}
+            />
+          </div>
+        </div>
+        {news?.impact ? (
+          <>
+            {firmNews ? (
+              <p className="text-[10px] leading-snug text-dim">
+                {plan.planLabel} rule{news.maxBarMin ? `, applied on bars up to ${news.maxBarMin}m` : ''}. Editing it makes it yours.
+              </p>
+            ) : null}
+            <NumRow label="Mins before" value={news.beforeMin} min={0} max={60} step={1} onChange={(v) => setNews({ beforeMin: v })} hint="Flat this long before each release" />
+            <NumRow label="Mins after" value={news.afterMin} min={0} max={120} step={1} onChange={(v) => setNews({ afterMin: v })} hint="No position until this long after it" />
+            {newsSkipped && news.maxBarMin ? (
+              <p className="text-[10px] leading-snug text-amber">
+                Not applied: bars are longer than {news.maxBarMin}m, too coarse for this window.
+              </p>
+            ) : null}
+            {uncovered > 0 ? (
+              <p className="text-[10px] leading-snug text-amber">
+                {uncovered.toLocaleString()} bars are past the news calendar ({NEWS_RETRIEVED}) and were not filtered.
+              </p>
+            ) : null}
+          </>
+        ) : null}
       </div>
     </Collapsible>
   )

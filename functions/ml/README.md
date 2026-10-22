@@ -762,6 +762,8 @@ functions/ml/
   plot_delta_hedge.py     # Four-panel summary plot of a delta_hedge.py run; --frontier: cost-vs-risk frontier
   gex_vol_study.py        # Dealer GEX/VEX/CEX vs forward realized vol (walk-forward, session-shift null)
   close_auction_study.py  # Closing-print fade into the next open (Hu, Liu & Yu 2021); discovery/holdout + controls
+  econ_calendar.py        # Scheduled US news (CPI, NFP, FOMC, ...) with FF-style impact tiers; see NEWS_CALENDAR.md
+  econ_calendar_us.csv    # Generated calendar (tracked); the JS backtester reads frontend/lib/backtest/newsCalendar.js
   sync_to_azure.py        # Key-less backup of data/<provider>/ to private Azure Blob
   notebooks/eda.ipynb     # Pre-training exploratory analysis
   plots/                  # Tracked PNGs referenced from this README

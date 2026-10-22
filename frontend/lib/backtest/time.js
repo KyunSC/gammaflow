@@ -4,6 +4,9 @@
  * which itself imports the level calculators.
  */
 
+/** Bar length in seconds per interval label. */
+export const INTERVAL_SECONDS = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400 }
+
 /**
  * Trading-day number for a bar time (epoch seconds). The day rolls at 22:00
  * UTC, not midnight: that lands inside CME's daily halt in both EDT (21–22 UTC)

@@ -1,0 +1,1075 @@
+date,time_et,ts_utc,event,label,impact,source
+2022-01-03,10:00,1641222000,ism_mfg,ISM manufacturing PMI,high,rule
+2022-01-04,10:00,1641308400,jolts,JOLTS job openings,medium,official
+2022-01-05,08:15,1641388500,adp,ADP employment,medium,vintage
+2022-01-05,10:00,1641394800,ism_services,ISM services PMI,high,rule
+2022-01-05,14:00,1641409200,fomc_minutes,FOMC minutes,high,official
+2022-01-06,08:30,1641475800,claims,Initial jobless claims,medium,rule
+2022-01-07,08:30,1641562200,nfp,Nonfarm payrolls / unemployment rate,high,official
+2022-01-12,08:30,1641994200,cpi,CPI,high,official
+2022-01-13,08:30,1642080600,ppi,PPI,high,official
+2022-01-13,08:30,1642080600,claims,Initial jobless claims,medium,rule
+2022-01-14,08:30,1642167000,retail_sales,Retail sales,high,vintage
+2022-01-14,10:00,1642172400,umich_prelim,UMich sentiment (preliminary),medium,derived
+2022-01-20,08:30,1642685400,claims,Initial jobless claims,medium,rule
+2022-01-26,14:00,1643223600,fomc,FOMC statement / rate decision,high,official
+2022-01-26,14:30,1643225400,fomc_presser,FOMC press conference,high,official
+2022-01-27,08:30,1643290200,gdp_advance,GDP advance estimate,high,vintage
+2022-01-27,08:30,1643290200,claims,Initial jobless claims,medium,rule
+2022-01-28,08:30,1643376600,pce,Personal income & outlays (core PCE),high,vintage
+2022-01-28,10:00,1643382000,umich_final,UMich sentiment (final),low,vintage
+2022-02-01,10:00,1643727600,ism_mfg,ISM manufacturing PMI,high,rule
+2022-02-01,10:00,1643727600,jolts,JOLTS job openings,medium,official
+2022-02-02,08:15,1643807700,adp,ADP employment,medium,vintage
+2022-02-03,08:30,1643895000,claims,Initial jobless claims,medium,rule
+2022-02-03,10:00,1643900400,ism_services,ISM services PMI,high,rule
+2022-02-04,08:30,1643981400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2022-02-10,08:30,1644499800,cpi,CPI,high,official
+2022-02-10,08:30,1644499800,claims,Initial jobless claims,medium,rule
+2022-02-11,10:00,1644591600,umich_prelim,UMich sentiment (preliminary),medium,derived
+2022-02-15,08:30,1644931800,ppi,PPI,high,official
+2022-02-16,08:30,1645018200,retail_sales,Retail sales,high,vintage
+2022-02-16,14:00,1645038000,fomc_minutes,FOMC minutes,high,official
+2022-02-17,08:30,1645104600,claims,Initial jobless claims,medium,rule
+2022-02-24,08:30,1645709400,claims,Initial jobless claims,medium,rule
+2022-02-24,08:30,1645709400,gdp_second,GDP second estimate,medium,vintage
+2022-02-25,08:30,1645795800,pce,Personal income & outlays (core PCE),high,vintage
+2022-02-25,10:00,1645801200,umich_final,UMich sentiment (final),low,vintage
+2022-03-01,10:00,1646146800,ism_mfg,ISM manufacturing PMI,high,rule
+2022-03-02,08:15,1646226900,adp,ADP employment,medium,vintage
+2022-03-03,08:30,1646314200,claims,Initial jobless claims,medium,rule
+2022-03-03,10:00,1646319600,ism_services,ISM services PMI,high,rule
+2022-03-04,08:30,1646400600,nfp,Nonfarm payrolls / unemployment rate,high,official
+2022-03-09,10:00,1646838000,jolts,JOLTS job openings,medium,official
+2022-03-10,08:30,1646919000,cpi,CPI,high,official
+2022-03-10,08:30,1646919000,claims,Initial jobless claims,medium,rule
+2022-03-11,10:00,1647010800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2022-03-15,08:30,1647347400,ppi,PPI,high,official
+2022-03-16,08:30,1647433800,retail_sales,Retail sales,high,vintage
+2022-03-16,14:00,1647453600,fomc,FOMC statement / rate decision,high,official
+2022-03-16,14:30,1647455400,fomc_presser,FOMC press conference,high,official
+2022-03-17,08:30,1647520200,claims,Initial jobless claims,medium,rule
+2022-03-24,08:30,1648125000,claims,Initial jobless claims,medium,rule
+2022-03-25,10:00,1648216800,umich_final,UMich sentiment (final),low,vintage
+2022-03-29,10:00,1648562400,jolts,JOLTS job openings,medium,official
+2022-03-30,08:15,1648642500,adp,ADP employment,medium,vintage
+2022-03-30,08:30,1648643400,gdp_third,GDP third estimate,low,vintage
+2022-03-31,08:30,1648729800,pce,Personal income & outlays (core PCE),high,vintage
+2022-03-31,08:30,1648729800,claims,Initial jobless claims,medium,rule
+2022-04-01,08:30,1648816200,nfp,Nonfarm payrolls / unemployment rate,high,official
+2022-04-01,10:00,1648821600,ism_mfg,ISM manufacturing PMI,high,rule
+2022-04-05,10:00,1649167200,ism_services,ISM services PMI,high,rule
+2022-04-06,14:00,1649268000,fomc_minutes,FOMC minutes,high,official
+2022-04-07,08:30,1649334600,claims,Initial jobless claims,medium,rule
+2022-04-12,08:30,1649766600,cpi,CPI,high,official
+2022-04-13,08:30,1649853000,ppi,PPI,high,official
+2022-04-14,08:30,1649939400,retail_sales,Retail sales,high,vintage
+2022-04-14,08:30,1649939400,claims,Initial jobless claims,medium,rule
+2022-04-15,10:00,1650031200,umich_prelim,UMich sentiment (preliminary),medium,derived
+2022-04-21,08:30,1650544200,claims,Initial jobless claims,medium,rule
+2022-04-28,08:30,1651149000,gdp_advance,GDP advance estimate,high,vintage
+2022-04-28,08:30,1651149000,claims,Initial jobless claims,medium,rule
+2022-04-29,08:30,1651235400,pce,Personal income & outlays (core PCE),high,vintage
+2022-04-29,10:00,1651240800,umich_final,UMich sentiment (final),low,vintage
+2022-05-02,10:00,1651500000,ism_mfg,ISM manufacturing PMI,high,rule
+2022-05-03,10:00,1651586400,jolts,JOLTS job openings,medium,official
+2022-05-04,08:15,1651666500,adp,ADP employment,medium,vintage
+2022-05-04,10:00,1651672800,ism_services,ISM services PMI,high,rule
+2022-05-04,14:00,1651687200,fomc,FOMC statement / rate decision,high,official
+2022-05-04,14:30,1651689000,fomc_presser,FOMC press conference,high,official
+2022-05-05,08:30,1651753800,claims,Initial jobless claims,medium,rule
+2022-05-06,08:30,1651840200,nfp,Nonfarm payrolls / unemployment rate,high,official
+2022-05-11,08:30,1652272200,cpi,CPI,high,official
+2022-05-12,08:30,1652358600,ppi,PPI,high,official
+2022-05-12,08:30,1652358600,claims,Initial jobless claims,medium,rule
+2022-05-13,10:00,1652450400,umich_prelim,UMich sentiment (preliminary),medium,derived
+2022-05-17,08:30,1652790600,retail_sales,Retail sales,high,vintage
+2022-05-19,08:30,1652963400,claims,Initial jobless claims,medium,rule
+2022-05-25,14:00,1653501600,fomc_minutes,FOMC minutes,high,official
+2022-05-26,08:30,1653568200,claims,Initial jobless claims,medium,rule
+2022-05-26,08:30,1653568200,gdp_second,GDP second estimate,medium,vintage
+2022-05-27,08:30,1653654600,pce,Personal income & outlays (core PCE),high,vintage
+2022-05-27,10:00,1653660000,umich_final,UMich sentiment (final),low,vintage
+2022-06-01,10:00,1654092000,ism_mfg,ISM manufacturing PMI,high,rule
+2022-06-01,10:00,1654092000,jolts,JOLTS job openings,medium,official
+2022-06-02,08:15,1654172100,adp,ADP employment,medium,vintage
+2022-06-02,08:30,1654173000,claims,Initial jobless claims,medium,rule
+2022-06-03,08:30,1654259400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2022-06-03,10:00,1654264800,ism_services,ISM services PMI,high,rule
+2022-06-09,08:30,1654777800,claims,Initial jobless claims,medium,rule
+2022-06-10,08:30,1654864200,cpi,CPI,high,official
+2022-06-10,10:00,1654869600,umich_prelim,UMich sentiment (preliminary),medium,derived
+2022-06-14,08:30,1655209800,ppi,PPI,high,official
+2022-06-15,08:30,1655296200,retail_sales,Retail sales,high,vintage
+2022-06-15,14:00,1655316000,fomc,FOMC statement / rate decision,high,official
+2022-06-15,14:30,1655317800,fomc_presser,FOMC press conference,high,official
+2022-06-16,08:30,1655382600,claims,Initial jobless claims,medium,rule
+2022-06-23,08:30,1655987400,claims,Initial jobless claims,medium,rule
+2022-06-24,10:00,1656079200,umich_final,UMich sentiment (final),low,vintage
+2022-06-29,08:30,1656505800,gdp_third,GDP third estimate,low,vintage
+2022-06-30,08:30,1656592200,pce,Personal income & outlays (core PCE),high,vintage
+2022-06-30,08:30,1656592200,claims,Initial jobless claims,medium,rule
+2022-07-01,10:00,1656684000,ism_mfg,ISM manufacturing PMI,high,rule
+2022-07-06,10:00,1657116000,ism_services,ISM services PMI,high,rule
+2022-07-06,10:00,1657116000,jolts,JOLTS job openings,medium,official
+2022-07-06,14:00,1657130400,fomc_minutes,FOMC minutes,high,official
+2022-07-07,08:30,1657197000,claims,Initial jobless claims,medium,rule
+2022-07-08,08:30,1657283400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2022-07-13,08:30,1657715400,cpi,CPI,high,official
+2022-07-14,08:30,1657801800,ppi,PPI,high,official
+2022-07-14,08:30,1657801800,claims,Initial jobless claims,medium,rule
+2022-07-15,08:30,1657888200,retail_sales,Retail sales,high,vintage
+2022-07-15,10:00,1657893600,umich_prelim,UMich sentiment (preliminary),medium,derived
+2022-07-21,08:30,1658406600,claims,Initial jobless claims,medium,rule
+2022-07-27,14:00,1658944800,fomc,FOMC statement / rate decision,high,official
+2022-07-27,14:30,1658946600,fomc_presser,FOMC press conference,high,official
+2022-07-28,08:30,1659011400,gdp_advance,GDP advance estimate,high,vintage
+2022-07-28,08:30,1659011400,claims,Initial jobless claims,medium,rule
+2022-07-29,08:30,1659097800,pce,Personal income & outlays (core PCE),high,vintage
+2022-07-29,10:00,1659103200,umich_final,UMich sentiment (final),low,vintage
+2022-08-01,10:00,1659362400,ism_mfg,ISM manufacturing PMI,high,rule
+2022-08-02,10:00,1659448800,jolts,JOLTS job openings,medium,official
+2022-08-03,10:00,1659535200,ism_services,ISM services PMI,high,rule
+2022-08-04,08:30,1659616200,claims,Initial jobless claims,medium,rule
+2022-08-05,08:30,1659702600,nfp,Nonfarm payrolls / unemployment rate,high,official
+2022-08-10,08:30,1660134600,cpi,CPI,high,official
+2022-08-11,08:30,1660221000,ppi,PPI,high,official
+2022-08-11,08:30,1660221000,claims,Initial jobless claims,medium,rule
+2022-08-12,10:00,1660312800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2022-08-17,08:30,1660739400,retail_sales,Retail sales,high,vintage
+2022-08-17,14:00,1660759200,fomc_minutes,FOMC minutes,high,official
+2022-08-18,08:30,1660825800,claims,Initial jobless claims,medium,rule
+2022-08-25,08:30,1661430600,claims,Initial jobless claims,medium,rule
+2022-08-25,08:30,1661430600,gdp_second,GDP second estimate,medium,vintage
+2022-08-26,08:30,1661517000,pce,Personal income & outlays (core PCE),high,vintage
+2022-08-26,10:00,1661522400,umich_final,UMich sentiment (final),low,vintage
+2022-08-30,10:00,1661868000,jolts,JOLTS job openings,medium,official
+2022-08-31,08:15,1661948100,adp,ADP employment,medium,vintage
+2022-09-01,08:30,1662035400,claims,Initial jobless claims,medium,rule
+2022-09-01,10:00,1662040800,ism_mfg,ISM manufacturing PMI,high,rule
+2022-09-02,08:30,1662121800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2022-09-06,10:00,1662472800,ism_services,ISM services PMI,high,rule
+2022-09-08,08:30,1662640200,claims,Initial jobless claims,medium,rule
+2022-09-13,08:30,1663072200,cpi,CPI,high,official
+2022-09-14,08:30,1663158600,ppi,PPI,high,official
+2022-09-15,08:30,1663245000,retail_sales,Retail sales,high,vintage
+2022-09-15,08:30,1663245000,claims,Initial jobless claims,medium,rule
+2022-09-16,10:00,1663336800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2022-09-21,14:00,1663783200,fomc,FOMC statement / rate decision,high,official
+2022-09-21,14:30,1663785000,fomc_presser,FOMC press conference,high,official
+2022-09-22,08:30,1663849800,claims,Initial jobless claims,medium,rule
+2022-09-29,08:30,1664454600,claims,Initial jobless claims,medium,rule
+2022-09-29,08:30,1664454600,gdp_third,GDP third estimate,low,vintage
+2022-09-30,08:30,1664541000,pce,Personal income & outlays (core PCE),high,vintage
+2022-09-30,10:00,1664546400,umich_final,UMich sentiment (final),low,vintage
+2022-10-03,10:00,1664805600,ism_mfg,ISM manufacturing PMI,high,rule
+2022-10-04,10:00,1664892000,jolts,JOLTS job openings,medium,official
+2022-10-05,08:15,1664972100,adp,ADP employment,medium,vintage
+2022-10-05,10:00,1664978400,ism_services,ISM services PMI,high,rule
+2022-10-06,08:30,1665059400,claims,Initial jobless claims,medium,rule
+2022-10-07,08:30,1665145800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2022-10-12,08:30,1665577800,ppi,PPI,high,official
+2022-10-12,14:00,1665597600,fomc_minutes,FOMC minutes,high,official
+2022-10-13,08:30,1665664200,cpi,CPI,high,official
+2022-10-13,08:30,1665664200,claims,Initial jobless claims,medium,rule
+2022-10-14,08:30,1665750600,retail_sales,Retail sales,high,vintage
+2022-10-14,10:00,1665756000,umich_prelim,UMich sentiment (preliminary),medium,derived
+2022-10-20,08:30,1666269000,claims,Initial jobless claims,medium,rule
+2022-10-27,08:30,1666873800,gdp_advance,GDP advance estimate,high,vintage
+2022-10-27,08:30,1666873800,claims,Initial jobless claims,medium,rule
+2022-10-28,08:30,1666960200,pce,Personal income & outlays (core PCE),high,vintage
+2022-10-28,10:00,1666965600,umich_final,UMich sentiment (final),low,vintage
+2022-11-01,10:00,1667311200,ism_mfg,ISM manufacturing PMI,high,rule
+2022-11-01,10:00,1667311200,jolts,JOLTS job openings,medium,official
+2022-11-02,08:15,1667391300,adp,ADP employment,medium,vintage
+2022-11-02,14:00,1667412000,fomc,FOMC statement / rate decision,high,official
+2022-11-02,14:30,1667413800,fomc_presser,FOMC press conference,high,official
+2022-11-03,08:30,1667478600,claims,Initial jobless claims,medium,rule
+2022-11-03,10:00,1667484000,ism_services,ISM services PMI,high,rule
+2022-11-04,08:30,1667565000,nfp,Nonfarm payrolls / unemployment rate,high,official
+2022-11-10,08:30,1668087000,cpi,CPI,high,official
+2022-11-10,08:30,1668087000,claims,Initial jobless claims,medium,rule
+2022-11-11,10:00,1668178800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2022-11-15,08:30,1668519000,ppi,PPI,high,official
+2022-11-16,08:30,1668605400,retail_sales,Retail sales,high,vintage
+2022-11-17,08:30,1668691800,claims,Initial jobless claims,medium,rule
+2022-11-23,08:30,1669210200,claims,Initial jobless claims,medium,rule
+2022-11-23,10:00,1669215600,umich_final,UMich sentiment (final),low,vintage
+2022-11-23,14:00,1669230000,fomc_minutes,FOMC minutes,high,official
+2022-11-30,08:15,1669814100,adp,ADP employment,medium,vintage
+2022-11-30,08:30,1669815000,gdp_second,GDP second estimate,medium,vintage
+2022-11-30,10:00,1669820400,jolts,JOLTS job openings,medium,official
+2022-12-01,08:30,1669901400,pce,Personal income & outlays (core PCE),high,vintage
+2022-12-01,08:30,1669901400,claims,Initial jobless claims,medium,rule
+2022-12-01,10:00,1669906800,ism_mfg,ISM manufacturing PMI,high,rule
+2022-12-02,08:30,1669987800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2022-12-05,10:00,1670252400,ism_services,ISM services PMI,high,rule
+2022-12-08,08:30,1670506200,claims,Initial jobless claims,medium,rule
+2022-12-09,08:30,1670592600,ppi,PPI,high,official
+2022-12-09,10:00,1670598000,umich_prelim,UMich sentiment (preliminary),medium,derived
+2022-12-13,08:30,1670938200,cpi,CPI,high,official
+2022-12-14,14:00,1671044400,fomc,FOMC statement / rate decision,high,official
+2022-12-14,14:30,1671046200,fomc_presser,FOMC press conference,high,official
+2022-12-15,08:30,1671111000,retail_sales,Retail sales,high,vintage
+2022-12-15,08:30,1671111000,claims,Initial jobless claims,medium,rule
+2022-12-22,08:30,1671715800,claims,Initial jobless claims,medium,rule
+2022-12-22,08:30,1671715800,gdp_third,GDP third estimate,low,vintage
+2022-12-23,08:30,1671802200,pce,Personal income & outlays (core PCE),high,vintage
+2022-12-23,10:00,1671807600,umich_final,UMich sentiment (final),low,vintage
+2022-12-29,08:30,1672320600,claims,Initial jobless claims,medium,rule
+2023-01-03,10:00,1672758000,ism_mfg,ISM manufacturing PMI,high,rule
+2023-01-04,10:00,1672844400,jolts,JOLTS job openings,medium,official
+2023-01-04,14:00,1672858800,fomc_minutes,FOMC minutes,high,official
+2023-01-05,08:15,1672924500,adp,ADP employment,medium,vintage
+2023-01-05,08:30,1672925400,claims,Initial jobless claims,medium,rule
+2023-01-05,10:00,1672930800,ism_services,ISM services PMI,high,rule
+2023-01-06,08:30,1673011800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2023-01-12,08:30,1673530200,cpi,CPI,high,official
+2023-01-12,08:30,1673530200,claims,Initial jobless claims,medium,rule
+2023-01-13,10:00,1673622000,umich_prelim,UMich sentiment (preliminary),medium,derived
+2023-01-18,08:30,1674048600,ppi,PPI,high,official
+2023-01-18,08:30,1674048600,retail_sales,Retail sales,high,vintage
+2023-01-19,08:30,1674135000,claims,Initial jobless claims,medium,rule
+2023-01-26,08:30,1674739800,gdp_advance,GDP advance estimate,high,vintage
+2023-01-26,08:30,1674739800,claims,Initial jobless claims,medium,rule
+2023-01-27,08:30,1674826200,pce,Personal income & outlays (core PCE),high,vintage
+2023-01-27,10:00,1674831600,umich_final,UMich sentiment (final),low,vintage
+2023-02-01,08:15,1675257300,adp,ADP employment,medium,vintage
+2023-02-01,10:00,1675263600,ism_mfg,ISM manufacturing PMI,high,rule
+2023-02-01,10:00,1675263600,jolts,JOLTS job openings,medium,official
+2023-02-01,14:00,1675278000,fomc,FOMC statement / rate decision,high,official
+2023-02-01,14:30,1675279800,fomc_presser,FOMC press conference,high,official
+2023-02-02,08:30,1675344600,claims,Initial jobless claims,medium,rule
+2023-02-03,08:30,1675431000,nfp,Nonfarm payrolls / unemployment rate,high,official
+2023-02-03,10:00,1675436400,ism_services,ISM services PMI,high,rule
+2023-02-09,08:30,1675949400,claims,Initial jobless claims,medium,rule
+2023-02-10,10:00,1676041200,umich_prelim,UMich sentiment (preliminary),medium,derived
+2023-02-14,08:30,1676381400,cpi,CPI,high,official
+2023-02-15,08:30,1676467800,retail_sales,Retail sales,high,vintage
+2023-02-16,08:30,1676554200,ppi,PPI,high,official
+2023-02-16,08:30,1676554200,claims,Initial jobless claims,medium,rule
+2023-02-22,14:00,1677092400,fomc_minutes,FOMC minutes,high,official
+2023-02-23,08:30,1677159000,claims,Initial jobless claims,medium,rule
+2023-02-23,08:30,1677159000,gdp_second,GDP second estimate,medium,vintage
+2023-02-24,08:30,1677245400,pce,Personal income & outlays (core PCE),high,vintage
+2023-02-24,10:00,1677250800,umich_final,UMich sentiment (final),low,vintage
+2023-03-01,10:00,1677682800,ism_mfg,ISM manufacturing PMI,high,rule
+2023-03-02,08:30,1677763800,claims,Initial jobless claims,medium,rule
+2023-03-03,10:00,1677855600,ism_services,ISM services PMI,high,rule
+2023-03-08,08:15,1678281300,adp,ADP employment,medium,vintage
+2023-03-08,10:00,1678287600,jolts,JOLTS job openings,medium,official
+2023-03-09,08:30,1678368600,claims,Initial jobless claims,medium,rule
+2023-03-10,08:30,1678455000,nfp,Nonfarm payrolls / unemployment rate,high,official
+2023-03-14,08:30,1678797000,cpi,CPI,high,official
+2023-03-15,08:30,1678883400,ppi,PPI,high,official
+2023-03-15,08:30,1678883400,retail_sales,Retail sales,high,vintage
+2023-03-16,08:30,1678969800,claims,Initial jobless claims,medium,rule
+2023-03-17,10:00,1679061600,umich_prelim,UMich sentiment (preliminary),medium,derived
+2023-03-22,14:00,1679508000,fomc,FOMC statement / rate decision,high,official
+2023-03-22,14:30,1679509800,fomc_presser,FOMC press conference,high,official
+2023-03-23,08:30,1679574600,claims,Initial jobless claims,medium,rule
+2023-03-30,08:30,1680179400,claims,Initial jobless claims,medium,rule
+2023-03-30,08:30,1680179400,gdp_third,GDP third estimate,low,vintage
+2023-03-31,08:30,1680265800,pce,Personal income & outlays (core PCE),high,vintage
+2023-03-31,10:00,1680271200,umich_final,UMich sentiment (final),low,vintage
+2023-04-03,10:00,1680530400,ism_mfg,ISM manufacturing PMI,high,rule
+2023-04-04,10:00,1680616800,jolts,JOLTS job openings,medium,official
+2023-04-05,08:15,1680696900,adp,ADP employment,medium,vintage
+2023-04-05,10:00,1680703200,ism_services,ISM services PMI,high,rule
+2023-04-06,08:30,1680784200,claims,Initial jobless claims,medium,rule
+2023-04-07,08:30,1680870600,nfp,Nonfarm payrolls / unemployment rate,high,official
+2023-04-12,08:30,1681302600,cpi,CPI,high,official
+2023-04-12,14:00,1681322400,fomc_minutes,FOMC minutes,high,official
+2023-04-13,08:30,1681389000,ppi,PPI,high,official
+2023-04-13,08:30,1681389000,claims,Initial jobless claims,medium,rule
+2023-04-14,08:30,1681475400,retail_sales,Retail sales,high,vintage
+2023-04-14,10:00,1681480800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2023-04-20,08:30,1681993800,claims,Initial jobless claims,medium,rule
+2023-04-27,08:30,1682598600,gdp_advance,GDP advance estimate,high,vintage
+2023-04-27,08:30,1682598600,claims,Initial jobless claims,medium,rule
+2023-04-28,08:30,1682685000,pce,Personal income & outlays (core PCE),high,vintage
+2023-04-28,10:00,1682690400,umich_final,UMich sentiment (final),low,vintage
+2023-05-01,10:00,1682949600,ism_mfg,ISM manufacturing PMI,high,rule
+2023-05-02,10:00,1683036000,jolts,JOLTS job openings,medium,official
+2023-05-03,08:15,1683116100,adp,ADP employment,medium,vintage
+2023-05-03,10:00,1683122400,ism_services,ISM services PMI,high,rule
+2023-05-03,14:00,1683136800,fomc,FOMC statement / rate decision,high,official
+2023-05-03,14:30,1683138600,fomc_presser,FOMC press conference,high,official
+2023-05-04,08:30,1683203400,claims,Initial jobless claims,medium,rule
+2023-05-05,08:30,1683289800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2023-05-10,08:30,1683721800,cpi,CPI,high,official
+2023-05-11,08:30,1683808200,ppi,PPI,high,official
+2023-05-11,08:30,1683808200,claims,Initial jobless claims,medium,rule
+2023-05-12,10:00,1683900000,umich_prelim,UMich sentiment (preliminary),medium,derived
+2023-05-16,08:30,1684240200,retail_sales,Retail sales,high,vintage
+2023-05-18,08:30,1684413000,claims,Initial jobless claims,medium,rule
+2023-05-24,14:00,1684951200,fomc_minutes,FOMC minutes,high,official
+2023-05-25,08:30,1685017800,claims,Initial jobless claims,medium,rule
+2023-05-25,08:30,1685017800,gdp_second,GDP second estimate,medium,vintage
+2023-05-26,08:30,1685104200,pce,Personal income & outlays (core PCE),high,vintage
+2023-05-26,10:00,1685109600,umich_final,UMich sentiment (final),low,vintage
+2023-05-31,10:00,1685541600,jolts,JOLTS job openings,medium,official
+2023-06-01,08:15,1685621700,adp,ADP employment,medium,vintage
+2023-06-01,08:30,1685622600,claims,Initial jobless claims,medium,rule
+2023-06-01,10:00,1685628000,ism_mfg,ISM manufacturing PMI,high,rule
+2023-06-02,08:30,1685709000,nfp,Nonfarm payrolls / unemployment rate,high,official
+2023-06-05,10:00,1685973600,ism_services,ISM services PMI,high,rule
+2023-06-08,08:30,1686227400,claims,Initial jobless claims,medium,rule
+2023-06-13,08:30,1686659400,cpi,CPI,high,official
+2023-06-14,08:30,1686745800,ppi,PPI,high,official
+2023-06-14,14:00,1686765600,fomc,FOMC statement / rate decision,high,official
+2023-06-14,14:30,1686767400,fomc_presser,FOMC press conference,high,official
+2023-06-15,08:30,1686832200,retail_sales,Retail sales,high,vintage
+2023-06-15,08:30,1686832200,claims,Initial jobless claims,medium,rule
+2023-06-16,10:00,1686924000,umich_prelim,UMich sentiment (preliminary),medium,derived
+2023-06-22,08:30,1687437000,claims,Initial jobless claims,medium,rule
+2023-06-29,08:30,1688041800,claims,Initial jobless claims,medium,rule
+2023-06-29,08:30,1688041800,gdp_third,GDP third estimate,low,vintage
+2023-06-30,08:30,1688128200,pce,Personal income & outlays (core PCE),high,vintage
+2023-06-30,10:00,1688133600,umich_final,UMich sentiment (final),low,vintage
+2023-07-03,10:00,1688392800,ism_mfg,ISM manufacturing PMI,high,rule
+2023-07-05,14:00,1688580000,fomc_minutes,FOMC minutes,high,official
+2023-07-06,08:15,1688645700,adp,ADP employment,medium,vintage
+2023-07-06,08:30,1688646600,claims,Initial jobless claims,medium,rule
+2023-07-06,10:00,1688652000,ism_services,ISM services PMI,high,rule
+2023-07-06,10:00,1688652000,jolts,JOLTS job openings,medium,official
+2023-07-07,08:30,1688733000,nfp,Nonfarm payrolls / unemployment rate,high,official
+2023-07-12,08:30,1689165000,cpi,CPI,high,official
+2023-07-13,08:30,1689251400,ppi,PPI,high,official
+2023-07-13,08:30,1689251400,claims,Initial jobless claims,medium,rule
+2023-07-14,10:00,1689343200,umich_prelim,UMich sentiment (preliminary),medium,derived
+2023-07-18,08:30,1689683400,retail_sales,Retail sales,high,vintage
+2023-07-20,08:30,1689856200,claims,Initial jobless claims,medium,rule
+2023-07-26,14:00,1690394400,fomc,FOMC statement / rate decision,high,official
+2023-07-26,14:30,1690396200,fomc_presser,FOMC press conference,high,official
+2023-07-27,08:30,1690461000,gdp_advance,GDP advance estimate,high,vintage
+2023-07-27,08:30,1690461000,claims,Initial jobless claims,medium,rule
+2023-07-28,08:30,1690547400,pce,Personal income & outlays (core PCE),high,vintage
+2023-07-28,10:00,1690552800,umich_final,UMich sentiment (final),low,vintage
+2023-08-01,10:00,1690898400,ism_mfg,ISM manufacturing PMI,high,rule
+2023-08-01,10:00,1690898400,jolts,JOLTS job openings,medium,official
+2023-08-02,08:15,1690978500,adp,ADP employment,medium,vintage
+2023-08-03,08:30,1691065800,claims,Initial jobless claims,medium,rule
+2023-08-03,10:00,1691071200,ism_services,ISM services PMI,high,rule
+2023-08-04,08:30,1691152200,nfp,Nonfarm payrolls / unemployment rate,high,official
+2023-08-10,08:30,1691670600,cpi,CPI,high,official
+2023-08-10,08:30,1691670600,claims,Initial jobless claims,medium,rule
+2023-08-11,08:30,1691757000,ppi,PPI,high,official
+2023-08-11,10:00,1691762400,umich_prelim,UMich sentiment (preliminary),medium,derived
+2023-08-15,08:30,1692102600,retail_sales,Retail sales,high,vintage
+2023-08-16,14:00,1692208800,fomc_minutes,FOMC minutes,high,official
+2023-08-17,08:30,1692275400,claims,Initial jobless claims,medium,rule
+2023-08-24,08:30,1692880200,claims,Initial jobless claims,medium,rule
+2023-08-25,10:00,1692972000,umich_final,UMich sentiment (final),low,vintage
+2023-08-29,10:00,1693317600,jolts,JOLTS job openings,medium,official
+2023-08-30,08:15,1693397700,adp,ADP employment,medium,vintage
+2023-08-30,08:30,1693398600,gdp_second,GDP second estimate,medium,vintage
+2023-08-31,08:30,1693485000,pce,Personal income & outlays (core PCE),high,vintage
+2023-08-31,08:30,1693485000,claims,Initial jobless claims,medium,rule
+2023-09-01,08:30,1693571400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2023-09-01,10:00,1693576800,ism_mfg,ISM manufacturing PMI,high,rule
+2023-09-06,10:00,1694008800,ism_services,ISM services PMI,high,rule
+2023-09-07,08:30,1694089800,claims,Initial jobless claims,medium,rule
+2023-09-13,08:30,1694608200,cpi,CPI,high,official
+2023-09-14,08:30,1694694600,ppi,PPI,high,official
+2023-09-14,08:30,1694694600,retail_sales,Retail sales,high,vintage
+2023-09-14,08:30,1694694600,claims,Initial jobless claims,medium,rule
+2023-09-15,10:00,1694786400,umich_prelim,UMich sentiment (preliminary),medium,derived
+2023-09-20,14:00,1695232800,fomc,FOMC statement / rate decision,high,official
+2023-09-20,14:30,1695234600,fomc_presser,FOMC press conference,high,official
+2023-09-21,08:30,1695299400,claims,Initial jobless claims,medium,rule
+2023-09-28,08:30,1695904200,claims,Initial jobless claims,medium,rule
+2023-09-28,08:30,1695904200,gdp_third,GDP third estimate,low,vintage
+2023-09-29,08:30,1695990600,pce,Personal income & outlays (core PCE),high,vintage
+2023-09-29,10:00,1695996000,umich_final,UMich sentiment (final),low,vintage
+2023-10-02,10:00,1696255200,ism_mfg,ISM manufacturing PMI,high,rule
+2023-10-03,10:00,1696341600,jolts,JOLTS job openings,medium,official
+2023-10-04,08:15,1696421700,adp,ADP employment,medium,vintage
+2023-10-04,10:00,1696428000,ism_services,ISM services PMI,high,rule
+2023-10-05,08:30,1696509000,claims,Initial jobless claims,medium,rule
+2023-10-06,08:30,1696595400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2023-10-11,08:30,1697027400,ppi,PPI,high,official
+2023-10-11,14:00,1697047200,fomc_minutes,FOMC minutes,high,official
+2023-10-12,08:30,1697113800,cpi,CPI,high,official
+2023-10-12,08:30,1697113800,claims,Initial jobless claims,medium,rule
+2023-10-13,10:00,1697205600,umich_prelim,UMich sentiment (preliminary),medium,derived
+2023-10-17,08:30,1697545800,retail_sales,Retail sales,high,vintage
+2023-10-19,08:30,1697718600,claims,Initial jobless claims,medium,rule
+2023-10-26,08:30,1698323400,gdp_advance,GDP advance estimate,high,vintage
+2023-10-26,08:30,1698323400,claims,Initial jobless claims,medium,rule
+2023-10-27,08:30,1698409800,pce,Personal income & outlays (core PCE),high,vintage
+2023-10-27,10:00,1698415200,umich_final,UMich sentiment (final),low,vintage
+2023-11-01,08:15,1698840900,adp,ADP employment,medium,vintage
+2023-11-01,10:00,1698847200,ism_mfg,ISM manufacturing PMI,high,rule
+2023-11-01,10:00,1698847200,jolts,JOLTS job openings,medium,official
+2023-11-01,14:00,1698861600,fomc,FOMC statement / rate decision,high,official
+2023-11-01,14:30,1698863400,fomc_presser,FOMC press conference,high,official
+2023-11-02,08:30,1698928200,claims,Initial jobless claims,medium,rule
+2023-11-03,08:30,1699014600,nfp,Nonfarm payrolls / unemployment rate,high,official
+2023-11-03,10:00,1699020000,ism_services,ISM services PMI,high,rule
+2023-11-09,08:30,1699536600,claims,Initial jobless claims,medium,rule
+2023-11-10,10:00,1699628400,umich_prelim,UMich sentiment (preliminary),medium,derived
+2023-11-14,08:30,1699968600,cpi,CPI,high,official
+2023-11-15,08:30,1700055000,ppi,PPI,high,official
+2023-11-15,08:30,1700055000,retail_sales,Retail sales,high,vintage
+2023-11-16,08:30,1700141400,claims,Initial jobless claims,medium,rule
+2023-11-21,14:00,1700593200,fomc_minutes,FOMC minutes,high,official
+2023-11-22,08:30,1700659800,claims,Initial jobless claims,medium,rule
+2023-11-22,10:00,1700665200,umich_final,UMich sentiment (final),low,vintage
+2023-11-29,08:30,1701264600,gdp_second,GDP second estimate,medium,vintage
+2023-11-30,08:30,1701351000,pce,Personal income & outlays (core PCE),high,vintage
+2023-11-30,08:30,1701351000,claims,Initial jobless claims,medium,rule
+2023-12-01,10:00,1701442800,ism_mfg,ISM manufacturing PMI,high,rule
+2023-12-05,10:00,1701788400,ism_services,ISM services PMI,high,rule
+2023-12-05,10:00,1701788400,jolts,JOLTS job openings,medium,official
+2023-12-06,08:15,1701868500,adp,ADP employment,medium,vintage
+2023-12-07,08:30,1701955800,claims,Initial jobless claims,medium,rule
+2023-12-08,08:30,1702042200,nfp,Nonfarm payrolls / unemployment rate,high,official
+2023-12-08,10:00,1702047600,umich_prelim,UMich sentiment (preliminary),medium,derived
+2023-12-12,08:30,1702387800,cpi,CPI,high,official
+2023-12-13,08:30,1702474200,ppi,PPI,high,official
+2023-12-13,14:00,1702494000,fomc,FOMC statement / rate decision,high,official
+2023-12-13,14:30,1702495800,fomc_presser,FOMC press conference,high,official
+2023-12-14,08:30,1702560600,retail_sales,Retail sales,high,vintage
+2023-12-14,08:30,1702560600,claims,Initial jobless claims,medium,rule
+2023-12-21,08:30,1703165400,claims,Initial jobless claims,medium,rule
+2023-12-21,08:30,1703165400,gdp_third,GDP third estimate,low,vintage
+2023-12-22,08:30,1703251800,pce,Personal income & outlays (core PCE),high,vintage
+2023-12-22,10:00,1703257200,umich_final,UMich sentiment (final),low,vintage
+2023-12-28,08:30,1703770200,claims,Initial jobless claims,medium,rule
+2024-01-02,10:00,1704207600,ism_mfg,ISM manufacturing PMI,high,rule
+2024-01-03,10:00,1704294000,jolts,JOLTS job openings,medium,official
+2024-01-03,14:00,1704308400,fomc_minutes,FOMC minutes,high,official
+2024-01-04,08:15,1704374100,adp,ADP employment,medium,vintage
+2024-01-04,08:30,1704375000,claims,Initial jobless claims,medium,rule
+2024-01-04,10:00,1704380400,ism_services,ISM services PMI,high,rule
+2024-01-05,08:30,1704461400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2024-01-11,08:30,1704979800,cpi,CPI,high,official
+2024-01-11,08:30,1704979800,claims,Initial jobless claims,medium,rule
+2024-01-12,08:30,1705066200,ppi,PPI,high,official
+2024-01-17,08:30,1705498200,retail_sales,Retail sales,high,vintage
+2024-01-18,08:30,1705584600,claims,Initial jobless claims,medium,rule
+2024-01-19,10:00,1705676400,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-01-25,08:30,1706189400,gdp_advance,GDP advance estimate,high,vintage
+2024-01-25,08:30,1706189400,claims,Initial jobless claims,medium,rule
+2024-01-26,08:30,1706275800,pce,Personal income & outlays (core PCE),high,vintage
+2024-01-30,10:00,1706626800,jolts,JOLTS job openings,medium,official
+2024-01-31,08:15,1706706900,adp,ADP employment,medium,vintage
+2024-01-31,14:00,1706727600,fomc,FOMC statement / rate decision,high,official
+2024-01-31,14:30,1706729400,fomc_presser,FOMC press conference,high,official
+2024-02-01,08:30,1706794200,claims,Initial jobless claims,medium,rule
+2024-02-01,10:00,1706799600,ism_mfg,ISM manufacturing PMI,high,rule
+2024-02-02,08:30,1706880600,nfp,Nonfarm payrolls / unemployment rate,high,official
+2024-02-02,10:00,1706886000,umich_final,UMich sentiment (final),low,vintage
+2024-02-05,10:00,1707145200,ism_services,ISM services PMI,high,rule
+2024-02-08,08:30,1707399000,claims,Initial jobless claims,medium,rule
+2024-02-13,08:30,1707831000,cpi,CPI,high,official
+2024-02-15,08:30,1708003800,retail_sales,Retail sales,high,vintage
+2024-02-15,08:30,1708003800,claims,Initial jobless claims,medium,rule
+2024-02-16,08:30,1708090200,ppi,PPI,high,official
+2024-02-16,10:00,1708095600,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-02-21,14:00,1708542000,fomc_minutes,FOMC minutes,high,official
+2024-02-22,08:30,1708608600,claims,Initial jobless claims,medium,rule
+2024-02-28,08:30,1709127000,gdp_second,GDP second estimate,medium,vintage
+2024-02-29,08:30,1709213400,pce,Personal income & outlays (core PCE),high,vintage
+2024-02-29,08:30,1709213400,claims,Initial jobless claims,medium,rule
+2024-03-01,10:00,1709305200,ism_mfg,ISM manufacturing PMI,high,rule
+2024-03-01,10:00,1709305200,umich_final,UMich sentiment (final),low,vintage
+2024-03-05,10:00,1709650800,ism_services,ISM services PMI,high,rule
+2024-03-06,08:15,1709730900,adp,ADP employment,medium,vintage
+2024-03-06,10:00,1709737200,jolts,JOLTS job openings,medium,official
+2024-03-07,08:30,1709818200,claims,Initial jobless claims,medium,rule
+2024-03-08,08:30,1709904600,nfp,Nonfarm payrolls / unemployment rate,high,official
+2024-03-12,08:30,1710246600,cpi,CPI,high,official
+2024-03-14,08:30,1710419400,ppi,PPI,high,official
+2024-03-14,08:30,1710419400,retail_sales,Retail sales,high,vintage
+2024-03-14,08:30,1710419400,claims,Initial jobless claims,medium,rule
+2024-03-15,10:00,1710511200,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-03-20,14:00,1710957600,fomc,FOMC statement / rate decision,high,official
+2024-03-20,14:30,1710959400,fomc_presser,FOMC press conference,high,official
+2024-03-21,08:30,1711024200,claims,Initial jobless claims,medium,rule
+2024-03-28,08:30,1711629000,claims,Initial jobless claims,medium,rule
+2024-03-28,08:30,1711629000,gdp_third,GDP third estimate,low,vintage
+2024-03-28,10:00,1711634400,umich_final,UMich sentiment (final),low,vintage
+2024-03-29,08:30,1711715400,pce,Personal income & outlays (core PCE),high,vintage
+2024-04-01,10:00,1711980000,ism_mfg,ISM manufacturing PMI,high,rule
+2024-04-02,10:00,1712066400,jolts,JOLTS job openings,medium,official
+2024-04-03,08:15,1712146500,adp,ADP employment,medium,vintage
+2024-04-03,10:00,1712152800,ism_services,ISM services PMI,high,rule
+2024-04-04,08:30,1712233800,claims,Initial jobless claims,medium,rule
+2024-04-05,08:30,1712320200,nfp,Nonfarm payrolls / unemployment rate,high,official
+2024-04-10,08:30,1712752200,cpi,CPI,high,official
+2024-04-10,14:00,1712772000,fomc_minutes,FOMC minutes,high,official
+2024-04-11,08:30,1712838600,ppi,PPI,high,official
+2024-04-11,08:30,1712838600,claims,Initial jobless claims,medium,rule
+2024-04-12,10:00,1712930400,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-04-15,08:30,1713184200,retail_sales,Retail sales,high,vintage
+2024-04-18,08:30,1713443400,claims,Initial jobless claims,medium,rule
+2024-04-25,08:30,1714048200,gdp_advance,GDP advance estimate,high,vintage
+2024-04-25,08:30,1714048200,claims,Initial jobless claims,medium,rule
+2024-04-26,08:30,1714134600,pce,Personal income & outlays (core PCE),high,vintage
+2024-04-26,10:00,1714140000,umich_final,UMich sentiment (final),low,vintage
+2024-05-01,08:15,1714565700,adp,ADP employment,medium,vintage
+2024-05-01,10:00,1714572000,ism_mfg,ISM manufacturing PMI,high,rule
+2024-05-01,10:00,1714572000,jolts,JOLTS job openings,medium,official
+2024-05-01,14:00,1714586400,fomc,FOMC statement / rate decision,high,official
+2024-05-01,14:30,1714588200,fomc_presser,FOMC press conference,high,official
+2024-05-02,08:30,1714653000,claims,Initial jobless claims,medium,rule
+2024-05-03,08:30,1714739400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2024-05-03,10:00,1714744800,ism_services,ISM services PMI,high,rule
+2024-05-09,08:30,1715257800,claims,Initial jobless claims,medium,rule
+2024-05-10,10:00,1715349600,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-05-14,08:30,1715689800,ppi,PPI,high,official
+2024-05-15,08:30,1715776200,cpi,CPI,high,official
+2024-05-15,08:30,1715776200,retail_sales,Retail sales,high,vintage
+2024-05-16,08:30,1715862600,claims,Initial jobless claims,medium,rule
+2024-05-22,14:00,1716400800,fomc_minutes,FOMC minutes,high,official
+2024-05-23,08:30,1716467400,claims,Initial jobless claims,medium,rule
+2024-05-24,10:00,1716559200,umich_final,UMich sentiment (final),low,vintage
+2024-05-30,08:30,1717072200,claims,Initial jobless claims,medium,rule
+2024-05-30,08:30,1717072200,gdp_second,GDP second estimate,medium,vintage
+2024-05-31,08:30,1717158600,pce,Personal income & outlays (core PCE),high,vintage
+2024-06-03,10:00,1717423200,ism_mfg,ISM manufacturing PMI,high,rule
+2024-06-04,10:00,1717509600,jolts,JOLTS job openings,medium,official
+2024-06-05,08:15,1717589700,adp,ADP employment,medium,vintage
+2024-06-05,10:00,1717596000,ism_services,ISM services PMI,high,rule
+2024-06-06,08:30,1717677000,claims,Initial jobless claims,medium,rule
+2024-06-07,08:30,1717763400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2024-06-12,08:30,1718195400,cpi,CPI,high,official
+2024-06-12,14:00,1718215200,fomc,FOMC statement / rate decision,high,official
+2024-06-12,14:30,1718217000,fomc_presser,FOMC press conference,high,official
+2024-06-13,08:30,1718281800,ppi,PPI,high,official
+2024-06-13,08:30,1718281800,claims,Initial jobless claims,medium,rule
+2024-06-14,10:00,1718373600,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-06-18,08:30,1718713800,retail_sales,Retail sales,high,vintage
+2024-06-20,08:30,1718886600,claims,Initial jobless claims,medium,rule
+2024-06-27,08:30,1719491400,claims,Initial jobless claims,medium,rule
+2024-06-27,08:30,1719491400,gdp_third,GDP third estimate,low,vintage
+2024-06-28,08:30,1719577800,pce,Personal income & outlays (core PCE),high,vintage
+2024-06-28,10:00,1719583200,umich_final,UMich sentiment (final),low,vintage
+2024-07-01,10:00,1719842400,ism_mfg,ISM manufacturing PMI,high,rule
+2024-07-02,10:00,1719928800,jolts,JOLTS job openings,medium,official
+2024-07-03,08:15,1720008900,adp,ADP employment,medium,vintage
+2024-07-03,08:30,1720009800,claims,Initial jobless claims,medium,rule
+2024-07-03,10:00,1720015200,ism_services,ISM services PMI,high,rule
+2024-07-03,14:00,1720029600,fomc_minutes,FOMC minutes,high,official
+2024-07-05,08:30,1720182600,nfp,Nonfarm payrolls / unemployment rate,high,official
+2024-07-11,08:30,1720701000,cpi,CPI,high,official
+2024-07-11,08:30,1720701000,claims,Initial jobless claims,medium,rule
+2024-07-12,08:30,1720787400,ppi,PPI,high,official
+2024-07-12,10:00,1720792800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-07-16,08:30,1721133000,retail_sales,Retail sales,high,vintage
+2024-07-18,08:30,1721305800,claims,Initial jobless claims,medium,rule
+2024-07-25,08:30,1721910600,gdp_advance,GDP advance estimate,high,vintage
+2024-07-25,08:30,1721910600,claims,Initial jobless claims,medium,rule
+2024-07-26,08:30,1721997000,pce,Personal income & outlays (core PCE),high,vintage
+2024-07-26,10:00,1722002400,umich_final,UMich sentiment (final),low,vintage
+2024-07-30,10:00,1722348000,jolts,JOLTS job openings,medium,official
+2024-07-31,08:15,1722428100,adp,ADP employment,medium,vintage
+2024-07-31,14:00,1722448800,fomc,FOMC statement / rate decision,high,official
+2024-07-31,14:30,1722450600,fomc_presser,FOMC press conference,high,official
+2024-08-01,08:30,1722515400,claims,Initial jobless claims,medium,rule
+2024-08-01,10:00,1722520800,ism_mfg,ISM manufacturing PMI,high,rule
+2024-08-02,08:30,1722601800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2024-08-05,10:00,1722866400,ism_services,ISM services PMI,high,rule
+2024-08-08,08:30,1723120200,claims,Initial jobless claims,medium,rule
+2024-08-13,08:30,1723552200,ppi,PPI,high,official
+2024-08-14,08:30,1723638600,cpi,CPI,high,official
+2024-08-15,08:30,1723725000,retail_sales,Retail sales,high,vintage
+2024-08-15,08:30,1723725000,claims,Initial jobless claims,medium,rule
+2024-08-16,10:00,1723816800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-08-21,14:00,1724263200,fomc_minutes,FOMC minutes,high,official
+2024-08-22,08:30,1724329800,claims,Initial jobless claims,medium,rule
+2024-08-29,08:30,1724934600,claims,Initial jobless claims,medium,rule
+2024-08-29,08:30,1724934600,gdp_second,GDP second estimate,medium,vintage
+2024-08-30,08:30,1725021000,pce,Personal income & outlays (core PCE),high,vintage
+2024-08-30,10:00,1725026400,umich_final,UMich sentiment (final),low,vintage
+2024-09-03,10:00,1725372000,ism_mfg,ISM manufacturing PMI,high,rule
+2024-09-04,10:00,1725458400,jolts,JOLTS job openings,medium,official
+2024-09-05,08:15,1725538500,adp,ADP employment,medium,vintage
+2024-09-05,08:30,1725539400,claims,Initial jobless claims,medium,rule
+2024-09-05,10:00,1725544800,ism_services,ISM services PMI,high,rule
+2024-09-06,08:30,1725625800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2024-09-11,08:30,1726057800,cpi,CPI,high,official
+2024-09-12,08:30,1726144200,ppi,PPI,high,official
+2024-09-12,08:30,1726144200,claims,Initial jobless claims,medium,rule
+2024-09-13,10:00,1726236000,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-09-17,08:30,1726576200,retail_sales,Retail sales,high,vintage
+2024-09-18,14:00,1726682400,fomc,FOMC statement / rate decision,high,official
+2024-09-18,14:30,1726684200,fomc_presser,FOMC press conference,high,official
+2024-09-19,08:30,1726749000,claims,Initial jobless claims,medium,rule
+2024-09-26,08:30,1727353800,claims,Initial jobless claims,medium,rule
+2024-09-26,08:30,1727353800,gdp_third,GDP third estimate,low,vintage
+2024-09-27,08:30,1727440200,pce,Personal income & outlays (core PCE),high,vintage
+2024-09-27,10:00,1727445600,umich_final,UMich sentiment (final),low,vintage
+2024-10-01,10:00,1727791200,ism_mfg,ISM manufacturing PMI,high,rule
+2024-10-01,10:00,1727791200,jolts,JOLTS job openings,medium,official
+2024-10-02,08:15,1727871300,adp,ADP employment,medium,vintage
+2024-10-03,08:30,1727958600,claims,Initial jobless claims,medium,rule
+2024-10-03,10:00,1727964000,ism_services,ISM services PMI,high,rule
+2024-10-04,08:30,1728045000,nfp,Nonfarm payrolls / unemployment rate,high,official
+2024-10-09,14:00,1728496800,fomc_minutes,FOMC minutes,high,official
+2024-10-10,08:30,1728563400,cpi,CPI,high,official
+2024-10-10,08:30,1728563400,claims,Initial jobless claims,medium,rule
+2024-10-11,08:30,1728649800,ppi,PPI,high,official
+2024-10-11,10:00,1728655200,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-10-17,08:30,1729168200,retail_sales,Retail sales,high,vintage
+2024-10-17,08:30,1729168200,claims,Initial jobless claims,medium,rule
+2024-10-24,08:30,1729773000,claims,Initial jobless claims,medium,rule
+2024-10-25,10:00,1729864800,umich_final,UMich sentiment (final),low,vintage
+2024-10-29,10:00,1730210400,jolts,JOLTS job openings,medium,official
+2024-10-30,08:15,1730290500,adp,ADP employment,medium,vintage
+2024-10-30,08:30,1730291400,gdp_advance,GDP advance estimate,high,vintage
+2024-10-31,08:30,1730377800,pce,Personal income & outlays (core PCE),high,vintage
+2024-10-31,08:30,1730377800,claims,Initial jobless claims,medium,rule
+2024-11-01,08:30,1730464200,nfp,Nonfarm payrolls / unemployment rate,high,official
+2024-11-01,10:00,1730469600,ism_mfg,ISM manufacturing PMI,high,rule
+2024-11-05,10:00,1730818800,ism_services,ISM services PMI,high,rule
+2024-11-07,08:30,1730986200,claims,Initial jobless claims,medium,rule
+2024-11-07,14:00,1731006000,fomc,FOMC statement / rate decision,high,official
+2024-11-07,14:30,1731007800,fomc_presser,FOMC press conference,high,official
+2024-11-08,10:00,1731078000,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-11-13,08:30,1731504600,cpi,CPI,high,official
+2024-11-14,08:30,1731591000,ppi,PPI,high,official
+2024-11-14,08:30,1731591000,claims,Initial jobless claims,medium,rule
+2024-11-15,08:30,1731677400,retail_sales,Retail sales,high,vintage
+2024-11-21,08:30,1732195800,claims,Initial jobless claims,medium,rule
+2024-11-22,10:00,1732287600,umich_final,UMich sentiment (final),low,vintage
+2024-11-26,14:00,1732647600,fomc_minutes,FOMC minutes,high,official
+2024-11-27,08:30,1732714200,pce,Personal income & outlays (core PCE),high,vintage
+2024-11-27,08:30,1732714200,claims,Initial jobless claims,medium,rule
+2024-11-27,08:30,1732714200,gdp_second,GDP second estimate,medium,vintage
+2024-12-02,10:00,1733151600,ism_mfg,ISM manufacturing PMI,high,rule
+2024-12-03,10:00,1733238000,jolts,JOLTS job openings,medium,official
+2024-12-04,08:15,1733318100,adp,ADP employment,medium,vintage
+2024-12-04,10:00,1733324400,ism_services,ISM services PMI,high,rule
+2024-12-05,08:30,1733405400,claims,Initial jobless claims,medium,rule
+2024-12-06,08:30,1733491800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2024-12-06,10:00,1733497200,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-12-11,08:30,1733923800,cpi,CPI,high,official
+2024-12-12,08:30,1734010200,ppi,PPI,high,official
+2024-12-12,08:30,1734010200,claims,Initial jobless claims,medium,rule
+2024-12-17,08:30,1734442200,retail_sales,Retail sales,high,vintage
+2024-12-18,14:00,1734548400,fomc,FOMC statement / rate decision,high,official
+2024-12-18,14:30,1734550200,fomc_presser,FOMC press conference,high,official
+2024-12-19,08:30,1734615000,claims,Initial jobless claims,medium,rule
+2024-12-19,08:30,1734615000,gdp_third,GDP third estimate,low,vintage
+2024-12-20,08:30,1734701400,pce,Personal income & outlays (core PCE),high,vintage
+2024-12-20,10:00,1734706800,umich_final,UMich sentiment (final),low,vintage
+2024-12-26,08:30,1735219800,claims,Initial jobless claims,medium,rule
+2025-01-02,08:30,1735824600,claims,Initial jobless claims,medium,rule
+2025-01-02,10:00,1735830000,ism_mfg,ISM manufacturing PMI,high,rule
+2025-01-06,10:00,1736175600,ism_services,ISM services PMI,high,rule
+2025-01-07,10:00,1736262000,jolts,JOLTS job openings,medium,official
+2025-01-08,08:15,1736342100,adp,ADP employment,medium,vintage
+2025-01-08,08:30,1736343000,claims,Initial jobless claims,medium,rule
+2025-01-08,14:00,1736362800,fomc_minutes,FOMC minutes,high,official
+2025-01-10,08:30,1736515800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2025-01-10,10:00,1736521200,umich_prelim,UMich sentiment (preliminary),medium,derived
+2025-01-14,08:30,1736861400,ppi,PPI,high,official
+2025-01-15,08:30,1736947800,cpi,CPI,high,official
+2025-01-16,08:30,1737034200,retail_sales,Retail sales,high,vintage
+2025-01-16,08:30,1737034200,claims,Initial jobless claims,medium,rule
+2025-01-23,08:30,1737639000,claims,Initial jobless claims,medium,rule
+2025-01-24,10:00,1737730800,umich_final,UMich sentiment (final),low,vintage
+2025-01-29,14:00,1738177200,fomc,FOMC statement / rate decision,high,official
+2025-01-29,14:30,1738179000,fomc_presser,FOMC press conference,high,official
+2025-01-30,08:30,1738243800,gdp_advance,GDP advance estimate,high,vintage
+2025-01-30,08:30,1738243800,claims,Initial jobless claims,medium,rule
+2025-01-31,08:30,1738330200,pce,Personal income & outlays (core PCE),high,vintage
+2025-02-03,10:00,1738594800,ism_mfg,ISM manufacturing PMI,high,rule
+2025-02-04,10:00,1738681200,jolts,JOLTS job openings,medium,official
+2025-02-05,08:15,1738761300,adp,ADP employment,medium,vintage
+2025-02-05,10:00,1738767600,ism_services,ISM services PMI,high,rule
+2025-02-06,08:30,1738848600,claims,Initial jobless claims,medium,rule
+2025-02-07,08:30,1738935000,nfp,Nonfarm payrolls / unemployment rate,high,official
+2025-02-07,10:00,1738940400,umich_prelim,UMich sentiment (preliminary),medium,derived
+2025-02-12,08:30,1739367000,cpi,CPI,high,official
+2025-02-13,08:30,1739453400,ppi,PPI,high,official
+2025-02-13,08:30,1739453400,claims,Initial jobless claims,medium,rule
+2025-02-14,08:30,1739539800,retail_sales,Retail sales,high,vintage
+2025-02-19,14:00,1739991600,fomc_minutes,FOMC minutes,high,official
+2025-02-20,08:30,1740058200,claims,Initial jobless claims,medium,rule
+2025-02-21,10:00,1740150000,umich_final,UMich sentiment (final),low,vintage
+2025-02-27,08:30,1740663000,claims,Initial jobless claims,medium,rule
+2025-02-27,08:30,1740663000,gdp_second,GDP second estimate,medium,vintage
+2025-02-28,08:30,1740749400,pce,Personal income & outlays (core PCE),high,vintage
+2025-03-03,10:00,1741014000,ism_mfg,ISM manufacturing PMI,high,rule
+2025-03-05,08:15,1741180500,adp,ADP employment,medium,vintage
+2025-03-05,10:00,1741186800,ism_services,ISM services PMI,high,rule
+2025-03-06,08:30,1741267800,claims,Initial jobless claims,medium,rule
+2025-03-07,08:30,1741354200,nfp,Nonfarm payrolls / unemployment rate,high,official
+2025-03-11,10:00,1741701600,jolts,JOLTS job openings,medium,official
+2025-03-12,08:30,1741782600,cpi,CPI,high,official
+2025-03-13,08:30,1741869000,ppi,PPI,high,official
+2025-03-13,08:30,1741869000,claims,Initial jobless claims,medium,rule
+2025-03-14,10:00,1741960800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2025-03-17,08:30,1742214600,retail_sales,Retail sales,high,vintage
+2025-03-19,14:00,1742407200,fomc,FOMC statement / rate decision,high,official
+2025-03-19,14:30,1742409000,fomc_presser,FOMC press conference,high,official
+2025-03-20,08:30,1742473800,claims,Initial jobless claims,medium,rule
+2025-03-27,08:30,1743078600,claims,Initial jobless claims,medium,rule
+2025-03-27,08:30,1743078600,gdp_third,GDP third estimate,low,vintage
+2025-03-28,08:30,1743165000,pce,Personal income & outlays (core PCE),high,vintage
+2025-03-28,10:00,1743170400,umich_final,UMich sentiment (final),low,vintage
+2025-04-01,10:00,1743516000,ism_mfg,ISM manufacturing PMI,high,rule
+2025-04-01,10:00,1743516000,jolts,JOLTS job openings,medium,official
+2025-04-02,08:15,1743596100,adp,ADP employment,medium,vintage
+2025-04-03,08:30,1743683400,claims,Initial jobless claims,medium,rule
+2025-04-03,10:00,1743688800,ism_services,ISM services PMI,high,rule
+2025-04-04,08:30,1743769800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2025-04-09,14:00,1744221600,fomc_minutes,FOMC minutes,high,official
+2025-04-10,08:30,1744288200,cpi,CPI,high,official
+2025-04-10,08:30,1744288200,claims,Initial jobless claims,medium,rule
+2025-04-11,08:30,1744374600,ppi,PPI,high,official
+2025-04-11,10:00,1744380000,umich_prelim,UMich sentiment (preliminary),medium,derived
+2025-04-16,08:30,1744806600,retail_sales,Retail sales,high,vintage
+2025-04-17,08:30,1744893000,claims,Initial jobless claims,medium,rule
+2025-04-24,08:30,1745497800,claims,Initial jobless claims,medium,rule
+2025-04-25,10:00,1745589600,umich_final,UMich sentiment (final),low,vintage
+2025-04-29,10:00,1745935200,jolts,JOLTS job openings,medium,official
+2025-04-30,08:15,1746015300,adp,ADP employment,medium,vintage
+2025-04-30,08:30,1746016200,gdp_advance,GDP advance estimate,high,vintage
+2025-04-30,08:30,1746016200,pce,Personal income & outlays (core PCE),high,vintage
+2025-05-01,08:30,1746102600,claims,Initial jobless claims,medium,rule
+2025-05-01,10:00,1746108000,ism_mfg,ISM manufacturing PMI,high,rule
+2025-05-02,08:30,1746189000,nfp,Nonfarm payrolls / unemployment rate,high,official
+2025-05-05,10:00,1746453600,ism_services,ISM services PMI,high,rule
+2025-05-07,14:00,1746640800,fomc,FOMC statement / rate decision,high,official
+2025-05-07,14:30,1746642600,fomc_presser,FOMC press conference,high,official
+2025-05-08,08:30,1746707400,claims,Initial jobless claims,medium,rule
+2025-05-13,08:30,1747139400,cpi,CPI,high,official
+2025-05-15,08:30,1747312200,ppi,PPI,high,official
+2025-05-15,08:30,1747312200,retail_sales,Retail sales,high,vintage
+2025-05-15,08:30,1747312200,claims,Initial jobless claims,medium,rule
+2025-05-16,10:00,1747404000,umich_prelim,UMich sentiment (preliminary),medium,derived
+2025-05-22,08:30,1747917000,claims,Initial jobless claims,medium,rule
+2025-05-28,14:00,1748455200,fomc_minutes,FOMC minutes,high,official
+2025-05-29,08:30,1748521800,claims,Initial jobless claims,medium,rule
+2025-05-29,08:30,1748521800,gdp_second,GDP second estimate,medium,vintage
+2025-05-30,08:30,1748608200,pce,Personal income & outlays (core PCE),high,vintage
+2025-05-30,10:00,1748613600,umich_final,UMich sentiment (final),low,vintage
+2025-06-02,10:00,1748872800,ism_mfg,ISM manufacturing PMI,high,rule
+2025-06-03,10:00,1748959200,jolts,JOLTS job openings,medium,official
+2025-06-04,08:15,1749039300,adp,ADP employment,medium,vintage
+2025-06-04,10:00,1749045600,ism_services,ISM services PMI,high,rule
+2025-06-05,08:30,1749126600,claims,Initial jobless claims,medium,rule
+2025-06-06,08:30,1749213000,nfp,Nonfarm payrolls / unemployment rate,high,official
+2025-06-11,08:30,1749645000,cpi,CPI,high,official
+2025-06-12,08:30,1749731400,ppi,PPI,high,official
+2025-06-12,08:30,1749731400,claims,Initial jobless claims,medium,rule
+2025-06-13,10:00,1749823200,umich_prelim,UMich sentiment (preliminary),medium,derived
+2025-06-17,08:30,1750163400,retail_sales,Retail sales,high,vintage
+2025-06-18,08:30,1750249800,claims,Initial jobless claims,medium,rule
+2025-06-18,14:00,1750269600,fomc,FOMC statement / rate decision,high,official
+2025-06-18,14:30,1750271400,fomc_presser,FOMC press conference,high,official
+2025-06-26,08:30,1750941000,claims,Initial jobless claims,medium,rule
+2025-06-26,08:30,1750941000,gdp_third,GDP third estimate,low,vintage
+2025-06-27,08:30,1751027400,pce,Personal income & outlays (core PCE),high,vintage
+2025-06-27,10:00,1751032800,umich_final,UMich sentiment (final),low,vintage
+2025-07-01,10:00,1751378400,ism_mfg,ISM manufacturing PMI,high,rule
+2025-07-01,10:00,1751378400,jolts,JOLTS job openings,medium,official
+2025-07-02,08:15,1751458500,adp,ADP employment,medium,vintage
+2025-07-03,08:30,1751545800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2025-07-03,08:30,1751545800,claims,Initial jobless claims,medium,rule
+2025-07-03,10:00,1751551200,ism_services,ISM services PMI,high,rule
+2025-07-09,14:00,1752084000,fomc_minutes,FOMC minutes,high,official
+2025-07-10,08:30,1752150600,claims,Initial jobless claims,medium,rule
+2025-07-15,08:30,1752582600,cpi,CPI,high,official
+2025-07-16,08:30,1752669000,ppi,PPI,high,official
+2025-07-17,08:30,1752755400,retail_sales,Retail sales,high,vintage
+2025-07-17,08:30,1752755400,claims,Initial jobless claims,medium,rule
+2025-07-18,10:00,1752847200,umich_prelim,UMich sentiment (preliminary),medium,derived
+2025-07-24,08:30,1753360200,claims,Initial jobless claims,medium,rule
+2025-07-29,10:00,1753797600,jolts,JOLTS job openings,medium,official
+2025-07-30,08:15,1753877700,adp,ADP employment,medium,vintage
+2025-07-30,08:30,1753878600,gdp_advance,GDP advance estimate,high,vintage
+2025-07-30,14:00,1753898400,fomc,FOMC statement / rate decision,high,official
+2025-07-30,14:30,1753900200,fomc_presser,FOMC press conference,high,official
+2025-07-31,08:30,1753965000,pce,Personal income & outlays (core PCE),high,vintage
+2025-07-31,08:30,1753965000,claims,Initial jobless claims,medium,rule
+2025-08-01,08:30,1754051400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2025-08-01,10:00,1754056800,ism_mfg,ISM manufacturing PMI,high,rule
+2025-08-01,10:00,1754056800,umich_final,UMich sentiment (final),low,vintage
+2025-08-05,10:00,1754402400,ism_services,ISM services PMI,high,rule
+2025-08-07,08:30,1754569800,claims,Initial jobless claims,medium,rule
+2025-08-12,08:30,1755001800,cpi,CPI,high,official
+2025-08-14,08:30,1755174600,ppi,PPI,high,official
+2025-08-14,08:30,1755174600,claims,Initial jobless claims,medium,rule
+2025-08-15,08:30,1755261000,retail_sales,Retail sales,high,vintage
+2025-08-15,10:00,1755266400,umich_prelim,UMich sentiment (preliminary),medium,derived
+2025-08-20,14:00,1755712800,fomc_minutes,FOMC minutes,high,official
+2025-08-21,08:30,1755779400,claims,Initial jobless claims,medium,rule
+2025-08-28,08:30,1756384200,claims,Initial jobless claims,medium,rule
+2025-08-28,08:30,1756384200,gdp_second,GDP second estimate,medium,vintage
+2025-08-29,08:30,1756470600,pce,Personal income & outlays (core PCE),high,vintage
+2025-08-29,10:00,1756476000,umich_final,UMich sentiment (final),low,vintage
+2025-09-02,10:00,1756821600,ism_mfg,ISM manufacturing PMI,high,rule
+2025-09-03,10:00,1756908000,jolts,JOLTS job openings,medium,official
+2025-09-04,08:15,1756988100,adp,ADP employment,medium,vintage
+2025-09-04,08:30,1756989000,claims,Initial jobless claims,medium,rule
+2025-09-04,10:00,1756994400,ism_services,ISM services PMI,high,rule
+2025-09-05,08:30,1757075400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2025-09-10,08:30,1757507400,ppi,PPI,high,official
+2025-09-11,08:30,1757593800,cpi,CPI,high,official
+2025-09-11,08:30,1757593800,claims,Initial jobless claims,medium,rule
+2025-09-12,10:00,1757685600,umich_prelim,UMich sentiment (preliminary),medium,derived
+2025-09-16,08:30,1758025800,retail_sales,Retail sales,high,vintage
+2025-09-17,14:00,1758132000,fomc,FOMC statement / rate decision,high,official
+2025-09-17,14:30,1758133800,fomc_presser,FOMC press conference,high,official
+2025-09-18,08:30,1758198600,claims,Initial jobless claims,medium,rule
+2025-09-25,08:30,1758803400,claims,Initial jobless claims,medium,rule
+2025-09-25,08:30,1758803400,gdp_third,GDP third estimate,low,vintage
+2025-09-26,08:30,1758889800,pce,Personal income & outlays (core PCE),high,vintage
+2025-09-26,10:00,1758895200,umich_final,UMich sentiment (final),low,vintage
+2025-09-30,10:00,1759240800,jolts,JOLTS job openings,medium,official
+2025-10-01,08:15,1759320900,adp,ADP employment,medium,vintage
+2025-10-01,10:00,1759327200,ism_mfg,ISM manufacturing PMI,high,rule
+2025-10-03,10:00,1759500000,ism_services,ISM services PMI,high,rule
+2025-10-08,14:00,1759946400,fomc_minutes,FOMC minutes,high,official
+2025-10-10,10:00,1760104800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2025-10-24,08:30,1761309000,cpi,CPI,high,official
+2025-10-24,10:00,1761314400,umich_final,UMich sentiment (final),low,vintage
+2025-10-29,14:00,1761760800,fomc,FOMC statement / rate decision,high,official
+2025-10-29,14:30,1761762600,fomc_presser,FOMC press conference,high,official
+2025-11-03,10:00,1762182000,ism_mfg,ISM manufacturing PMI,high,rule
+2025-11-05,08:15,1762348500,adp,ADP employment,medium,vintage
+2025-11-05,10:00,1762354800,ism_services,ISM services PMI,high,rule
+2025-11-07,10:00,1762527600,umich_prelim,UMich sentiment (preliminary),medium,derived
+2025-11-19,14:00,1763578800,fomc_minutes,FOMC minutes,high,official
+2025-11-20,08:30,1763645400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2025-11-20,08:30,1763645400,claims,Initial jobless claims,medium,rule
+2025-11-21,10:00,1763737200,umich_final,UMich sentiment (final),low,vintage
+2025-11-25,08:30,1764077400,ppi,PPI,high,official
+2025-11-25,08:30,1764077400,retail_sales,Retail sales,high,vintage
+2025-11-26,08:30,1764163800,claims,Initial jobless claims,medium,rule
+2025-12-01,10:00,1764601200,ism_mfg,ISM manufacturing PMI,high,rule
+2025-12-03,08:15,1764767700,adp,ADP employment,medium,vintage
+2025-12-03,10:00,1764774000,ism_services,ISM services PMI,high,rule
+2025-12-04,08:30,1764855000,claims,Initial jobless claims,medium,rule
+2025-12-05,10:00,1764946800,pce,Personal income & outlays (core PCE),high,vintage
+2025-12-05,10:00,1764946800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2025-12-09,10:00,1765292400,jolts,JOLTS job openings,medium,official
+2025-12-10,14:00,1765393200,fomc,FOMC statement / rate decision,high,official
+2025-12-10,14:30,1765395000,fomc_presser,FOMC press conference,high,official
+2025-12-11,08:30,1765459800,claims,Initial jobless claims,medium,rule
+2025-12-16,08:30,1765891800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2025-12-16,08:30,1765891800,retail_sales,Retail sales,high,vintage
+2025-12-18,08:30,1766064600,cpi,CPI,high,official
+2025-12-18,08:30,1766064600,claims,Initial jobless claims,medium,rule
+2025-12-19,10:00,1766156400,umich_final,UMich sentiment (final),low,vintage
+2025-12-23,08:30,1766496600,gdp_advance,GDP advance estimate,high,vintage
+2025-12-23,08:30,1766496600,pce,Personal income & outlays (core PCE),high,vintage
+2025-12-24,08:30,1766583000,claims,Initial jobless claims,medium,rule
+2025-12-30,14:00,1767121200,fomc_minutes,FOMC minutes,high,official
+2025-12-31,08:30,1767187800,claims,Initial jobless claims,medium,rule
+2026-01-02,10:00,1767366000,ism_mfg,ISM manufacturing PMI,high,rule
+2026-01-06,10:00,1767711600,ism_services,ISM services PMI,high,rule
+2026-01-07,08:15,1767791700,adp,ADP employment,medium,vintage
+2026-01-07,10:00,1767798000,jolts,JOLTS job openings,medium,official
+2026-01-08,08:30,1767879000,claims,Initial jobless claims,medium,rule
+2026-01-09,08:30,1767965400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2026-01-09,10:00,1767970800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2026-01-13,08:30,1768311000,cpi,CPI,high,official
+2026-01-14,08:30,1768397400,ppi,PPI,high,official
+2026-01-14,08:30,1768397400,retail_sales,Retail sales,high,vintage
+2026-01-15,08:30,1768483800,claims,Initial jobless claims,medium,rule
+2026-01-22,08:30,1769088600,claims,Initial jobless claims,medium,rule
+2026-01-22,08:30,1769088600,gdp_second,GDP second estimate,medium,vintage
+2026-01-22,10:00,1769094000,pce,Personal income & outlays (core PCE),high,vintage
+2026-01-23,10:00,1769180400,umich_final,UMich sentiment (final),low,vintage
+2026-01-28,14:00,1769626800,fomc,FOMC statement / rate decision,high,official
+2026-01-28,14:30,1769628600,fomc_presser,FOMC press conference,high,official
+2026-01-29,08:30,1769693400,claims,Initial jobless claims,medium,rule
+2026-01-30,08:30,1769779800,ppi,PPI,high,official
+2026-02-02,10:00,1770044400,ism_mfg,ISM manufacturing PMI,high,rule
+2026-02-04,08:15,1770210900,adp,ADP employment,medium,vintage
+2026-02-04,10:00,1770217200,ism_services,ISM services PMI,high,rule
+2026-02-05,08:30,1770298200,claims,Initial jobless claims,medium,rule
+2026-02-05,10:00,1770303600,jolts,JOLTS job openings,medium,official
+2026-02-06,10:00,1770390000,umich_prelim,UMich sentiment (preliminary),medium,derived
+2026-02-10,08:30,1770730200,retail_sales,Retail sales,high,vintage
+2026-02-11,08:30,1770816600,nfp,Nonfarm payrolls / unemployment rate,high,official
+2026-02-12,08:30,1770903000,claims,Initial jobless claims,medium,rule
+2026-02-13,08:30,1770989400,cpi,CPI,high,official
+2026-02-18,14:00,1771441200,fomc_minutes,FOMC minutes,high,official
+2026-02-19,08:30,1771507800,claims,Initial jobless claims,medium,rule
+2026-02-20,08:30,1771594200,gdp_advance,GDP advance estimate,high,vintage
+2026-02-20,08:30,1771594200,pce,Personal income & outlays (core PCE),high,vintage
+2026-02-20,10:00,1771599600,umich_final,UMich sentiment (final),low,vintage
+2026-02-26,08:30,1772112600,claims,Initial jobless claims,medium,rule
+2026-02-27,08:30,1772199000,ppi,PPI,high,official
+2026-03-02,10:00,1772463600,ism_mfg,ISM manufacturing PMI,high,rule
+2026-03-04,08:15,1772630100,adp,ADP employment,medium,vintage
+2026-03-04,10:00,1772636400,ism_services,ISM services PMI,high,rule
+2026-03-05,08:30,1772717400,claims,Initial jobless claims,medium,rule
+2026-03-06,08:30,1772803800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2026-03-06,08:30,1772803800,retail_sales,Retail sales,high,vintage
+2026-03-11,08:30,1773232200,cpi,CPI,high,official
+2026-03-12,08:30,1773318600,claims,Initial jobless claims,medium,rule
+2026-03-13,08:30,1773405000,pce,Personal income & outlays (core PCE),high,vintage
+2026-03-13,08:30,1773405000,gdp_second,GDP second estimate,medium,vintage
+2026-03-13,10:00,1773410400,jolts,JOLTS job openings,medium,official
+2026-03-13,10:00,1773410400,umich_prelim,UMich sentiment (preliminary),medium,derived
+2026-03-18,08:30,1773837000,ppi,PPI,high,official
+2026-03-18,14:00,1773856800,fomc,FOMC statement / rate decision,high,official
+2026-03-18,14:30,1773858600,fomc_presser,FOMC press conference,high,official
+2026-03-19,08:30,1773923400,claims,Initial jobless claims,medium,rule
+2026-03-26,08:30,1774528200,claims,Initial jobless claims,medium,rule
+2026-03-27,10:00,1774620000,umich_final,UMich sentiment (final),low,vintage
+2026-03-31,10:00,1774965600,jolts,JOLTS job openings,medium,official
+2026-04-01,08:15,1775045700,adp,ADP employment,medium,vintage
+2026-04-01,08:30,1775046600,retail_sales,Retail sales,high,vintage
+2026-04-01,10:00,1775052000,ism_mfg,ISM manufacturing PMI,high,rule
+2026-04-02,08:30,1775133000,claims,Initial jobless claims,medium,rule
+2026-04-03,08:30,1775219400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2026-04-03,10:00,1775224800,ism_services,ISM services PMI,high,rule
+2026-04-08,14:00,1775671200,fomc_minutes,FOMC minutes,high,official
+2026-04-09,08:30,1775737800,pce,Personal income & outlays (core PCE),high,vintage
+2026-04-09,08:30,1775737800,claims,Initial jobless claims,medium,rule
+2026-04-09,08:30,1775737800,gdp_third,GDP third estimate,low,vintage
+2026-04-10,08:30,1775824200,cpi,CPI,high,official
+2026-04-10,10:00,1775829600,umich_prelim,UMich sentiment (preliminary),medium,derived
+2026-04-14,08:30,1776169800,ppi,PPI,high,official
+2026-04-16,08:30,1776342600,claims,Initial jobless claims,medium,rule
+2026-04-21,08:30,1776774600,retail_sales,Retail sales,high,vintage
+2026-04-23,08:30,1776947400,claims,Initial jobless claims,medium,rule
+2026-04-24,10:00,1777039200,umich_final,UMich sentiment (final),low,vintage
+2026-04-29,14:00,1777485600,fomc,FOMC statement / rate decision,high,official
+2026-04-29,14:30,1777487400,fomc_presser,FOMC press conference,high,official
+2026-04-30,08:30,1777552200,gdp_advance,GDP advance estimate,high,vintage
+2026-04-30,08:30,1777552200,pce,Personal income & outlays (core PCE),high,vintage
+2026-04-30,08:30,1777552200,claims,Initial jobless claims,medium,rule
+2026-05-01,10:00,1777644000,ism_mfg,ISM manufacturing PMI,high,rule
+2026-05-05,10:00,1777989600,ism_services,ISM services PMI,high,rule
+2026-05-05,10:00,1777989600,jolts,JOLTS job openings,medium,official
+2026-05-06,08:15,1778069700,adp,ADP employment,medium,vintage
+2026-05-07,08:30,1778157000,claims,Initial jobless claims,medium,rule
+2026-05-08,08:30,1778243400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2026-05-08,10:00,1778248800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2026-05-12,08:30,1778589000,cpi,CPI,high,official
+2026-05-13,08:30,1778675400,ppi,PPI,high,official
+2026-05-14,08:30,1778761800,retail_sales,Retail sales,high,vintage
+2026-05-14,08:30,1778761800,claims,Initial jobless claims,medium,rule
+2026-05-20,14:00,1779300000,fomc_minutes,FOMC minutes,high,official
+2026-05-21,08:30,1779366600,claims,Initial jobless claims,medium,rule
+2026-05-22,10:00,1779458400,umich_final,UMich sentiment (final),low,vintage
+2026-05-28,08:30,1779971400,pce,Personal income & outlays (core PCE),high,vintage
+2026-05-28,08:30,1779971400,claims,Initial jobless claims,medium,rule
+2026-05-28,08:30,1779971400,gdp_second,GDP second estimate,medium,vintage
+2026-06-01,10:00,1780322400,ism_mfg,ISM manufacturing PMI,high,rule
+2026-06-02,10:00,1780408800,jolts,JOLTS job openings,medium,official
+2026-06-03,08:15,1780488900,adp,ADP employment,medium,vintage
+2026-06-03,10:00,1780495200,ism_services,ISM services PMI,high,rule
+2026-06-04,08:30,1780576200,claims,Initial jobless claims,medium,rule
+2026-06-05,08:30,1780662600,nfp,Nonfarm payrolls / unemployment rate,high,official
+2026-06-10,08:30,1781094600,cpi,CPI,high,official
+2026-06-11,08:30,1781181000,ppi,PPI,high,official
+2026-06-11,08:30,1781181000,claims,Initial jobless claims,medium,rule
+2026-06-12,10:00,1781272800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2026-06-17,08:30,1781699400,retail_sales,Retail sales,high,vintage
+2026-06-17,14:00,1781719200,fomc,FOMC statement / rate decision,high,official
+2026-06-17,14:30,1781721000,fomc_presser,FOMC press conference,high,official
+2026-06-18,08:30,1781785800,claims,Initial jobless claims,medium,rule
+2026-06-25,08:30,1782390600,pce,Personal income & outlays (core PCE),high,vintage
+2026-06-25,08:30,1782390600,claims,Initial jobless claims,medium,rule
+2026-06-25,08:30,1782390600,gdp_third,GDP third estimate,low,vintage
+2026-06-26,10:00,1782482400,umich_final,UMich sentiment (final),low,vintage
+2026-06-30,10:00,1782828000,jolts,JOLTS job openings,medium,official
+2026-07-01,08:15,1782908100,adp,ADP employment,medium,vintage
+2026-07-01,10:00,1782914400,ism_mfg,ISM manufacturing PMI,high,rule
+2026-07-02,08:30,1782995400,nfp,Nonfarm payrolls / unemployment rate,high,official
+2026-07-02,08:30,1782995400,claims,Initial jobless claims,medium,rule
+2026-07-06,10:00,1783346400,ism_services,ISM services PMI,high,rule
+2026-07-08,14:00,1783533600,fomc_minutes,FOMC minutes,high,official
+2026-07-09,08:30,1783600200,claims,Initial jobless claims,medium,rule
+2026-07-14,08:30,1784032200,cpi,CPI,high,official
+2026-07-15,08:30,1784118600,ppi,PPI,high,official
+2026-07-16,08:30,1784205000,retail_sales,Retail sales,high,vintage
+2026-07-16,08:30,1784205000,claims,Initial jobless claims,medium,rule
+2026-07-17,10:00,1784296800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2026-07-23,08:30,1784809800,claims,Initial jobless claims,medium,rule
+2026-07-29,14:00,1785348000,fomc,FOMC statement / rate decision,high,official
+2026-07-29,14:30,1785349800,fomc_presser,FOMC press conference,high,official
+2026-07-30,08:30,1785414600,gdp_advance,GDP advance estimate,high,vintage
+2026-07-30,08:30,1785414600,pce,Personal income & outlays (core PCE),high,vintage
+2026-07-30,08:30,1785414600,claims,Initial jobless claims,medium,rule
+2026-07-31,10:00,1785506400,umich_final,UMich sentiment (final),low,vintage
+2026-08-03,10:00,1785765600,ism_mfg,ISM manufacturing PMI,high,rule
+2026-08-04,10:00,1785852000,jolts,JOLTS job openings,medium,official
+2026-08-05,08:15,1785932100,adp,ADP employment,medium,vintage
+2026-08-05,10:00,1785938400,ism_services,ISM services PMI,high,rule
+2026-08-06,08:30,1786019400,claims,Initial jobless claims,medium,rule
+2026-08-07,08:30,1786105800,nfp,Nonfarm payrolls / unemployment rate,high,official
+2026-08-12,08:30,1786537800,cpi,CPI,high,official
+2026-08-13,08:30,1786624200,ppi,PPI,high,official
+2026-08-13,08:30,1786624200,claims,Initial jobless claims,medium,rule
+2026-08-14,08:30,1786710600,retail_sales,Retail sales,high,vintage
+2026-08-14,10:00,1786716000,umich_prelim,UMich sentiment (preliminary),medium,derived
+2026-08-19,14:00,1787162400,fomc_minutes,FOMC minutes,high,official
+2026-08-20,08:30,1787229000,claims,Initial jobless claims,medium,rule
+2026-08-26,08:30,1787747400,pce,Personal income & outlays (core PCE),high,vintage
+2026-08-26,08:30,1787747400,gdp_second,GDP second estimate,medium,vintage
+2026-08-27,08:30,1787833800,claims,Initial jobless claims,medium,rule
+2026-08-28,10:00,1787925600,umich_final,UMich sentiment (final),low,vintage
+2026-09-01,10:00,1788271200,ism_mfg,ISM manufacturing PMI,high,rule
+2026-09-01,10:00,1788271200,jolts,JOLTS job openings,medium,official
+2026-09-02,08:15,1788351300,adp,ADP employment,medium,vintage
+2026-09-03,08:30,1788438600,claims,Initial jobless claims,medium,rule
+2026-09-03,10:00,1788444000,ism_services,ISM services PMI,high,rule
+2026-09-04,08:30,1788525000,nfp,Nonfarm payrolls / unemployment rate,high,official
+2026-09-10,08:30,1789043400,ppi,PPI,high,official
+2026-09-10,08:30,1789043400,claims,Initial jobless claims,medium,rule
+2026-09-11,08:30,1789129800,cpi,CPI,high,official
+2026-09-16,08:30,1789561800,retail_sales,Retail sales,high,vintage
+2026-09-16,14:00,1789581600,fomc,FOMC statement / rate decision,high,official
+2026-09-16,14:30,1789583400,fomc_presser,FOMC press conference,high,official
+2026-09-17,08:30,1789648200,claims,Initial jobless claims,medium,rule
+2026-09-24,08:30,1790253000,claims,Initial jobless claims,medium,rule
+2026-09-29,10:00,1790690400,jolts,JOLTS job openings,medium,official
+2026-09-30,08:30,1790771400,pce,Personal income & outlays (core PCE),high,vintage
+2026-09-30,08:30,1790771400,gdp_third,GDP third estimate,low,vintage
+2026-10-01,08:30,1790857800,claims,Initial jobless claims,medium,rule
+2026-10-01,10:00,1790863200,ism_mfg,ISM manufacturing PMI,high,rule
+2026-10-02,08:30,1790944200,nfp,Nonfarm payrolls / unemployment rate,high,official
+2026-10-05,10:00,1791208800,ism_services,ISM services PMI,high,rule
+2026-10-07,14:00,1791396000,fomc_minutes,FOMC minutes,high,official
+2026-10-08,08:30,1791462600,claims,Initial jobless claims,medium,rule
+2026-10-14,08:30,1791981000,cpi,CPI,high,official
+2026-10-15,08:30,1792067400,ppi,PPI,high,official
+2026-10-15,08:30,1792067400,retail_sales,Retail sales,high,vintage
+2026-10-15,08:30,1792067400,claims,Initial jobless claims,medium,rule
+2026-10-28,14:00,1793210400,fomc,FOMC statement / rate decision,high,official
+2026-10-28,14:30,1793212200,fomc_presser,FOMC press conference,high,official
+2026-11-10,08:30,1794317400,cpi,CPI,high,official
+2026-12-09,14:00,1796842800,fomc,FOMC statement / rate decision,high,official
+2026-12-09,14:30,1796844600,fomc_presser,FOMC press conference,high,official
+2026-12-10,08:30,1796909400,cpi,CPI,high,official
+2027-01-13,08:30,1799847000,cpi,CPI,high,official
+2027-01-27,14:00,1801076400,fomc,FOMC statement / rate decision,high,official
+2027-01-27,14:30,1801078200,fomc_presser,FOMC press conference,high,official
+2027-02-11,08:30,1802352600,cpi,CPI,high,official
+2027-03-10,08:30,1804685400,cpi,CPI,high,official
+2027-03-17,14:00,1805306400,fomc,FOMC statement / rate decision,high,official
+2027-03-17,14:30,1805308200,fomc_presser,FOMC press conference,high,official
+2027-04-13,08:30,1807619400,cpi,CPI,high,official
+2027-04-28,14:00,1808935200,fomc,FOMC statement / rate decision,high,official
+2027-04-28,14:30,1808937000,fomc_presser,FOMC press conference,high,official
+2027-05-12,08:30,1810125000,cpi,CPI,high,official
+2027-06-09,14:00,1812564000,fomc,FOMC statement / rate decision,high,official
+2027-06-09,14:30,1812565800,fomc_presser,FOMC press conference,high,official
+2027-06-10,08:30,1812630600,cpi,CPI,high,official
+2027-07-14,08:30,1815568200,cpi,CPI,high,official
+2027-07-28,14:00,1816797600,fomc,FOMC statement / rate decision,high,official
+2027-07-28,14:30,1816799400,fomc_presser,FOMC press conference,high,official
+2027-08-11,08:30,1817987400,cpi,CPI,high,official
+2027-09-14,08:30,1820925000,cpi,CPI,high,official
+2027-09-15,14:00,1821031200,fomc,FOMC statement / rate decision,high,official
+2027-09-15,14:30,1821033000,fomc_presser,FOMC press conference,high,official
+2027-10-14,08:30,1823517000,cpi,CPI,high,official
+2027-10-27,14:00,1824660000,fomc,FOMC statement / rate decision,high,official
+2027-10-27,14:30,1824661800,fomc_presser,FOMC press conference,high,official
+2027-11-10,08:30,1825853400,cpi,CPI,high,official
+2027-12-08,14:00,1828292400,fomc,FOMC statement / rate decision,high,official
+2027-12-08,14:30,1828294200,fomc_presser,FOMC press conference,high,official
+2027-12-10,08:30,1828445400,cpi,CPI,high,official

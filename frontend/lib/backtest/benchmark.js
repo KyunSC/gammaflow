@@ -1,4 +1,5 @@
 import { drawdown, sharpe } from './metrics'
+import { INTERVAL_SECONDS } from './time'
 
 export const BENCHMARKS = [
   { symbol: 'SPY', label: 'S&P 500 (SPY)', currency: 'USD' },
@@ -8,7 +9,6 @@ export const BENCHMARKS = [
 
 const dateFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' })
 const closeFormat = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-const barSeconds = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400 }
 
 /** Use the last available near-close strategy mark on each date.
  * Research exports omit their final forward-label bars, so these marks can
@@ -21,7 +21,7 @@ export function dailyStrategy(dataset, result) {
     const time = dataset.time[i]
     const date = dataset.interval === '1d' ? new Date(time * 1000).toISOString().slice(0, 10) : dateFormat.format(new Date(time * 1000))
     if (dataset.interval !== '1d') {
-      const seconds = barSeconds[dataset.interval]
+      const seconds = INTERVAL_SECONDS[dataset.interval]
       if (!seconds) throw new Error('Daily benchmark comparison is unavailable for this interval')
       const closeTime = new Date((time + seconds) * 1000)
       const clock = closeFormat.format(closeTime)

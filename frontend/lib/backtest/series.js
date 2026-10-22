@@ -14,6 +14,7 @@
 
 import { tradingDay, etMinuteOfDay } from './time'
 import { sessionLevels, floorPivots, zoneSeries } from '../levels'
+import { newsWindowFlags, minutesToNextNews, minutesSinceNews } from './news'
 
 export { tradingDay, etMinuteOfDay }
 
@@ -167,6 +168,11 @@ export function flatByFlags(time, cutoffMinute) {
  *   `piv:classic:R1`  — floor pivot (classic|camarilla|fibonacci, P/R1–R3/S1–S3)
  *   `srSup:5:0.25:1` `srRes:…` (+`Lo` `Hi` `Score` suffixes) — nearest S/R zone
  *                       below/above the close; args are left:tolAtr:minScore
+ *   `news:high:5:15` — 1 if the bar overlaps [event − 5m, event + 15m) for an
+ *                       event of at least that impact (high|medium|low), else 0;
+ *                       NaN past the calendar's coverage
+ *   `newsNext:high` `newsPrev:high` — minutes from the bar's close to the next
+ *                       / since the last such event
  *   `f:net_gex`   — exported GEX/baseline feature (research plane only)
  *   `ml:pred`     — walk-forward OOS model prediction (research plane only)
  *
@@ -253,6 +259,12 @@ function buildSeries(ds, key) {
       const part = name.slice(5) || 'Mid'
       return z[`${side}${part}`]
     }
+    case 'news':
+      return newsWindowFlags(ds, { minImpact: args[0] || 'high', beforeMin: p(1, 5), afterMin: p(2, 15) })
+    case 'newsNext':
+      return minutesToNextNews(ds, { minImpact: args[0] || 'high' })
+    case 'newsPrev':
+      return minutesSinceNews(ds, { minImpact: args[0] || 'high' })
     case 'f': {
       const col = ds.features?.[args.join(':')]
       return col || new Float64Array(n).fill(NA)
