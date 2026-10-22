@@ -17,8 +17,15 @@ class Seeds(unittest.TestCase):
 
     def test_every_event_is_on_a_business_day(self):
         hol = ec._observed_set(range(2021, 2029))
-        bad = [(e.day, e.event) for e in self.evs if e.day.weekday() > 4 or e.day in hol]
+        # UMich is a private survey and publishes on Veterans Day (2022-11-11, observed 2023-11-10)
+        bad = [(e.day, e.event) for e in self.evs
+               if e.day.weekday() > 4 or (e.day in hol and not e.event.startswith("umich"))]
         self.assertEqual(bad, [])
+
+    def test_umich_prelim_stays_on_friday_when_the_final_moves_early(self):
+        pre = {e.day.isoformat() for e in self.evs if e.event == "umich_prelim"}
+        self.assertTrue({"2022-11-11", "2023-11-10", "2024-03-15", "2026-08-14"} <= pre)
+        self.assertTrue(all(date.fromisoformat(d).weekday() == 4 for d in pre))
 
     def test_no_event_is_listed_twice(self):
         dupes = [k for k, n in Counter((e.day, e.event) for e in self.evs).items() if n > 1]
@@ -75,6 +82,28 @@ class Queries(unittest.TestCase):
     def test_epoch_inputs_work(self):
         ts = int(CPI_SEP_2026.timestamp())
         self.assertTrue(ec.news_window(np.array([ts]), 60, "high", 0, 1)[0])
+        self.assertTrue(ec.news_window([CPI_SEP_2026], 60, "high", 0, 1)[0])
+        self.assertTrue(ec.news_window(pd.Series(self.bars(CPI_SEP_2026, 1)), 60, "high", 0, 1)[0])
+
+    def test_naive_times_are_refused(self):
+        naive = self.bars(CPI_SEP_2026.replace(tzinfo=None), 3)
+        for t in (naive, naive.values, pd.Series(naive), [CPI_SEP_2026.replace(tzinfo=None)]):
+            with self.assertRaises(ValueError):
+                ec.news_window(t, 300, "high")
+
+    def test_empty_or_unknown_type_selection_raises(self):
+        t = self.bars(CPI_SEP_2026, 3)
+        with self.assertRaises(ValueError):
+            ec.news_window(t, 300, "high", types=("adp",))   # ADP is medium
+        with self.assertRaises(ValueError):
+            ec.minutes_to_next(t, "high", types=("cpl",))
+
+    def test_minutes_to_next_is_unknown_when_the_next_event_is_past_coverage(self):
+        end = ec._cover_end("nfp")   # the earliest high-impact coverage end
+        at = np.array([end - 3600], dtype=np.int64)
+        nxt = min(e.ts for e in ec.events("high") if e.ts > at[0])
+        self.assertGreaterEqual(nxt, end, "fixture: no covered high-impact event in the last hour")
+        self.assertTrue(np.isnan(ec.minutes_to_next(at, "high"))[0])
 
     def test_past_coverage_raises_unless_allowed(self):
         late = self.bars(datetime(2026, 12, 1, 10, tzinfo=ec.ET), 3)

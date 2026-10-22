@@ -3,7 +3,7 @@
 import { useBacktest } from '../../lib/backtest/store'
 import { getStrategy, strategiesForPlane, FAMILIES, STRATEGIES } from '../../lib/backtest/strategies'
 import { LIVE_SYMBOLS, LIVE_PERIODS, LIVE_INTERVALS } from '../../lib/backtest/datasets'
-import { propSetup } from '../../lib/backtest/prop'
+import { propSetup, newsRuleFor } from '../../lib/backtest/prop'
 import { FIRMS, FIRM_LIST, SIZES, PROP_ASOF, resolvePlan } from '../../lib/backtest/prop/firms'
 import { FUTURES_LIVE_SYMBOLS, contractsForSymbol } from '../../lib/backtest/prop/contracts'
 import { fmtCompact } from '../../lib/backtest/format'
@@ -341,10 +341,16 @@ function RiskSection() {
   const risk = useBacktest((s) => s.risk)
   const setRisk = useBacktest((s) => s.setRisk)
   const propOn = useBacktest((s) => s.prop.enabled)
+  const prop = useBacktest((s) => s.prop)
 
   const flat = propOn || risk.flatAtSessionEnd
-  const news = risk.newsBlackout
+  // In prop mode the plan's news rule applies unless the user set or cleared one.
+  const plan = propOn ? resolvePlan(prop) : null
+  const news = newsRuleFor(risk, plan)
+  const firmNews = Boolean(news) && news === plan?.news
   const uncovered = useBacktest((s) => s.result?.newsUncoveredBars || 0)
+  const newsSkipped = useBacktest((s) => Boolean(s.result?.newsSkipped))
+  const setNews = (patch) => setRisk({ newsBlackout: { impact: news?.impact || 'high', beforeMin: news?.beforeMin ?? 5, afterMin: news?.afterMin ?? 15, ...patch } })
   const summary = [
     risk.stopPct ? `stop ${risk.stopPct}%` : null,
     risk.targetPct ? `target ${risk.targetPct}%` : null,
@@ -385,15 +391,25 @@ function RiskSection() {
           <div className="w-[136px]">
             <Select
               value={news?.impact || 'off'}
-              onChange={(v) => setRisk({ newsBlackout: v === 'off' ? null : { beforeMin: 5, afterMin: 15, ...news, impact: v } })}
+              onChange={(v) => (v === 'off' ? setRisk({ newsBlackout: plan?.news ? false : null }) : setNews({ impact: v }))}
               options={[{ value: 'off', label: 'Off' }, ...IMPACT_OPTIONS.map((o) => ({ value: o.id, label: o.label }))]}
             />
           </div>
         </div>
         {news?.impact ? (
           <>
-            <NumRow label="Mins before" value={news.beforeMin} min={0} max={60} step={1} onChange={(v) => setRisk({ newsBlackout: { ...news, beforeMin: v } })} hint="Flat this long before each release" />
-            <NumRow label="Mins after" value={news.afterMin} min={0} max={120} step={1} onChange={(v) => setRisk({ newsBlackout: { ...news, afterMin: v } })} hint="No position until this long after it" />
+            {firmNews ? (
+              <p className="text-[10px] leading-snug text-dim">
+                {plan.planLabel} rule{news.maxBarMin ? `, applied on bars up to ${news.maxBarMin}m` : ''}. Editing it makes it yours.
+              </p>
+            ) : null}
+            <NumRow label="Mins before" value={news.beforeMin} min={0} max={60} step={1} onChange={(v) => setNews({ beforeMin: v })} hint="Flat this long before each release" />
+            <NumRow label="Mins after" value={news.afterMin} min={0} max={120} step={1} onChange={(v) => setNews({ afterMin: v })} hint="No position until this long after it" />
+            {newsSkipped && news.maxBarMin ? (
+              <p className="text-[10px] leading-snug text-amber">
+                Not applied: bars are longer than {news.maxBarMin}m, too coarse for this window.
+              </p>
+            ) : null}
             {uncovered > 0 ? (
               <p className="text-[10px] leading-snug text-amber">
                 {uncovered.toLocaleString()} bars are past the news calendar ({NEWS_RETRIEVED}) and were not filtered.

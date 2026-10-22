@@ -12,7 +12,7 @@ Every event carries a `source`:
             filtered to drop revision-only dates (annual benchmarks, seasonal-factor updates)
   rule      generated from the publisher's stated rule (claims every Thursday, ISM on the first and
             third business day); verified against ALFRED for claims, not verified for ISM
-  derived   inferred from a related date (UMich preliminary = final - 14 days)
+  derived   inferred from a related date (UMich preliminary = Friday two weeks before the final's week)
 Studies that want only checked dates can pass `sources=("official", "vintage")`.
 
 Times are the publisher's standard release time in ET. The 2025 shutdown catch-up releases kept
@@ -45,6 +45,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import numpy as np
+import pandas as pd
 
 ET = ZoneInfo("America/New_York")
 HERE = Path(__file__).resolve().parent
@@ -312,6 +313,13 @@ def _cover_end(event: str) -> int:
     return int(datetime(d.year, d.month, d.day, tzinfo=ET).timestamp())
 
 
+def umich_prelim(final: str) -> str:
+    """The Friday two weeks before the final's week. Finals pulled early for a holiday
+    (Wednesday before Thanksgiving, Thursday before Good Friday) keep a Friday preliminary."""
+    d = date.fromisoformat(final) - timedelta(days=14)
+    return (d + timedelta(days=(4 - d.weekday()) % 7)).isoformat()
+
+
 def build_events() -> list[Event]:
     rows: list[tuple[str, str, str]] = []
     official = [("cpi", CPI), ("nfp", NFP), ("ppi", PPI), ("jolts", JOLTS), ("fomc", FOMC),
@@ -320,8 +328,7 @@ def build_events() -> list[Event]:
     rows += [(d, ev, "official") for ev, days in official for d in days]
     rows += [(d, ev, "vintage") for ev, days in vintage for d in days]
     rows += [(GDP[i], GDP_STAGE[GDP[i + 1]], "vintage") for i in range(0, len(GDP), 2)]
-    rows += [((date.fromisoformat(d) - timedelta(days=14)).isoformat(), "umich_prelim", "derived")
-             for d in UMICH_FINAL]
+    rows += [(umich_prelim(d), "umich_prelim", "derived") for d in UMICH_FINAL]
 
     end = max(_through(e) for e in ("claims", "ism_mfg", "ism_services"))
     rows += [(d.isoformat(), "claims", "rule") for d in claims_days(START, _through("claims"))]
@@ -382,11 +389,21 @@ def events(min_impact: str = "medium", sources=None, types=None) -> list[Event]:
             and (sources is None or e.source in sources) and (types is None or e.event in types)]
 
 
-def covered_through(min_impact: str = "medium", types=None) -> date:
-    """Last date on which every selected event type is known complete."""
+def _selected(min_impact: str, types) -> list[str]:
+    """Event types at or above `min_impact`, restricted to `types`; raises on an empty selection."""
+    unknown = set(types or ()) - set(EVENTS)
+    if unknown:
+        raise ValueError(f"unknown event types: {sorted(unknown)}")
     rank = IMPACT_RANK[min_impact]
     sel = [k for k in EVENTS if IMPACT_RANK[IMPACT[k]] >= rank and (types is None or k in types)]
-    return min(_through(k) for k in sel)
+    if not sel:
+        raise ValueError(f"no event types at or above {min_impact!r} in {tuple(types)}")
+    return sel
+
+
+def covered_through(min_impact: str = "medium", types=None) -> date:
+    """Last date on which every selected event type is known complete."""
+    return min(_through(k) for k in _selected(min_impact, types))
 
 
 def news_days(min_impact: str = "high", **kw) -> set[date]:
@@ -395,23 +412,33 @@ def news_days(min_impact: str = "high", **kw) -> set[date]:
 
 
 def _epoch(times) -> np.ndarray:
-    """Epoch seconds from pandas timestamps, datetimes or numbers."""
+    """Epoch seconds from tz-aware pandas timestamps or datetimes, or from numbers.
+    Naive times are refused: whether they mean UTC or ET wall time is a guess."""
+    naive = ValueError("naive timestamps: tz_localize them (e.g. to UTC or America/New_York) "
+                       "or pass epoch seconds")
+    if isinstance(times, pd.DatetimeIndex) or (isinstance(times, pd.Series) and pd.api.types.is_datetime64_any_dtype(times)):
+        idx = pd.DatetimeIndex(times)
+        if idx.tz is None:
+            raise naive
+        return idx.as_unit("s").asi8
     arr = np.asarray(times)
     if np.issubdtype(arr.dtype, np.datetime64):
-        return arr.astype("datetime64[s]").astype(np.int64)
+        raise naive
     if arr.dtype == object:
+        if any(getattr(t, "tzinfo", None) is None for t in arr):
+            raise naive
         return np.array([int(t.timestamp()) for t in arr], dtype=np.int64)
     return arr.astype(np.int64)
 
 
-def _check_coverage(t: np.ndarray, min_impact: str, types, allow_uncovered: bool) -> np.ndarray:
-    rank = IMPACT_RANK[min_impact]
-    end = min(_cover_end(k) for k in EVENTS if IMPACT_RANK[IMPACT[k]] >= rank and (types is None or k in types))
+def _check_coverage(t: np.ndarray, min_impact: str, types, allow_uncovered: bool) -> tuple[np.ndarray, int]:
+    """(bars past coverage, coverage end in epoch seconds)."""
+    end = min(_cover_end(k) for k in _selected(min_impact, types))
     beyond = t >= end
     if beyond.any() and not allow_uncovered:
         raise ValueError(f"{int(beyond.sum())} bars fall after the calendar's coverage "
                          f"({covered_through(min_impact, types)}); extend the seed lists or pass allow_uncovered=True")
-    return beyond
+    return beyond, end
 
 
 def news_window(bar_start, bar_seconds: int, min_impact: str = "high", before_min: float = 5,
@@ -419,7 +446,7 @@ def news_window(bar_start, bar_seconds: int, min_impact: str = "high", before_mi
     """True for bars whose span [start, start + bar_seconds) overlaps any selected event's window
     [event - before_min, event + after_min). Bars past coverage are False when allowed."""
     t = _epoch(bar_start)
-    beyond = _check_coverage(t, min_impact, kw.get("types"), allow_uncovered)
+    beyond, _ = _check_coverage(t, min_impact, kw.get("types"), allow_uncovered)
     ev = np.array(sorted(e.ts for e in events(min_impact, **kw)), dtype=np.int64)
     lo, hi = ev - int(before_min * 60), ev + max(int(after_min * 60), 1)   # 0/0 = the bar it prints in
     # first window ending after the bar starts; it overlaps if it also starts before the bar ends
@@ -431,13 +458,15 @@ def news_window(bar_start, bar_seconds: int, min_impact: str = "high", before_mi
 
 
 def minutes_to_next(at, min_impact: str = "high", allow_uncovered: bool = False, **kw) -> np.ndarray:
-    """Minutes from each time to the next selected event strictly after it (NaN if none known)."""
+    """Minutes from each time to the next selected event strictly after it (NaN if none known,
+    including when that event is past coverage: a release missing from the calendar could come first)."""
     t = _epoch(at)
-    beyond = _check_coverage(t, min_impact, kw.get("types"), allow_uncovered)
+    beyond, end = _check_coverage(t, min_impact, kw.get("types"), allow_uncovered)
     ev = np.array(sorted(e.ts for e in events(min_impact, **kw)), dtype=np.int64)
     j = np.searchsorted(ev, t, side="right")
     out = np.full(len(t), np.nan)
     ok = j < len(ev)
+    ok[ok] = ev[j[ok]] < end
     out[ok] = (ev[j[ok]] - t[ok]) / 60
     out[beyond] = np.nan
     return out
@@ -446,7 +475,7 @@ def minutes_to_next(at, min_impact: str = "high", allow_uncovered: bool = False,
 def minutes_since(at, min_impact: str = "high", allow_uncovered: bool = False, **kw) -> np.ndarray:
     """Minutes since the latest selected event at or before each time (NaN if none)."""
     t = _epoch(at)
-    beyond = _check_coverage(t, min_impact, kw.get("types"), allow_uncovered)
+    beyond, _ = _check_coverage(t, min_impact, kw.get("types"), allow_uncovered)
     ev = np.array(sorted(e.ts for e in events(min_impact, **kw)), dtype=np.int64)
     j = np.searchsorted(ev, t, side="right") - 1
     out = np.full(len(t), np.nan)

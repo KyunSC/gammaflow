@@ -22,6 +22,14 @@ export const DEFAULT_PROP = {
   overrides: {},
 }
 
+/** News rule in force: the user's own, none when they turned it off (`false`),
+ *  else the plan's. `plan` may be null outside prop mode. */
+export function newsRuleFor(risk, plan) {
+  const own = risk?.newsBlackout
+  if (own === false) return null
+  return own?.impact ? own : plan?.news || null
+}
+
 /** Contract to use for `symbol`: the chosen one when it matches the symbol's
  *  family, else the same size class (mini/micro) of the right family. */
 export function contractFor(prop, symbol) {
@@ -70,8 +78,7 @@ export function propSetup({ prop, symbol, costs, risk }) {
         priceScale,
       },
     },
-    // A news rule the user set themselves wins over the firm's.
-    risk: { ...risk, flatAtSessionEnd: true, flatByEt: plan.flatByEt, newsBlackout: risk.newsBlackout?.impact ? risk.newsBlackout : plan.news },
+    risk: { ...risk, flatAtSessionEnd: true, flatByEt: plan.flatByEt, newsBlackout: newsRuleFor(risk, plan) },
   }
 }
 

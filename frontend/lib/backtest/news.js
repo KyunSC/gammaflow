@@ -17,6 +17,7 @@
  */
 
 import { EVENTS, EVENT_TYPES, RETRIEVED } from './newsCalendar'
+import { INTERVAL_SECONDS } from './time'
 
 export { EVENT_TYPES, RETRIEVED }
 
@@ -29,11 +30,13 @@ export const IMPACT_OPTIONS = [
 ]
 
 const NA = Number.NaN
-const INTERVAL_SECONDS = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400 }
 
 function selectedTypes(minImpact = 'high', types = null) {
   const rank = IMPACT_RANK[minImpact] ?? IMPACT_RANK.high
-  return Object.keys(EVENT_TYPES).filter((k) => IMPACT_RANK[EVENT_TYPES[k].impact] >= rank && (!types || types.includes(k)))
+  const sel = Object.keys(EVENT_TYPES).filter((k) => IMPACT_RANK[EVENT_TYPES[k].impact] >= rank && (!types || types.includes(k)))
+  // An empty selection has no coverage to speak of; "no news" would be a guess.
+  if (!sel.length) throw new Error(`No news event types at or above ${minImpact} match ${types}`)
+  return sel
 }
 
 /** Events at or above `minImpact`: `{ t, type, label, impact, source }`, oldest first.
@@ -110,7 +113,9 @@ export function newsWindowFlags(ds, { minImpact = 'high', beforeMin = 5, afterMi
   return out
 }
 
-/** Minutes from each bar's close to the next selected event after it. */
+/** Minutes from each bar's close to the next selected event after it. NaN when
+ *  that event lies past coverage: a release missing from the calendar could
+ *  come first. */
 export function minutesToNextNews(ds, { minImpact = 'high', types = null, sources = null } = {}) {
   const n = ds.time.length
   const out = new Float64Array(n).fill(NA)
@@ -121,7 +126,7 @@ export function minutesToNextNews(ds, { minImpact = 'high', types = null, source
     const at = ds.time[i] + bar
     if (at >= coverEnd) continue
     const j = upperBound(ev, at)
-    if (j < ev.length) out[i] = (ev[j] - at) / 60
+    if (j < ev.length && ev[j] < coverEnd) out[i] = (ev[j] - at) / 60
   }
   return out
 }
@@ -143,25 +148,31 @@ export function minutesSinceNews(ds, { minImpact = 'high', types = null, sources
 }
 
 /**
- * Engine flags for a news blackout. `blocked[i]` — the next bar overlaps a
- * window, so an order placed at bar i's close (filled at the next open) would
- * be held through news: the target is forced flat. `end[i]` — the first such
- * bar, where an open position is closed at the close. A strategy may re-enter
- * at the open of the first bar after the window. `uncovered` counts bars the
- * calendar cannot speak for; they are left unblocked.
+ * Engine flags for a news blackout, from `newsWindowFlags` output. `blocked[i]`
+ * — the next bar overlaps a window, so an order placed at bar i's close (filled
+ * at the next open) would be held through news: the target is forced flat.
+ * `end[i]` — the first such bar, where an open position is closed at the close.
+ * `noEntry[i]` — the bar before `end`: a new position ordered here would fill
+ * at the next open and be closed for news at that bar's close, so it is not
+ * opened. A strategy may re-enter at the open of the first bar after the
+ * window. `uncovered` counts bars in [from, to] the calendar cannot speak for;
+ * they are left unblocked.
  */
-export function newsBlackoutFlags(ds, { impact = 'high', beforeMin = 5, afterMin = 15, types = null, sources = null } = {}) {
-  const flags = newsWindowFlags(ds, { minImpact: impact, beforeMin, afterMin, types, sources })
+export function newsBlackoutFlags(flags, { from = 0, to = flags.length - 1 } = {}) {
   const n = flags.length
   const blocked = new Uint8Array(n)
   const end = new Uint8Array(n)
+  const noEntry = new Uint8Array(n)
   let uncovered = 0
   for (let i = 0; i < n; i++) {
-    if (Number.isNaN(flags[i])) uncovered++
+    if (i >= from && i <= to && Number.isNaN(flags[i])) uncovered++
     if (i + 1 < n && flags[i + 1] === 1) {
       blocked[i] = 1
-      if (flags[i] !== 1) end[i] = 1
+      if (flags[i] !== 1) {
+        end[i] = 1
+        if (i > 0) noEntry[i - 1] = 1
+      }
     }
   }
-  return { end, blocked, uncovered }
+  return { end, blocked, noEntry, uncovered }
 }

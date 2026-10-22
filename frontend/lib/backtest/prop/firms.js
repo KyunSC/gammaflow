@@ -104,8 +104,10 @@ export const FIRMS = {
         blurb: 'Funded drawdown trails intraday. Payout any day above the buffer; flat from 1 min before to 1 min after high-impact USD news.',
         // Funded-account rule per proptradingvibes.com/blog/lucid-trading-news-trading-policy
         // (Oct 2026; the eval rule is unstated). The engine replays one path for eval
-        // and funded, so it is applied to both — conservative for the eval.
-        news: { impact: 'high', beforeMin: 1, afterMin: 1 },
+        // and funded, so it is applied to both — conservative for the eval. Bars
+        // are blocked whole, so past 5m the two-minute window would become hours
+        // flat: the rule is skipped there and the result says so.
+        news: { impact: 'high', beforeMin: 1, afterMin: 1, maxBarMin: 5 },
         price: [80, 110, 185, 260],
         priceNoDll: [80, 110, 185, 260],
         activationFee: [0, 0, 0, 0],

@@ -58,7 +58,7 @@ JS series are NaN and the Python helpers raise, so a run on newer bars never rea
 | vintage | retail sales, PCE, GDP, ADP, UMich final (ALFRED release-date vintages) | revision-only dates removed by hand; CPI/NFP/PPI/JOLTS vintages agree with BLS |
 | rule | jobless claims (Thursday, Wednesday on a holiday, none during the Oct 2025 shutdown) | matches every ALFRED claims date 2022-11 to 2026-10 |
 | rule | ISM manufacturing (1st business day), ISM services (3rd) | **not verified**; ISM's calendar is behind a login |
-| derived | UMich preliminary = final − 14 days | **not verified** |
+| derived | UMich preliminary = the Friday two weeks before the final's week (so holiday-shifted finals keep a Friday preliminary) | **not verified** |
 
 Times are each publisher's standard ET release time, except two BEA shutdown releases at 10:00
 (bea.gov schedule notices). Why not ForexFactory itself: it has no API, its terms don't allow automated scraping as far as we can tell,

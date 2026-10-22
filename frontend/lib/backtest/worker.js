@@ -58,6 +58,7 @@ const api = {
       windowStart: result.windowStart,
       windowEnd: result.windowEnd,
       newsUncoveredBars: result.newsUncoveredBars,
+      newsSkipped: result.newsSkipped,
       elapsedMs: result.elapsedMs,
       config: result.config,
       prop: result.prop,

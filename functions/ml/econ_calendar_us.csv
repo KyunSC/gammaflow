@@ -187,9 +187,9 @@ date,time_et,ts_utc,event,label,impact,source
 2022-11-03,08:30,1667478600,claims,Initial jobless claims,medium,rule
 2022-11-03,10:00,1667484000,ism_services,ISM services PMI,high,rule
 2022-11-04,08:30,1667565000,nfp,Nonfarm payrolls / unemployment rate,high,official
-2022-11-09,10:00,1668006000,umich_prelim,UMich sentiment (preliminary),medium,derived
 2022-11-10,08:30,1668087000,cpi,CPI,high,official
 2022-11-10,08:30,1668087000,claims,Initial jobless claims,medium,rule
+2022-11-11,10:00,1668178800,umich_prelim,UMich sentiment (preliminary),medium,derived
 2022-11-15,08:30,1668519000,ppi,PPI,high,official
 2022-11-16,08:30,1668605400,retail_sales,Retail sales,high,vintage
 2022-11-17,08:30,1668691800,claims,Initial jobless claims,medium,rule
@@ -407,8 +407,8 @@ date,time_et,ts_utc,event,label,impact,source
 2023-11-02,08:30,1698928200,claims,Initial jobless claims,medium,rule
 2023-11-03,08:30,1699014600,nfp,Nonfarm payrolls / unemployment rate,high,official
 2023-11-03,10:00,1699020000,ism_services,ISM services PMI,high,rule
-2023-11-08,10:00,1699455600,umich_prelim,UMich sentiment (preliminary),medium,derived
 2023-11-09,08:30,1699536600,claims,Initial jobless claims,medium,rule
+2023-11-10,10:00,1699628400,umich_prelim,UMich sentiment (preliminary),medium,derived
 2023-11-14,08:30,1699968600,cpi,CPI,high,official
 2023-11-15,08:30,1700055000,ppi,PPI,high,official
 2023-11-15,08:30,1700055000,retail_sales,Retail sales,high,vintage
@@ -484,7 +484,7 @@ date,time_et,ts_utc,event,label,impact,source
 2024-03-14,08:30,1710419400,ppi,PPI,high,official
 2024-03-14,08:30,1710419400,retail_sales,Retail sales,high,vintage
 2024-03-14,08:30,1710419400,claims,Initial jobless claims,medium,rule
-2024-03-14,10:00,1710424800,umich_prelim,UMich sentiment (preliminary),medium,derived
+2024-03-15,10:00,1710511200,umich_prelim,UMich sentiment (preliminary),medium,derived
 2024-03-20,14:00,1710957600,fomc,FOMC statement / rate decision,high,official
 2024-03-20,14:30,1710959400,fomc_presser,FOMC press conference,high,official
 2024-03-21,08:30,1711024200,claims,Initial jobless claims,medium,rule
