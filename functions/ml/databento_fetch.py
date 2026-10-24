@@ -76,6 +76,9 @@ JOBS = {
     # inputs and their discovery / holdout splits unchanged.
     "eq-ohlcv-1m-early": Job("ohlcv-1m", "raw_symbol", "raw", products=("QQQ",), whole_window_only=True,
                              dataset="XNAS.ITCH"),
+    # CME NQ 1m bars 2012-2021 as the one-look confirmation set of trader_playbooks_study.py. Volume-rolled front
+    # contract; its own folder, read by no other script.
+    "nq-ohlcv-1m-early": Job("ohlcv-1m", "continuous", "continuous", products=("NQ",), whole_window_only=True),
 }
 
 
