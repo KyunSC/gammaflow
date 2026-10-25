@@ -757,6 +757,13 @@ done
 .venv/bin/python close_auction_study.py --symbol QQQ   # first run caches yfinance daily rows
 .venv/bin/python close_auction_study.py --symbol SPY
 .venv/bin/python -m unittest test_close_auction_study
+
+# 11. Month-end forced flows (Harvey et al. 2025 rebalancing, turn of month, Treasury month end)
+#     → data/month_end_flows/. Spec frozen from the papers; --score is one look, logged in
+#     month_end_flows_looks.log (commit it). See the script docstring.
+.venv/bin/python month_end_flows_study.py --replicate   # papers' windows, repeatable
+.venv/bin/python month_end_flows_study.py --score       # ONE look: post-paper windows to 2026-08-14
+.venv/bin/python -m unittest test_month_end_flows_study
 ```
 
 All random seeds fixed to `42`. RF results are deterministic; FT-Transformer results have
