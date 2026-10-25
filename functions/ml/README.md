@@ -431,10 +431,13 @@ sessions are spent; the RF verify in `final_verify.py` is a different hypothesis
 commissions ($0.65/contract), a by-year and first-70%/last-30% stability table, and a deflated
 Sharpe over the schedules in each run. All of that is in-sample: every research day was already
 looked at. The only out-of-sample test is `delta_hedge.py --forward`, a spec frozen on 2026-10-14
-(QQQ 0DTE, 5-minute clock, 0.5 bp, commissions) scored once on the first 140 sessions from
-2026-09-28, which is about 80% power if the edge holds at its in-sample size. It refuses to load
-anything before 140 sessions exist and logs every look. The table above should be restated from a
-research-only rerun.
+and revised on 2026-10-22, before any forward session was downloaded (QQQ 0DTE, 5-minute clock,
+0.5 bp, commissions). It is scored once on the first 205 traded sessions from 2026-09-28: half days
+and untradable days are replaced by later sessions. 205 gives about 80% power for the one-sided
+2.5% test (95% CI above 0) if the edge holds at its research-only size, a daily Sharpe of 0.20 after
+commissions. It refuses to load anything before 205 sessions exist, and it refuses any spec whose
+sessions an earlier look, at any spec, already reached. Every look is logged. `plot_delta_hedge.py`
+plots research sessions only. The table above should be restated from a research-only rerun.
 
 Caveats: RISK_FREE_RATE is a constant 5%. Deep-ITM legs are quoted wide, which adds mark noise
 to the residual. NYSE half days are skipped. Only aggregates are plotted or tabulated, per the
@@ -734,10 +737,11 @@ for SYM in QQQ SPY; do
     # cost-vs-risk frontier: clocks vs fixed / WW delta bands → plots/delta_hedge_frontier_<sym>_dte<d>.png
     .venv/bin/python delta_hedge.py --symbol $SYM --dte $D --frontier --costs 0.5,1,2
     .venv/bin/python plot_delta_hedge.py --symbol $SYM --dte $D --frontier
-    # one-look forward test of the frozen spec (needs >= 140 downloaded sessions from 2026-09-28)
-    .venv/bin/python delta_hedge.py --forward
   done
 done
+# 8b. ONE-SHOT forward test of the frozen spec: not part of a rerun. Run it once, deliberately, when
+#     >= 205 sessions from 2026-09-28 are downloaded; every look is logged and a second one is refused.
+# .venv/bin/python delta_hedge.py --forward
 
 # 9. GEX/VEX/CEX vs forward realized vol (research sessions only) → data/gex_vol/, plots/gex_vol_<sym>.png
 #    Snapshots must carry net_vex/net_cex: regenerate FULL history (a --start/--end run overwrites the file)

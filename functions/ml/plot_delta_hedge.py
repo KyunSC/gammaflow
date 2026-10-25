@@ -5,7 +5,9 @@
   c) P&L std by hedge variant: the variance cost of hedging less often (and what charm/smile buy back)
   d) cumulative P&L for CUM_VARIANTS (after spread and hedge costs)
 
-Reads data/delta_hedge/<sym>_dte<d>.parquet, writes plots/delta_hedge_<sym>_dte<d>.png.
+Reads data/delta_hedge/<sym>_dte<d>.parquet, writes plots/delta_hedge_<sym>_dte<d>.png. Only
+research sessions (<= delta_hedge.RESEARCH_LAST) are plotted: parquets written before the holdout
+guard also hold the gap week and verify sessions, which this hypothesis must not see again.
 
 --frontier: cost-vs-risk frontier from data/delta_hedge/frontier_<sym>_dte<d>.parquet, one column
 per hedge cost (0.5 / 1 / 2 bp): top row daily P&L std, bottom row CVaR 5%, both against mean hedge
@@ -27,7 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from delta_hedge import OUT_DIR, frontier_summary, summarize
+from delta_hedge import OUT_DIR, RESEARCH_LAST, frontier_summary, summarize
 
 PLOTS_DIR = Path(__file__).resolve().parent / "plots"
 SURFACE, INK, INK2, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#e4e3df"
@@ -207,6 +209,15 @@ def plot_frontier(df: pd.DataFrame, symbol: str, dte: int, out: Path) -> None:
     plt.close(fig)
 
 
+def research_only(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop rows after RESEARCH_LAST (pre-guard parquets carry the gap week and verify sessions)."""
+    keep = df[df["date"] <= RESEARCH_LAST.isoformat()]
+    if len(keep) < len(df):
+        print(f"  dropped {df.loc[df['date'] > RESEARCH_LAST.isoformat(), 'date'].nunique()} sessions after "
+              f"{RESEARCH_LAST} (not research; rerun delta_hedge.py to rewrite this parquet)")
+    return keep
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--symbol", default="QQQ")
@@ -220,7 +231,7 @@ def main() -> int:
             print(f"missing {path}; run delta_hedge.py --symbol {args.symbol} --dte {args.dte} --frontier first")
             return 2
         out = PLOTS_DIR / f"delta_hedge_frontier_{sym}_dte{args.dte}.png"
-        plot_frontier(pd.read_parquet(path), args.symbol.upper(), args.dte, out)
+        plot_frontier(research_only(pd.read_parquet(path)), args.symbol.upper(), args.dte, out)
         print(f"wrote {out}")
         return 0
     path = OUT_DIR / f"{sym}_dte{args.dte}.parquet"
@@ -228,7 +239,7 @@ def main() -> int:
         print(f"missing {path}; run delta_hedge.py --symbol {args.symbol} --dte {args.dte} first")
         return 2
     out = PLOTS_DIR / f"delta_hedge_{sym}_dte{args.dte}.png"
-    plot(pd.read_parquet(path), args.symbol.upper(), args.dte, out)
+    plot(research_only(pd.read_parquet(path)), args.symbol.upper(), args.dte, out)
     print(f"wrote {out}")
     return 0
 

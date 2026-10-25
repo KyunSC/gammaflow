@@ -416,10 +416,6 @@ class TailStats(unittest.TestCase):
         self.assertEqual(dh.tail_stats(np.ones(10))["max_dd"], 0.0)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 def fake_iv_root(root: Path, days, symbol="QQQ") -> None:
     for d in days:
         p = root / f"symbol={symbol}" / f"date={d}"
@@ -443,11 +439,16 @@ class HoldoutGuardTest(unittest.TestCase):
         self.assertLess(got[-1], verify)
         self.assertEqual(str(got[-1]), "2026-08-14")
 
-    def test_assert_research_rejects_verify_day(self):
-        days = [pd.Timestamp("2026-08-14").date()]
-        dh.assert_research(pd.DataFrame({"date": ["2026-08-14"]}), days)
-        with self.assertRaises(AssertionError):
-            dh.assert_research(pd.DataFrame({"date": ["2026-08-14", "2026-08-24"]}), days)
+    def test_load_day_refuses_gap_and_verify_days(self):
+        self.assertEqual(str(dh.RESEARCH_LAST), "2026-08-14")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dh, "IV_ROOT", Path(tmp)):
+            self.assertIsNone(dh.load_day("QQQ", "2026-08-14"))  # research: no file, no refusal
+            for day in ("2026-08-17", "2026-08-24", "2026-10-01"):  # gap week, verify, forward
+                with self.assertRaises(AssertionError):
+                    dh.load_day("QQQ", day)
+                with self.assertRaises(AssertionError):
+                    dh.run_day("QQQ", day, 0)
+            self.assertIsNone(dh.load_day("QQQ", "2026-10-01", research=False))  # the forward test's path
 
 
 class CommissionTest(unittest.TestCase):
@@ -506,47 +507,94 @@ class StabilityAndDeflationTest(unittest.TestCase):
 
 
 class ForwardTest(unittest.TestCase):
-    SPEC = {**dh.FORWARD_SPEC, "min_sessions": 10, "boot_n": 200}
+    SPEC = {**dh.FORWARD_SPEC, "min_sessions": 30, "boot_block": 5, "boot_n": 200}
 
     def test_spec_is_frozen(self):
         # Changing FORWARD_SPEC after the first forward look turns it into a new hypothesis. If this
         # fails, the spec was edited: only allowed before any session >= start has been scored.
-        self.assertEqual(dh.spec_hash(dh.FORWARD_SPEC), "14efa5b2667c")
+        self.assertEqual(dh.spec_hash(dh.FORWARD_SPEC), "b63612103910")
+        self.assertGreaterEqual(dh.FORWARD_SPEC["min_sessions"], 2 * dh.FORWARD_SPEC["boot_block"])
 
     def test_refuses_to_load_before_min_sessions(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dh, "IV_ROOT", Path(tmp)), \
                 mock.patch.object(dh, "forward_day", side_effect=AssertionError("loaded")) as fd:
-            fake_iv_root(Path(tmp), weekdays("2026-09-01", "2026-10-08"))  # 9 sessions from 09-28
-            rc = dh.run_forward(self.SPEC, workers=1, log_path=Path(tmp) / "log.jsonl")
-            self.assertEqual(rc, 2)
+            fake_iv_root(Path(tmp), weekdays("2026-09-01", "2026-11-06"))  # 30 weekdays from 09-28
+            spec = {**self.SPEC, "min_sessions": 31}
+            self.assertEqual(dh.run_forward(spec, workers=1, log_path=Path(tmp) / "log.jsonl"), 2)
             fd.assert_not_called()
             self.assertFalse((Path(tmp) / "log.jsonl").exists())
 
-    def test_scores_once_logs_and_refuses_second_look(self):
+    def test_half_days_do_not_count(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dh, "IV_ROOT", Path(tmp)):
+            fake_iv_root(Path(tmp), weekdays("2026-11-20", "2026-12-31"))
+            got = {str(d) for d in dh.forward_candidates({**self.SPEC, "start": "2026-11-23"})}
+        self.assertNotIn("2026-11-27", got)
+        self.assertNotIn("2026-12-24", got)
+        self.assertIn("2026-11-30", got)
+
+    def test_scores_traded_sessions_once_logs_and_refuses_second_look(self):
         seen = []
+        untradable = {"2026-10-07", "2026-10-08"}  # e.g. no same-day expiry
 
         def fake_day(day, spec):
             seen.append(day)
+            if day.isoformat() in untradable:
+                return None
             return {"date": day.isoformat(), "strike": 1.0, "pnl": 11.3, "premium": 300.0, "fee": 1.3,
-                    "pnl_fee": 10.0 + (day.day % 3), "entry_iv": 0.2, "rv": 0.18}
+                    "pnl_fee": 10.0 + 3 * (day.day % 5), "entry_iv": 0.2, "rv": 0.18}
 
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dh, "IV_ROOT", Path(tmp)), \
                 mock.patch.object(dh, "forward_day", side_effect=fake_day):
-            fake_iv_root(Path(tmp), weekdays("2026-08-03", "2026-10-30"))
+            fake_iv_root(Path(tmp), weekdays("2026-08-03", "2026-12-31"))
             log = Path(tmp) / "fwd" / "log.jsonl"
             self.assertEqual(dh.run_forward(self.SPEC, workers=1, log_path=log), 0)
-            self.assertEqual(len(seen), 10)
+            self.assertEqual(len(seen), 32)  # 30 traded + the 2 untradable days, nothing past them
             self.assertEqual(str(min(seen)), "2026-09-28")  # nothing from verify or the spent window
+            self.assertEqual(str(max(seen)), "2026-11-10")
             entries = dh.read_forward_log(log)
             self.assertEqual(len(entries), 1)
-            self.assertEqual(entries[0]["verdict"], "PASS")
-            self.assertEqual(entries[0]["sessions"], ["2026-09-28", "2026-10-09", 10])
+            e = entries[0]
+            self.assertEqual(e["verdict"], "PASS")
+            self.assertEqual(e["n"], 30)
+            self.assertEqual(e["sessions"], ["2026-09-28", "2026-11-10", 30])  # traded, not loaded
+            self.assertEqual(e["loaded"], ["2026-09-28", "2026-11-10", 32])
+            self.assertEqual(e["skipped"], sorted(untradable))
+            self.assertLess(e["ci"][0], e["mean"])  # a real CI, not the mean repeated
             self.assertEqual(dh.run_forward(self.SPEC, workers=1, log_path=log), 3)  # second look refused
-            self.assertEqual(len(seen), 10)
+            edited = {**self.SPEC, "hedge_cost_bps": 0.25}  # a new hash on the same sessions
+            self.assertEqual(dh.run_forward(edited, workers=1, log_path=log), 3)
+            self.assertEqual(len(seen), 32)
+            later = {**edited, "start": "2026-11-11"}  # a new hypothesis on unspent sessions
+            self.assertEqual(dh.run_forward(later, workers=1, log_path=log), 0)
+            self.assertEqual(str(min(seen[32:])), "2026-11-11")
             self.assertEqual(dh.run_forward(self.SPEC, force=True, workers=1, log_path=log), 0)
             self.assertTrue(dh.read_forward_log(log)[-1]["forced"])
+
+    def test_short_of_traded_sessions_shows_and_logs_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dh, "IV_ROOT", Path(tmp)), \
+                mock.patch.object(dh, "forward_day", return_value=None):
+            fake_iv_root(Path(tmp), weekdays("2026-09-28", "2026-11-13"))
+            log = Path(tmp) / "log.jsonl"
+            self.assertEqual(dh.run_forward(self.SPEC, workers=1, log_path=log), 2)
+            self.assertFalse(log.exists())
 
     def test_verdict_needs_ci_above_zero(self):
         rng = np.random.default_rng(4)
         self.assertEqual(dh.forward_verdict(rng.normal(20, 5, 140), self.SPEC)["verdict"], "PASS")
         self.assertEqual(dh.forward_verdict(np.r_[np.full(70, 100.0), np.full(70, -99.0)], self.SPEC)["verdict"], "FAIL")
+        z = rng.standard_normal(140)
+        noisy = 2 + 50 * (z - z.mean()) / z.std()  # mean exactly +2, SE ~4: the CI straddles 0
+        v = dh.forward_verdict(noisy, self.SPEC)
+        self.assertGreater(v["mean"], 0)
+        self.assertLess(v["ci"][0], 0)
+        self.assertEqual(v["verdict"], "FAIL")
+
+    def test_verdict_refuses_short_or_single_block_samples(self):
+        with self.assertRaises(ValueError):
+            dh.forward_verdict(np.full(29, 5.0), self.SPEC)  # < min_sessions
+        with self.assertRaises(ValueError):
+            dh.forward_verdict(np.full(30, 5.0), {**self.SPEC, "boot_block": 20})  # one block
+
+
+if __name__ == "__main__":
+    unittest.main()
