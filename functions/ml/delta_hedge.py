@@ -111,6 +111,41 @@ Vol accounting: realized vol = sqrt(sum r^2 / window_years) with log returns of 
 -> exit calendar window; theo_vol_pnl = 100 sum 1/2 Gamma S^2 (sigma_imp^2 dt - r^2), which a
 short straddle earns when implied > realized.
 
+Option commissions: every row also carries fee = OPTION_FEE per contract on each leg traded (2
+contracts at entry, 2 more at the exit when dte > 0; a 0DTE settles with no exit trade) and
+pnl_fee = pnl - fee. The original results (README 6.8) had no commissions; both are printed.
+
+Holdout (holdout.py): research runs only ever see research sessions, i.e. downloaded days before
+VERIFY_START minus the last GAP_SESSIONS (research_sessions, on directory NAMES only, so no
+verify-period file is opened). --end cannot reach past them, and load_day itself refuses to open
+a day after RESEARCH_LAST (2026-08-14) unless the forward test asks for it.
+The first published run (2022-01-03 -> 2026-09-25, before this guard) included the gap week and the
+verify sessions 2026-08-24 -> 2026-09-25 in its tables and its cumulative-P&L plot, so for THIS
+hypothesis those sessions are spent (SPENT_LOOKS). The RF verify in final_verify.py is a different
+hypothesis and is not affected. Every research day has also already been looked at, so nothing
+inside the research window is out of sample: the by-year table and the first STABILITY_FRAC vs
+the rest split are in-sample stability checks, and the deflated Sharpe (Bailey & Lopez de Prado
+2014, as frontend/lib/backtest/stats.js) prices in the schedules tried in that run (a lower bound
+on the real search: symbols, DTEs and costs were tried too).
+
+Forward test (--forward): the only out-of-sample test. FORWARD_SPEC was frozen on 2026-10-14 and
+revised on 2026-10-22 (min_sessions 140 -> 205, counted in TRADED sessions), both before any
+session from its start (2026-09-28) was downloaded: QQQ 0DTE, 5-minute clock, BS delta, bid/ask
+fills, 0.5 bp hedge cost, OPTION_FEE commissions. Sessions between VERIFY_START and the start are
+spent and used by neither mode. It is scored ONCE on the first min_sessions traded sessions from
+the start: half days (EARLY_CLOSE) are dropped by name, and a day load_day rejects (no same-day
+expiry, no quoted strike) is replaced by the next downloaded one, loading only as many days as are
+still missing. It refuses to load anything until min_sessions name-eligible sessions are downloaded
+(an early peek is a look); if loading still comes up short it prints and writes no P&L and asks for
+more sessions. It refuses (unless --force) when any logged look, at ANY spec, reached a session on
+or after its first candidate: an edited spec is a new hypothesis and needs a start after every
+spent session. Every look is appended to data/delta_hedge/forward_log.jsonl with the scored and
+the loaded sessions. PASS: mean pnl_fee > 0 with the boot_block-day block-bootstrap 95% CI above 0,
+i.e. a one-sided 2.5% test. min_sessions = 205: on research sessions only, the 5m pnl_fee daily
+Sharpe is 0.203 (3.2 annualized) and the 20-day block bootstrap inflates the variance of the mean
+by ~1.08, so ((1.96 + 0.84) / 0.203)^2 x 1.08 ~ 205 gives 80% power IF the edge holds at its
+in-sample size; a smaller true edge makes this test likely to miss it.
+
 Output: data/delta_hedge/<symbol>_dte<d>[_mid].parquet, one row per day x variant; --frontier
 writes data/delta_hedge/frontier_<symbol>_dte<d>[_mid].parquet instead, one row per day x cost x
 frontier variant. ThetaData-derived: keep it private, delete with the rest on cancellation.
@@ -118,6 +153,7 @@ frontier variant. ThetaData-derived: keep it private, delete with the rest on ca
 Run: .venv/bin/python delta_hedge.py --symbol QQQ --dte 0
      .venv/bin/python delta_hedge.py --symbol SPY --dte 1 --start 2024-01-01 --workers 8
      .venv/bin/python delta_hedge.py --symbol QQQ --dte 0 --frontier --costs 0.5,1,2 --workers 4
+     .venv/bin/python delta_hedge.py --forward          # once >= 205 sessions from 2026-09-28 exist
      .venv/bin/python -m unittest test_delta_hedge -v
 (Two passes over the days: spot-vol statistics for the smile beta first, then the hedges. The
 frontier needs no smile beta and makes one pass.)
@@ -125,10 +161,12 @@ frontier needs no smile beta and makes one pass.)
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -137,7 +175,10 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import greeks as g  # noqa: E402
+from flybrain.stats import deflated_sharpe as _deflated_sharpe  # noqa: E402
+from flybrain.stats import expected_max_sharpe, sharpe_inference  # noqa: E402,F401
 from greeks import MIN_IV, RISK_FREE_RATE  # noqa: E402
+from holdout import VERIFY_START, research_sessions  # noqa: E402
 
 ET = "America/New_York"
 IV_ROOT = HERE / "data" / "thetadata" / "iv_5m"
@@ -171,6 +212,20 @@ BOOT_BLOCK, BOOT_N = 20, 2000  # paired moving-block bootstrap over days: block 
 COLS = ["expiration", "strike", "right", "timestamp", "bid", "ask", "underlying_price"]
 IV_LO, IV_HI = 1e-4, 5.0  # bisection bracket for implied_vol
 ATTR = ["delta_err", "gamma", "theta", "vega", "vanna", "volga", "charm"]
+OPTION_FEE = 0.65  # $ per option contract per trade (typical retail commission)
+STABILITY_FRAC = 0.7  # in-sample stability split: first 70% of traded days vs the rest
+# Last research session: GAP_SESSIONS weekdays before VERIFY_START (no NYSE holiday in that week).
+RESEARCH_LAST = research_sessions(pd.bdate_range(VERIFY_START.date() - timedelta(days=28), VERIFY_START.date()).date)[-1]
+# Sessions this hypothesis has already seen outside the research window (see the docstring).
+SPENT_LOOKS = ({"sessions": "2026-08-17..2026-09-25", "what": "README 6.8 run, 2022-01-03 -> 2026-09-25: "
+                "tables and cumulative P&L plot, before the holdout guard existed"},)
+# Frozen 2026-10-14, revised 2026-10-22 (power), both before any session >= start was downloaded.
+# Do not edit after the first look.
+FORWARD_SPEC = {"symbol": "QQQ", "dte": 0, "variant": "5m", "rebalance_every": 1, "mid": False,
+                "hedge_cost_bps": 0.5, "option_fee": OPTION_FEE, "start": "2026-09-28", "min_sessions": 205,
+                "test": "mean pnl_fee > 0 with 95% block-bootstrap CI above 0 over min_sessions traded sessions",
+                "boot_block": 20, "boot_n": 2000, "seed": 0}
+FORWARD_LOG = OUT_DIR / "forward_log.jsonl"
 
 
 def _ffill(x: np.ndarray, ok: np.ndarray) -> tuple[np.ndarray, int]:
@@ -193,10 +248,13 @@ def implied_vol(price, S, K, T, right, r: float = RISK_FREE_RATE, iters: int = 6
     return np.where(ok, 0.5 * (lo + hi), np.nan)
 
 
-def load_day(symbol: str, day: date | str, dte: int = 0) -> dict | None:
+def load_day(symbol: str, day: date | str, dte: int = 0, research: bool = True) -> dict | None:
     """Per-bar arrays (09:35..16:00 ET, 5-minute grid) for the day's straddle, or None when the
-    day has no eligible expiry/strike. See the module docstring for the rules."""
+    day has no eligible expiry/strike. See the module docstring for the rules. research=True (every
+    caller but the forward test) refuses to open any day after RESEARCH_LAST."""
     day = date.fromisoformat(str(day))
+    if research and day > RESEARCH_LAST:
+        raise AssertionError(f"LEAK: {day} is after the last research session {RESEARCH_LAST}")
     path = IV_ROOT / f"symbol={symbol}" / f"date={day.isoformat()}" / "part.parquet"
     if not path.exists() or day.isoformat() in EARLY_CLOSE:
         return None
@@ -250,6 +308,11 @@ def load_day(symbol: str, day: date | str, dte: int = 0) -> dict | None:
         if not np.isfinite(out[f"iv_{leg}"]).all():
             return None
     return out
+
+
+def option_fee(settle: bool, fee: float = OPTION_FEE) -> float:
+    """Commissions per straddle: 2 contracts at entry, 2 more at the exit unless the 0DTE settles."""
+    return fee * (2 if settle else 4)
 
 
 def straddle_path(d: dict, mid: bool = False) -> dict:
@@ -430,12 +493,14 @@ def run_day(symbol: str, day: date, dte: int, mid: bool = False, bps: float = 0.
     base["spot0"] = float(d["S"][0])
     base["smile_beta"] = np.nan if beta is None else beta
     dsig = smile_dsig_dS(d, 0.0 if beta is None else beta)
+    fee = {"fee": option_fee(d["settle"])}
     rows = []
     for name, (every, charm_adj, smile) in VARIANTS.items():
         res = hedge_pnl(**p, rebalance_every=every, charm_adjust=charm_adj, hedge_cost_bps=bps,
                         dsig_dS=dsig if smile else None)
         res.pop("bars")
-        rows.append({**base, "variant": name, **res, "pnl_pct": res["pnl"] / res["premium"]})
+        rows.append({**base, "variant": name, **res, "pnl_pct": res["pnl"] / res["premium"], **fee,
+                     "pnl_fee": res["pnl"] - fee["fee"]})
     return rows
 
 
@@ -454,6 +519,7 @@ def run_frontier_day(symbol: str, day: date, dte: int, mid: bool = False,
         return []
     p = straddle_path(d, mid)
     base = {k: d[k] for k in ("symbol", "date", "expiration", "dte", "strike", "settle")}
+    base["fee"] = option_fee(d["settle"])
     rows = []
     for bps in costs:
         for name, (kind, param) in FRONTIER.items():
@@ -461,7 +527,7 @@ def run_frontier_day(symbol: str, day: date, dte: int, mid: bool = False,
             bars = res.pop("bars")
             rows.append({**base, "cost_bps": bps, "variant": name, "kind": kind, "param": float(param), **res,
                          "band_mean": float(bars["band"].mean()) if "band" in bars else np.nan,
-                         "pnl_pct": res["pnl"] / res["premium"]})
+                         "pnl_pct": res["pnl"] / res["premium"], "pnl_fee": res["pnl"] - base["fee"]})
     return rows
 
 
@@ -488,9 +554,11 @@ def summarize(df: pd.DataFrame) -> pd.DataFrame:
         if len(x) > 2 and theo.std() > 0:
             slope = np.polyfit(theo, pnl, 1)[0]
             r2 = np.corrcoef(theo, pnl)[0, 1] ** 2
+        fee = x["pnl_fee"].to_numpy() if "pnl_fee" in x else np.full(len(x), np.nan)  # older parquets lack it
         out[name] = {
             "n": len(x), "mean": pnl.mean(), "pct_prem": 100 * x["pnl_pct"].mean(), "std": sd,
             "sharpe": pnl.mean() / sd * np.sqrt(252) if sd > 0 else np.nan, "hit": (pnl > 0).mean(),
+            "mean_fee": fee.mean(), "sharpe_fee": fee.mean() / sd * np.sqrt(252) if sd > 0 else np.nan,
             **{k: x[k].mean() for k in ["delta_err", "gamma", "theta", "vega"]},
             "second": (x["vanna"] + x["volga"] + x["charm"]).mean(),
             "res1": x["res1"].mean(), "res2": x["res2"].mean(),
@@ -501,6 +569,50 @@ def summarize(df: pd.DataFrame) -> pd.DataFrame:
             **tail_stats(pnl),
         }
     return pd.DataFrame.from_dict(out, orient="index")
+
+
+def period_stats(x: pd.DataFrame) -> dict:
+    """Mean / Sharpe (with and without commissions) / IV - RV of one variant's day rows."""
+    pnl, fee = x["pnl"].to_numpy(), x["pnl_fee"].to_numpy()
+    sd = pnl.std(ddof=1) if len(x) > 1 else np.nan
+    return {"n": len(x), "first": x["date"].min(), "last": x["date"].max(), "mean": pnl.mean(),
+            "pct_prem": 100 * x["pnl_pct"].mean(), "mean_fee": fee.mean(),
+            "sharpe": pnl.mean() / sd * np.sqrt(252) if sd > 0 else np.nan,
+            "sharpe_fee": fee.mean() / sd * np.sqrt(252) if sd > 0 else np.nan,
+            "iv_rv": (x["entry_iv"] - x["rv"]).mean() if "rv" in x else np.nan}
+
+
+def stability(df: pd.DataFrame, variant: str = "5m", frac: float = STABILITY_FRAC) -> pd.DataFrame:
+    """In-sample stability of one variant: per calendar year, then the first `frac` of its traded days
+    vs the rest. Every row is research data that was already looked at; this is not a holdout."""
+    x = df[df["variant"] == variant].sort_values("date")
+    rows = {str(y): period_stats(v) for y, v in x.groupby(x["date"].str[:4])}
+    cut = int(round(frac * len(x)))
+    rows[f"first {frac:.0%}"] = period_stats(x.iloc[:cut])
+    rows[f"last {1 - frac:.0%}"] = period_stats(x.iloc[cut:])
+    rows["all"] = period_stats(x)
+    return pd.DataFrame.from_dict(rows, orient="index")
+
+
+def deflated_sharpe(pnl, trial_srs) -> dict:
+    """Deflated Sharpe (Bailey & Lopez de Prado 2014): P(true SR > the best of len(trial_srs) zero-edge
+    trials). trial_srs: per-day Sharpes of every config tried on the same days, this one included.
+    flybrain.stats' port of frontend/lib/backtest/stats.js; sr, se, psr, sr0 are per day."""
+    inf = sharpe_inference([float(x) for x in pnl])
+    return {**inf, **_deflated_sharpe(inf, [float(x) for x in trial_srs])}
+
+
+def selection_table(df: pd.DataFrame, col: str = "pnl_fee") -> pd.DataFrame:
+    """Deflated Sharpe of every variant in one run, deflated by all the run's variants (days traded by
+    every variant only). Annualized Sharpe = per-day sr x sqrt(252)."""
+    piv = df.pivot(index="date", columns="variant", values=col).dropna().sort_index()
+    srs = (piv.mean() / piv.std(ddof=1)).to_numpy()
+    rows = {}
+    for v in piv.columns:
+        r = deflated_sharpe(piv[v].to_numpy(), srs)
+        rows[v] = {"n": r["n"], "sharpe": r["sr"] * np.sqrt(252), "psr": r["psr"], "trials": r["trials"],
+                   "sharpe0": r["sr0"] * np.sqrt(252), "dsr": r["dsr"]}
+    return pd.DataFrame.from_dict(rows, orient="index").sort_values("sharpe", ascending=False)
 
 
 def interp_frontier(cost, val, at) -> np.ndarray:
@@ -614,16 +726,151 @@ def print_frontier(s: pd.DataFrame) -> None:
 
 
 def print_summary(s: pd.DataFrame) -> None:
-    perf = ["n", "mean", "pct_prem", "std", "sharpe", "hit", "costs", "iv_rv", "slope", "r2"]
+    perf = ["n", "mean", "pct_prem", "std", "sharpe", "hit", "costs", "mean_fee", "sharpe_fee", "iv_rv",
+            "slope", "r2"]
     attr = ["delta_err", "gamma", "theta", "vega", "second", "res1", "res2", "res_red", "res_red_bar"]
     with pd.option_context("display.width", 200, "display.max_columns", 30, "display.float_format", "{:.3f}".format):
-        print("\nper straddle ($, x100); pct_prem = mean % of premium; slope/r2 = OLS of pnl on theo_vol_pnl")
+        print("\nper straddle ($, x100); pct_prem = mean % of premium; slope/r2 = OLS of pnl on theo_vol_pnl;\n"
+              f"  mean_fee / sharpe_fee: after ${OPTION_FEE:g}/contract option commissions")
         print(s[perf].to_string())
         print("\nmean attribution ($); second = vanna+volga+charm; res_red = 1 - mean|res2|/mean|res1| "
               "(daily sums), res_red_bar = same on per-bar |res|")
         print(s[attr].to_string())
         print("\nleft tail ($): worst day, max drawdown of cumulative P&L, skewness, CVaR 5% (mean of worst 5% of days)")
         print(s[["worst", "max_dd", "skew", "cvar5"]].to_string())
+
+
+def print_research(df: pd.DataFrame, frontier: bool = False) -> None:
+    """In-sample stability and selection-adjusted Sharpe, printed after the main summary."""
+    with pd.option_context("display.width", 200, "display.max_columns", 30, "display.float_format", "{:.3f}".format):
+        if not frontier:
+            for v in ("5m", "60m"):
+                print(f"\nin-sample stability, {v} (already-seen research data, NOT a holdout); "
+                      "*_fee = after option commissions")
+                print(stability(df, v).to_string())
+            groups = [(None, df)]
+        else:
+            groups = list(df.groupby("cost_bps", sort=True))
+        for bps, x in groups:
+            print("\ndeflated Sharpe on pnl_fee" + ("" if bps is None else f", hedge cost {bps:g} bp")
+                  + ": psr = P(SR > 0), sharpe0 = best-of-`trials` noise Sharpe, dsr = P(SR > sharpe0).\n"
+                  "  trials counts only this run's schedules, so dsr is an upper bound.")
+            print(selection_table(x).to_string())
+
+
+def research_days(symbol: str, start: str | None = None, end: str | None = None) -> list[date]:
+    """Downloaded research sessions in [start, end): directory names only, never a verify file."""
+    days = research_sessions(downloaded_days(symbol))
+    if end is not None and days and date.fromisoformat(end) > days[-1] + timedelta(days=1):
+        print(f"  --end {end} is past the last research session {days[-1]}; clipped (holdout.py)")
+    return [d for d in days if (start is None or d >= date.fromisoformat(start))
+            and (end is None or d < date.fromisoformat(end))]
+
+
+def downloaded_days(symbol: str) -> list[date]:
+    return sorted(date.fromisoformat(p.name[5:]) for p in (IV_ROOT / f"symbol={symbol}").glob("date=*")
+                  if (p / "part.parquet").exists())
+
+
+def spec_hash(spec: dict) -> str:
+    return hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:12]
+
+
+def read_forward_log(path: Path = FORWARD_LOG) -> list[dict]:
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def forward_day(day: date, spec: dict) -> dict | None:
+    """The frozen spec's one config on one forward day (no other variant is computed)."""
+    assert day >= date.fromisoformat(spec["start"]), f"LEAK: {day} is before the forward start"
+    d = load_day(spec["symbol"], day, spec["dte"], research=False)
+    if d is None:
+        return None
+    res = hedge_pnl(**straddle_path(d, spec["mid"]), rebalance_every=spec["rebalance_every"],
+                    hedge_cost_bps=spec["hedge_cost_bps"])
+    res.pop("bars")
+    fee = option_fee(d["settle"], spec["option_fee"])
+    return {"date": d["date"], "strike": d["strike"], "pnl": res["pnl"], "premium": res["premium"],
+            "fee": fee, "pnl_fee": res["pnl"] - fee, "entry_iv": res["entry_iv"], "rv": res["rv"]}
+
+
+def forward_verdict(pnl_fee, spec: dict) -> dict:
+    """Mean, block-bootstrap 95% CI of the mean and PASS/FAIL per spec["test"]. Needs min_sessions
+    traded sessions and at least two bootstrap blocks (with one block every resample is the sample
+    itself and the CI collapses to the mean)."""
+    pnl_fee = np.asarray(pnl_fee, dtype=float)
+    if len(pnl_fee) < max(spec["min_sessions"], 2 * spec["boot_block"]):
+        raise ValueError(f"{len(pnl_fee)} sessions: the verdict needs >= {spec['min_sessions']} and "
+                         f">= 2 blocks of {spec['boot_block']}")
+    idx = block_boot_idx(len(pnl_fee), spec["boot_n"], spec["boot_block"], np.random.default_rng(spec["seed"]))
+    lo, hi = np.percentile(pnl_fee[idx].mean(axis=1), [2.5, 97.5])
+    m = float(pnl_fee.mean())
+    return {"n": len(pnl_fee), "mean": m, "ci": [float(lo), float(hi)],
+            "verdict": "PASS" if m > 0 and lo > 0 else "FAIL"}
+
+
+def forward_candidates(spec: dict) -> list[date]:
+    """Downloaded sessions from spec["start"] on, minus half days: directory names only (a missing
+    expiry or an unquoted strike is only found by loading the day)."""
+    start = date.fromisoformat(spec["start"])
+    return [d for d in downloaded_days(spec["symbol"]) if d >= start and d.isoformat() not in EARLY_CLOSE]
+
+
+def spent_looks(log: list[dict], first: date) -> list[dict]:
+    """Logged looks, at any spec, whose loaded sessions reach `first` or later."""
+    return [e for e in log if date.fromisoformat(e.get("loaded", e["sessions"])[1]) >= first]
+
+
+def run_forward(spec: dict = FORWARD_SPEC, force: bool = False, workers: int = 8,
+                log_path: Path = FORWARD_LOG) -> int:
+    """--forward: score the frozen spec once on the first min_sessions traded sessions from spec["start"]."""
+    h, need = spec_hash(spec), spec["min_sessions"]
+    cands = forward_candidates(spec)
+    if len(cands) < need:
+        print(f"forward test {h}: {len(cands)} of {need} sessions from {spec['start']} downloaded (half days "
+              "excluded). Nothing loaded: an early peek counts as a look.")
+        return 2
+    prior = spent_looks(read_forward_log(log_path), cands[0])
+    print(f"forward test {h}: {len(prior)} logged look(s) reaching {cands[0]} or later; sessions already spent "
+          f"for this hypothesis outside research: {', '.join(x['sessions'] for x in SPENT_LOOKS)}")
+    if prior and not force:
+        last = max(e.get("loaded", e["sessions"])[1] for e in prior)
+        print(f"Those sessions are spent (specs {', '.join(sorted({e['spec_hash'] for e in prior}))}). Re-scoring "
+              f"adds nothing and an edited spec is a new hypothesis: give it a start after {last}. "
+              "--force to score anyway (it is logged).")
+        return 3
+    # Load only as many days as are still missing, so no day past the scored window is opened.
+    rows, loaded, todo = [], [], cands
+    while len(rows) < need and todo:
+        batch, todo = todo[:need - len(rows)], todo[need - len(rows):]
+        loaded += batch
+        if workers <= 1:
+            got = [forward_day(d, spec) for d in batch]
+        else:
+            with ProcessPoolExecutor(max_workers=workers) as ex:
+                got = list(ex.map(forward_day, batch, [spec] * len(batch), chunksize=4))
+        rows += [r for r in got if r is not None]
+    skipped = sorted(set(d.isoformat() for d in loaded) - {r["date"] for r in rows})
+    if len(rows) < need:
+        print(f"forward test {h}: only {len(rows)} of {need} downloaded sessions are tradable (skipped: "
+              f"{', '.join(skipped)}). No P&L shown or written; download more sessions and rerun.")
+        return 2
+    df = pd.DataFrame(rows)
+    v = forward_verdict(df["pnl_fee"], spec)
+    entry = {"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "spec_hash": h, "spec": spec,
+             "sessions": [df["date"].iloc[0], df["date"].iloc[-1], len(df)],
+             "loaded": [str(loaded[0]), str(loaded[-1]), len(loaded)], "skipped": skipped, **v,
+             "forced": bool(prior)}
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a") as f:
+        f.write(json.dumps(entry) + "\n")
+    df.to_parquet(log_path.parent / f"forward_{h}.parquet", index=False)
+    print(f"{spec['symbol']} dte{spec['dte']} {spec['variant']}: {v['n']} traded days {entry['sessions'][0]}.."
+          f"{entry['sessions'][1]} ({len(skipped)} loaded but not tradable), mean pnl_fee ${v['mean']:.2f} "
+          f"[{v['ci'][0]:.2f}, {v['ci'][1]:.2f}] -> {v['verdict']} (logged to {log_path})")
+    return 0
 
 
 def run_frontier(symbol: str, days: list[date], dte: int, mid: bool, costs: tuple[float, ...], workers: int) -> int:
@@ -646,6 +893,7 @@ def run_frontier(symbol: str, days: list[date], dte: int, mid: bool, costs: tupl
     print(f"{symbol} dte>={dte}: {df['date'].nunique()} days {df['date'].min()}..{df['date'].max()}, "
           f"fills={'mid' if mid else 'bid/ask'}, hedge costs {', '.join(f'{c:g}' for c in costs)} bp -> {out}")
     print_frontier(frontier_summary(df))
+    print_research(df, frontier=True)
     return 0
 
 
@@ -662,16 +910,19 @@ def main() -> int:
                     help="run the clock / band / WW frontier at --costs instead of VARIANTS")
     ap.add_argument("--costs", default=",".join(f"{c:g}" for c in FRONTIER_COSTS),
                     help="comma-separated hedge costs in bp for --frontier (--hedge-cost-bps is ignored)")
+    ap.add_argument("--forward", action="store_true",
+                    help="score the frozen FORWARD_SPEC once on post-2026-09-28 sessions (other flags ignored)")
+    ap.add_argument("--force", action="store_true", help="--forward: score a spec that was already scored")
     args = ap.parse_args()
+    if args.forward:
+        return run_forward(force=args.force, workers=args.workers)
     symbol = args.symbol.upper()
 
-    days = sorted(date.fromisoformat(p.name[5:]) for p in (IV_ROOT / f"symbol={symbol}").glob("date=*")
-                  if (p / "part.parquet").exists())
-    days = [d for d in days if d >= date.fromisoformat(args.start)
-            and (args.end is None or d < date.fromisoformat(args.end))]
+    days = research_days(symbol, args.start, args.end)
     if not days:
-        print(f"no downloaded iv_5m days for {symbol}")
+        print(f"no downloaded research iv_5m days for {symbol}")
         return 2
+    print(f"{symbol}: research sessions {days[0]} -> {days[-1]} (verify from {VERIFY_START.date()} not loaded)")
     if args.frontier:
         return run_frontier(symbol, days, args.dte, args.mid, tuple(float(c) for c in args.costs.split(",")),
                             args.workers)
@@ -701,6 +952,7 @@ def main() -> int:
     print(f"{symbol} dte>={args.dte}: {df['date'].nunique()} days {df['date'].min()}..{df['date'].max()}, "
           f"fills={'mid' if args.mid else 'bid/ask'}, hedge cost {args.hedge_cost_bps} bps -> {out}")
     print_summary(summarize(df))
+    print_research(df)
     return 0
 
 

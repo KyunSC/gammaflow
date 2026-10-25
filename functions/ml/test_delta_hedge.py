@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 import delta_hedge as dh
+from holdout import GAP_SESSIONS
 import greeks as g
 
 T_0DTE = 6.5 / (24 * 365)  # 09:30 -> 16:00 on the calendar clock
@@ -413,6 +414,186 @@ class TailStats(unittest.TestCase):
     def test_skew_sign_and_no_drawdown(self):
         self.assertLess(dh.tail_stats(np.r_[np.ones(50), -40.0])["skew"], 0)
         self.assertEqual(dh.tail_stats(np.ones(10))["max_dd"], 0.0)
+
+
+def fake_iv_root(root: Path, days, symbol="QQQ") -> None:
+    for d in days:
+        p = root / f"symbol={symbol}" / f"date={d}"
+        p.mkdir(parents=True)
+        (p / "part.parquet").touch()
+
+
+def weekdays(start, end):
+    return [d.date() for d in pd.bdate_range(start, end)]
+
+
+class HoldoutGuardTest(unittest.TestCase):
+    def test_research_days_stop_before_gap_and_verify(self):
+        days = weekdays("2026-07-01", "2026-10-09")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dh, "IV_ROOT", Path(tmp)):
+            fake_iv_root(Path(tmp), days)
+            got = dh.research_days("QQQ", "2026-07-01", "2026-12-31")
+        verify = dh.VERIFY_START.date()
+        pre = [d for d in days if d < verify]
+        self.assertEqual(got, pre[:-GAP_SESSIONS])
+        self.assertLess(got[-1], verify)
+        self.assertEqual(str(got[-1]), "2026-08-14")
+
+    def test_load_day_refuses_gap_and_verify_days(self):
+        self.assertEqual(str(dh.RESEARCH_LAST), "2026-08-14")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dh, "IV_ROOT", Path(tmp)):
+            self.assertIsNone(dh.load_day("QQQ", "2026-08-14"))  # research: no file, no refusal
+            for day in ("2026-08-17", "2026-08-24", "2026-10-01"):  # gap week, verify, forward
+                with self.assertRaises(AssertionError):
+                    dh.load_day("QQQ", day)
+                with self.assertRaises(AssertionError):
+                    dh.run_day("QQQ", day, 0)
+            self.assertIsNone(dh.load_day("QQQ", "2026-10-01", research=False))  # the forward test's path
+
+
+class CommissionTest(unittest.TestCase):
+    def test_option_fee(self):
+        self.assertAlmostEqual(dh.option_fee(True), 2 * dh.OPTION_FEE)   # 0DTE settles: entry only
+        self.assertAlmostEqual(dh.option_fee(False), 4 * dh.OPTION_FEE)  # dte > 0: buy back both legs
+
+
+def research_frame(pnls: dict[str, np.ndarray], start="2022-01-03") -> pd.DataFrame:
+    dates = [d.isoformat() for d in weekdays(start, "2030-01-01")[:len(next(iter(pnls.values())))]]
+    rows = []
+    for v, p in pnls.items():
+        rows += [{"date": d, "variant": v, "pnl": x, "pnl_fee": x - 1.3, "pnl_pct": x / 300,
+                  "entry_iv": 0.2, "rv": 0.18} for d, x in zip(dates, p)]
+    return pd.DataFrame(rows)
+
+
+class StabilityAndDeflationTest(unittest.TestCase):
+    def test_stability_split_and_years(self):
+        rng = np.random.default_rng(1)
+        df = research_frame({"5m": rng.normal(10, 50, 600)})
+        s = dh.stability(df, "5m")
+        self.assertEqual(s.loc["first 70%", "n"] + s.loc["last 30%", "n"], 600)
+        self.assertEqual(s.loc["first 70%", "n"], 420)
+        self.assertLess(s.loc["first 70%", "last"], s.loc["last 30%", "first"])
+        self.assertEqual(sum(s.loc[y, "n"] for y in s.index if y.isdigit()), 600)
+        self.assertAlmostEqual(s.loc["all", "mean"] - s.loc["all", "mean_fee"], 1.3)
+
+    def test_one_trial_dsr_is_psr_and_more_trials_deflate(self):
+        rng = np.random.default_rng(2)
+        pnl = rng.normal(0.1, 1, 500)
+        one = dh.deflated_sharpe(pnl, [pnl.mean() / pnl.std(ddof=1)])
+        self.assertEqual(one["sr0"], 0.0)
+        self.assertAlmostEqual(one["dsr"], one["psr"])
+        many = dh.deflated_sharpe(pnl, np.r_[one["sr"], rng.normal(0, 0.05, 30)])
+        self.assertGreater(many["sr0"], 0)
+        self.assertLess(many["dsr"], one["psr"])
+
+    def test_matches_frontend_stats_js(self):
+        # Reference values from frontend/lib/backtest/stats.js (expectedMaxSharpe, sharpeInference,
+        # deflatedSharpe), run under node; its normCdf is a 1e-7 approximation.
+        self.assertAlmostEqual(dh.expected_max_sharpe(10, 0.01), 0.15745983018549997, places=8)
+        r = np.array([0.5, -0.2, 1.1, 0.3, -0.7, 0.9, 0.05, 0.4, -0.1, 0.6])
+        inf = dh.sharpe_inference(r)
+        self.assertAlmostEqual(inf["sr"], 0.5292063692788641, places=12)
+        self.assertAlmostEqual(inf["psr"], 0.9243173856574347, places=6)
+        self.assertAlmostEqual(dh.deflated_sharpe(r, [inf["sr"], 0.01, -0.02, 0.03])["dsr"], 0.7540150584627486, places=6)
+
+    def test_selection_table_ranks_and_counts_trials(self):
+        rng = np.random.default_rng(3)
+        df = research_frame({"a": rng.normal(5, 50, 300), "b": rng.normal(0, 50, 300), "c": rng.normal(-5, 50, 300)})
+        t = dh.selection_table(df)
+        self.assertEqual(list(t.index), ["a", "b", "c"])
+        self.assertTrue((t["trials"] == 3).all())
+        self.assertTrue((t["dsr"] <= t["psr"] + 1e-12).all())
+
+
+class ForwardTest(unittest.TestCase):
+    SPEC = {**dh.FORWARD_SPEC, "min_sessions": 30, "boot_block": 5, "boot_n": 200}
+
+    def test_spec_is_frozen(self):
+        # Changing FORWARD_SPEC after the first forward look turns it into a new hypothesis. If this
+        # fails, the spec was edited: only allowed before any session >= start has been scored.
+        self.assertEqual(dh.spec_hash(dh.FORWARD_SPEC), "b63612103910")
+        self.assertGreaterEqual(dh.FORWARD_SPEC["min_sessions"], 2 * dh.FORWARD_SPEC["boot_block"])
+
+    def test_refuses_to_load_before_min_sessions(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dh, "IV_ROOT", Path(tmp)), \
+                mock.patch.object(dh, "forward_day", side_effect=AssertionError("loaded")) as fd:
+            fake_iv_root(Path(tmp), weekdays("2026-09-01", "2026-11-06"))  # 30 weekdays from 09-28
+            spec = {**self.SPEC, "min_sessions": 31}
+            self.assertEqual(dh.run_forward(spec, workers=1, log_path=Path(tmp) / "log.jsonl"), 2)
+            fd.assert_not_called()
+            self.assertFalse((Path(tmp) / "log.jsonl").exists())
+
+    def test_half_days_do_not_count(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dh, "IV_ROOT", Path(tmp)):
+            fake_iv_root(Path(tmp), weekdays("2026-11-20", "2026-12-31"))
+            got = {str(d) for d in dh.forward_candidates({**self.SPEC, "start": "2026-11-23"})}
+        self.assertNotIn("2026-11-27", got)
+        self.assertNotIn("2026-12-24", got)
+        self.assertIn("2026-11-30", got)
+
+    def test_scores_traded_sessions_once_logs_and_refuses_second_look(self):
+        seen = []
+        untradable = {"2026-10-07", "2026-10-08"}  # e.g. no same-day expiry
+
+        def fake_day(day, spec):
+            seen.append(day)
+            if day.isoformat() in untradable:
+                return None
+            return {"date": day.isoformat(), "strike": 1.0, "pnl": 11.3, "premium": 300.0, "fee": 1.3,
+                    "pnl_fee": 10.0 + 3 * (day.day % 5), "entry_iv": 0.2, "rv": 0.18}
+
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dh, "IV_ROOT", Path(tmp)), \
+                mock.patch.object(dh, "forward_day", side_effect=fake_day):
+            fake_iv_root(Path(tmp), weekdays("2026-08-03", "2026-12-31"))
+            log = Path(tmp) / "fwd" / "log.jsonl"
+            self.assertEqual(dh.run_forward(self.SPEC, workers=1, log_path=log), 0)
+            self.assertEqual(len(seen), 32)  # 30 traded + the 2 untradable days, nothing past them
+            self.assertEqual(str(min(seen)), "2026-09-28")  # nothing from verify or the spent window
+            self.assertEqual(str(max(seen)), "2026-11-10")
+            entries = dh.read_forward_log(log)
+            self.assertEqual(len(entries), 1)
+            e = entries[0]
+            self.assertEqual(e["verdict"], "PASS")
+            self.assertEqual(e["n"], 30)
+            self.assertEqual(e["sessions"], ["2026-09-28", "2026-11-10", 30])  # traded, not loaded
+            self.assertEqual(e["loaded"], ["2026-09-28", "2026-11-10", 32])
+            self.assertEqual(e["skipped"], sorted(untradable))
+            self.assertLess(e["ci"][0], e["mean"])  # a real CI, not the mean repeated
+            self.assertEqual(dh.run_forward(self.SPEC, workers=1, log_path=log), 3)  # second look refused
+            edited = {**self.SPEC, "hedge_cost_bps": 0.25}  # a new hash on the same sessions
+            self.assertEqual(dh.run_forward(edited, workers=1, log_path=log), 3)
+            self.assertEqual(len(seen), 32)
+            later = {**edited, "start": "2026-11-11"}  # a new hypothesis on unspent sessions
+            self.assertEqual(dh.run_forward(later, workers=1, log_path=log), 0)
+            self.assertEqual(str(min(seen[32:])), "2026-11-11")
+            self.assertEqual(dh.run_forward(self.SPEC, force=True, workers=1, log_path=log), 0)
+            self.assertTrue(dh.read_forward_log(log)[-1]["forced"])
+
+    def test_short_of_traded_sessions_shows_and_logs_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dh, "IV_ROOT", Path(tmp)), \
+                mock.patch.object(dh, "forward_day", return_value=None):
+            fake_iv_root(Path(tmp), weekdays("2026-09-28", "2026-11-13"))
+            log = Path(tmp) / "log.jsonl"
+            self.assertEqual(dh.run_forward(self.SPEC, workers=1, log_path=log), 2)
+            self.assertFalse(log.exists())
+
+    def test_verdict_needs_ci_above_zero(self):
+        rng = np.random.default_rng(4)
+        self.assertEqual(dh.forward_verdict(rng.normal(20, 5, 140), self.SPEC)["verdict"], "PASS")
+        self.assertEqual(dh.forward_verdict(np.r_[np.full(70, 100.0), np.full(70, -99.0)], self.SPEC)["verdict"], "FAIL")
+        z = rng.standard_normal(140)
+        noisy = 2 + 50 * (z - z.mean()) / z.std()  # mean exactly +2, SE ~4: the CI straddles 0
+        v = dh.forward_verdict(noisy, self.SPEC)
+        self.assertGreater(v["mean"], 0)
+        self.assertLess(v["ci"][0], 0)
+        self.assertEqual(v["verdict"], "FAIL")
+
+    def test_verdict_refuses_short_or_single_block_samples(self):
+        with self.assertRaises(ValueError):
+            dh.forward_verdict(np.full(29, 5.0), self.SPEC)  # < min_sessions
+        with self.assertRaises(ValueError):
+            dh.forward_verdict(np.full(30, 5.0), {**self.SPEC, "boot_block": 20})  # one block
 
 
 if __name__ == "__main__":
