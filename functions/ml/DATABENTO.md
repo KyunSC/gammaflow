@@ -13,6 +13,8 @@ without explicit approval of a quote.
 | `fut-bbo-1s` | bbo-1s, 09:25–16:00 ET | `ES.v.0`, `NQ.v.0` | weekday | < ~$23 (quoted over full days) |
 | `nq-mbo` | mbo (L3) | `NQ.v.0` | month, explicit dates only | ~$235 full window; pilot first |
 | `es-trades` | trades, 09:25–16:00 ET | `ES.v.0` | weekday, explicit dates only | ~$35.72 for 2026-04-24 → 2026-08-15 |
+| `es-ohlcv-1m-early` | ohlcv-1m | `ES.v.0` | month, explicit dates only | not quoted yet; ~$20 estimated for 2012–2021 (`vp_claims_study.py --confirm`, `choch_futures_study.py --score`) |
+| `nq-ohlcv-1m-early` | ohlcv-1m | `NQ.v.0` | month, explicit dates only | not quoted yet; expect ~$20 for 2012–2021, like ES (`trader_playbooks_study.py --confirm`, `choch_futures_study.py --score`) |
 
 Outright 1m bars keep the futures–index basis roll-aware when mapping the
 provider's index/ETF GEX levels onto ES/NQ. `nq-mbo` is deferred until cheaper
