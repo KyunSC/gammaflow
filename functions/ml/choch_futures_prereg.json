@@ -1,0 +1,7 @@
+{
+ "script_sha": "a49bad3b39d7c387",
+ "spec": "choch_crypto_study.SPEC (C6), primary k=2, futures execution in choch_futures_study.py",
+ "alpha": 0.025,
+ "frozen_at": "2026-10-28",
+ "note": "frozen before any ES/NQ bar was read for this rule"
+}

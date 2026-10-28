@@ -76,6 +76,13 @@ JOBS = {
     # inputs and their discovery / holdout splits unchanged.
     "eq-ohlcv-1m-early": Job("ohlcv-1m", "raw_symbol", "raw", products=("QQQ",), whole_window_only=True,
                              dataset="XNAS.ITCH"),
+    # CME ES 1m bars 2012-2021 as the one-look confirmation set of vp_claims_study.py. Volume-rolled front contract;
+    # its own folder, read by no other script.
+    "es-ohlcv-1m-early": Job("ohlcv-1m", "continuous", "continuous", products=("ES",), whole_window_only=True),
+    # CME NQ 1m bars 2012-2021 as the one-look confirmation set of trader_playbooks_study.py. Volume-rolled front
+    # contract; its own folder, read by no other script.
+    "nq-ohlcv-1m-early": Job("ohlcv-1m", "continuous", "continuous", products=("NQ",), whole_window_only=True),
+    # choch_futures_study.py (PR #16) also reads both folders, once, all hours: Sunny chose to spend the window on it.
 }
 
 
