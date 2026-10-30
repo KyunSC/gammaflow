@@ -40,6 +40,8 @@ jobs:
         run: npm run backtest:nightly
         env:
           API_BASE: https://azure-market-data.onrender.com
+          # Matches API_ACCESS_KEY on Render; empty is fine while the key is unset there.
+          GAMMAFLOW_API_KEY: ${{ secrets.GAMMAFLOW_API_KEY }}
 
       - uses: actions/upload-artifact@v4
         if: always()

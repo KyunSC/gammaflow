@@ -2,23 +2,36 @@
 
 The browser runs simulations. Spring Boot serves immutable research datasets at
 `GET /api/backtest/datasets/{id}` and the current catalog at
-`GET /api/backtest/datasets`. Next.js proxies both to `API_URL`.
+`GET /api/backtest/datasets`. A local real-data build of Next.js proxies both to
+`API_URL`; the public build serves synthetic datasets instead.
 Live TA runs continue to use `/api/historical` and represent exploratory snapshots.
+
+## Real data is local-only
+
+Yahoo prices, the GEX built from Yahoo option chains, and Databento/ThetaData
+files can't be redistributed. The deployed frontend therefore never proxies to
+this backend: unless `GAMMAFLOW_DATA=real` is set on a local machine, Next.js
+answers every `/api/*` route itself from `frontend/lib/synthetic` (see
+`frontend/lib/dataSource.mjs`). The bundled example under
+`frontend/public/backtest/` is synthetic too (`npm run sample:synthetic`), and
+`export_backtest_data.py` refuses to write real exports there.
 
 ## Local startup
 
-From the repository root, publish the existing QQQ/SPY exports:
+From the repository root, export and publish the real QQQ/SPY datasets
+(`export_backtest_data.py` writes to `functions/ml/data/backtest_export/`, which is
+gitignored):
 
 ```sh
-python3 functions/ml/publish_backtest_data.py --source frontend/public/backtest --out API_Server/backtest-data
+python3 functions/ml/export_backtest_data.py --symbols QQQ SPY
+python3 functions/ml/publish_backtest_data.py --source functions/ml/data/backtest_export --out API_Server/backtest-data
 ```
 
-Then start Spring Boot from `API_Server` with `./mvnw spring-boot:run`.
-Start the frontend from `frontend` with `API_URL=http://localhost:8080 npm run dev`.
-Open `/backtest`; research uses the backend by default. The explicit **Use bundled
-examples** option loads the original static fixtures. These are historical examples,
-not current market data. Legacy model exports are labeled as unverified for training
-label overlap; newly generated predictions purge the forward-label horizon.
+Then run `./dev.sh` from the repository root (Spring Boot on 8080, Next.js on 3000
+with `GAMMAFLOW_DATA=real`). Open `/backtest`; research uses the backend by default.
+The **Bundled sample** option loads the synthetic example. Legacy model exports are
+labeled as unverified for training label overlap; newly generated predictions purge
+the forward-label horizon.
 
 ## Refresh and production publishing
 
@@ -40,8 +53,9 @@ label overlap; newly generated predictions purge the forward-label horizon.
    frontend variables. The backend's default directory is relative to its working
    directory and is for local development; it is not durable on Render's ephemeral
    filesystem. The Docker image does not embed generated datasets.
-4. Configure production `API_URL` before building Next.js. Deploy the backend before
-   the frontend. Schedule the export/publish command in your ingestion/job platform
+4. The published datasets are for local and private use (the nightly workflow and
+   `./dev.sh`); the public frontend never reads them. Set `API_ACCESS_KEY` on the
+   deployed backend so its `/api/*` routes need an `X-Api-Key` header. Schedule the export/publish command in your ingestion/job platform
    after its source data refresh. This change does not create or modify cloud jobs.
 
 The publisher validates every dataset before changing the catalog. Local writes use

@@ -5,16 +5,17 @@
  * the OHLC approximation in volumeProfile.js.
  *
  * The real prints are licensed, so they are only used when the build sets
- * NEXT_PUBLIC_TICK_SOURCE=real (dev.sh does). Every other build, including
- * production, shows simulated prints from lib/syntheticTickProfile.js and never
- * calls the API.
+ * NEXT_PUBLIC_TICK_SOURCE=real on a real-data build (lib/dataSource.mjs;
+ * dev.sh sets both). Every other build, including production, shows simulated
+ * prints from lib/syntheticTickProfile.js and never calls the API.
  */
 import { useEffect, useMemo, useState } from 'react'
 import { TICK_SIZE } from './volumeProfile'
 import { synthesizeTickVolume } from './syntheticTickProfile'
+import { DATA_SOURCE } from './dataSource.mjs'
 
-// Inlined by Next at build time; anything but 'real' means simulated.
-export const TICK_SOURCE = process.env.NEXT_PUBLIC_TICK_SOURCE === 'real' ? 'real' : 'synthetic'
+// Inlined by Next at build time; anything but 'real' on a real-data build means simulated.
+export const TICK_SOURCE = DATA_SOURCE === 'real' && process.env.NEXT_PUBLIC_TICK_SOURCE === 'real' ? 'real' : 'synthetic'
 
 const coverageCache = new Map() // symbol -> { promise: Promise<[[start, end], ...]>, at }
 const barsCache = new Map() // symbol|runs -> Promise<Map<utc, {lo, vols, deltas}>>

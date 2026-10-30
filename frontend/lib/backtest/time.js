@@ -26,7 +26,7 @@ const etFormat = typeof Intl !== 'undefined'
 /** Minutes to add to UTC to get New York wall time (-240 in EDT, -300 in EST).
  *  Cached per UTC hour — DST switches on the hour, and a year of 5m bars
  *  would otherwise be ~20k Intl calls per backtest. */
-function etOffsetMinutes(t) {
+export function etOffsetMinutes(t) {
   const hour = Math.floor(t / 3600)
   const hit = etOffsetCache.get(hour)
   if (hit !== undefined) return hit

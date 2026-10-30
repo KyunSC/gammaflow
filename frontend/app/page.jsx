@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Dashboard from '../components/Dashboard'
+import { DATA_SOURCE } from '../lib/dataSource.mjs'
 
 const EQUITIES_TICKERS = ['ES=F', 'NQ=F', 'SPY', 'QQQ', '^VIX', 'XEQT.TO']
 const CRYPTO_TICKERS = ['BTC-USD', 'ETH-USD', 'SOL-USD']
@@ -12,7 +13,9 @@ const REFRESH_INTERVAL = 15000
 // Retry delays on 5xx (covers Render free-tier cold boots ~30-60s)
 const RETRY_DELAYS = [5000, 10000, 20000]
 
-const MARKET_CACHE_PREFIX = 'marketDataCache:'
+// Keyed by data source so a synthetic build never shows (or merges onto) prices
+// cached by a real-data build in the same browser, and vice versa.
+const MARKET_CACHE_PREFIX = `marketDataCache:${DATA_SOURCE}:`
 // Prices older than this are too stale to flash on screen; better to show the
 // skeleton and wait for fresh data.
 const MARKET_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
