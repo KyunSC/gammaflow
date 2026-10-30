@@ -2,8 +2,12 @@
 
 `/api/gamma` only exposes the *current* GEX snapshot, so GEX and ML strategies
 cannot be backtested off the live API. This script turns the bar-aligned
-historical GEX that already lives in `functions/ml/data/*.parquet` into a static
-JSON asset under `frontend/public/backtest/` — a data asset, not an endpoint.
+historical GEX that already lives in `functions/ml/data/*.parquet` into static
+JSON under `functions/ml/data/backtest_export/` (gitignored), which
+publish_backtest_data.py turns into the backend's research datasets. It never
+writes under `frontend/public/`: that folder ships with the public site, which
+may only carry synthetic data (`npm run sample:synthetic` writes the bundled
+example there).
 
 Three joins happen here:
   1. the feature parquet (GEX + baseline features per 5m bar),
@@ -36,6 +40,7 @@ import argparse
 import json
 import logging
 import math
+import os
 import sys
 import urllib.parse
 import urllib.request
@@ -58,7 +63,8 @@ from holdout import VERIFY_START, split_holdout  # noqa: E402
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
-DEFAULT_OUT_DIR = FRONTEND_DIR / "public" / "backtest"
+DEFAULT_OUT_DIR = DATA_DIR / "backtest_export"
+PUBLIC_DIR = FRONTEND_DIR / "public"
 VERIFY_OUT_DIR = DATA_DIR / "lab_verify"
 DEFAULT_API = "https://azure-market-data.onrender.com"
 
@@ -76,12 +82,18 @@ FEATURE_SIG = 6
 
 
 def fetch_bars(api_base: str, symbol: str, period: str, interval: str) -> pd.DataFrame:
-    """Pull OHLCV from the Spring Boot historical endpoint (no credentials needed)."""
+    """Pull OHLCV from the Spring Boot historical endpoint.
+
+    Sends GAMMAFLOW_API_KEY as X-Api-Key when set (required once the deployed
+    backend has API_ACCESS_KEY configured)."""
     qs = urllib.parse.urlencode({"symbol": symbol, "period": period, "interval": interval})
     url = f"{api_base.rstrip('/')}/api/historical?{qs}"
     logging.info("GET %s", url)
     # Render free tier cold-boots in 30-60s; give it room.
-    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    headers = {"Accept": "application/json"}
+    if os.environ.get("GAMMAFLOW_API_KEY"):
+        headers["X-Api-Key"] = os.environ["GAMMAFLOW_API_KEY"]
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=180) as resp:
         payload = json.loads(resp.read())
 
@@ -337,7 +349,9 @@ def main() -> None:
             ap.error(f"--verify-only must not write under {FRONTEND_DIR}: lab runs, the app and git can all see it")
         if args.publish_out:
             ap.error("--verify-only data is never published")
-    args.out = args.out or DEFAULT_OUT_DIR
+    args.out = (args.out or DEFAULT_OUT_DIR).resolve()
+    if args.out.is_relative_to(PUBLIC_DIR.resolve()):
+        ap.error(f"real data must not be written under {PUBLIC_DIR}: everything there is served by the public site")
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     args.out.mkdir(parents=True, exist_ok=True)

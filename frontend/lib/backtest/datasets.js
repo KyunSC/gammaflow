@@ -12,6 +12,7 @@
  */
 
 import { INTERVAL_SECONDS } from './time'
+import { DATA_SOURCE } from '../dataSource.mjs'
 
 const NA = Number.NaN
 export const ENGINE_VERSION = '2'
@@ -40,7 +41,7 @@ export function validateDataset(j) {
 }
 
 async function fetchJson(url, signal) {
-  const key = `backtestCache:${url}`
+  const key = `backtestCache:${DATA_SOURCE}:${url}`
   try {
     const res = await fetch(url, { signal, cache: 'no-cache' })
     if (!res.ok) {
@@ -125,7 +126,9 @@ export async function loadLiveDataset({ symbol, period, interval, signal }) {
   validateDataset({ ...ds, bars: ds.n })
   ds.start = ds.time[0] * 1000
   ds.end = ds.time[ds.n - 1] * 1000
-  ds.note = 'Live plane — DB-backed OHLCV. No historical GEX.'
+  ds.note = json.synthetic
+    ? 'Live plane — synthetic OHLCV (public build, not market data). No historical GEX.'
+    : 'Live plane — DB-backed OHLCV. No historical GEX.'
   return ds
 }
 
@@ -185,7 +188,8 @@ export async function loadResearchDataset({ symbol, id, signal, example = false 
     horizonMinutes: j.horizonMinutes,
     start: Date.parse(j.start),
     end: Date.parse(j.end),
-    note: `${example ? 'Bundled example' : 'Backend dataset'} — ${j.bars} bars. Generated ${j.generatedAt}.`,
+    synthetic: Boolean(j.synthetic),
+    note: `${example ? 'Bundled example' : 'Backend dataset'}${j.synthetic ? ' (synthetic, not market data)' : ''} — ${j.bars} bars. Generated ${j.generatedAt}.`,
   }
 }
 

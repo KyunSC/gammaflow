@@ -59,11 +59,11 @@ test('the fetch shim never reaches the network for unrouted URLs', async () => {
 test('the shim, once installed globally, forwards /api calls to the real fetch', async () => {
   const original = globalThis.fetch
   const seen = []
-  globalThis.fetch = async (url) => { seen.push(url); return { ok: true } }
-  globalThis.fetch = makeFetch({ apiBase: 'https://api.test/' })
+  globalThis.fetch = async (url, opts) => { seen.push([url, opts.headers?.['X-Api-Key']]); return { ok: true } }
+  globalThis.fetch = makeFetch({ apiBase: 'https://api.test/', apiKey: 'k' })
   try {
     await globalThis.fetch('/api/historical?symbol=QQQ')
-    assert.deepEqual(seen, ['https://api.test/api/historical?symbol=QQQ'])
+    assert.deepEqual(seen, [['https://api.test/api/historical?symbol=QQQ', 'k']])
   } finally {
     globalThis.fetch = original
   }

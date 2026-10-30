@@ -61,7 +61,7 @@ const LIVE_BUDGET_MS = 25 * 60_000
  * `/backtest/*` to the bundled files under `public/`. Everything else is
  * refused so a stray call can't silently hit the network.
  */
-export function makeFetch({ apiBase, timeoutMs = 90_000 } = {}) {
+export function makeFetch({ apiBase, apiKey = process.env.GAMMAFLOW_API_KEY, timeoutMs = 90_000 } = {}) {
   // Captured now: once this shim is installed as globalThis.fetch, a bare
   // `fetch` inside it would call itself.
   const netFetch = globalThis.fetch
@@ -77,7 +77,9 @@ export function makeFetch({ apiBase, timeoutMs = 90_000 } = {}) {
     if (url.startsWith('/api/')) {
       if (!apiBase) throw new Error('No API_BASE configured')
       const signal = opts.signal ? AbortSignal.any([opts.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs)
-      return netFetch(apiBase.replace(/\/+$/, '') + url, { signal })
+      // The deployed backend gates /api/* behind API_ACCESS_KEY (ApiKeyFilter.java).
+      const headers = apiKey ? { 'X-Api-Key': apiKey } : undefined
+      return netFetch(apiBase.replace(/\/+$/, '') + url, { signal, headers })
     }
     throw new Error(`Unrouted fetch: ${url}`)
   }
@@ -348,6 +350,9 @@ async function main() {
 
   try {
     const index = await loadResearchIndex(undefined, true)
+    // The bundled example is generated noise (scripts/generate-synthetic-sample.mjs);
+    // scoring it would only add trials to the family-wise correction.
+    if (index.synthetic) throw new Error('bundled example is synthetic, not market data; not tested')
     for (const { symbol } of index.datasets) {
       try {
         const ds = await loadResearchDataset({ symbol, example: true })

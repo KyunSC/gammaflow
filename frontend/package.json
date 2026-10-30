@@ -6,8 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test lib/*.test.mjs lib/backtest/*.test.mjs",
-    "backtest:nightly": "node scripts/nightly-backtest.mjs"
+    "test": "node --test lib/*.test.mjs lib/backtest/*.test.mjs lib/synthetic/*.test.mjs",
+    "backtest:nightly": "node scripts/nightly-backtest.mjs",
+    "sample:synthetic": "node scripts/generate-synthetic-sample.mjs"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.3.3",

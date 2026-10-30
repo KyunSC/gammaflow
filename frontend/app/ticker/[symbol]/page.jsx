@@ -12,8 +12,11 @@ import TrendLogicTable from '../../../components/TrendLogicTable'
 import DrawingsInspector from '../../../components/DrawingsInspector'
 import { DEFAULT_CHART_COLORS, CHART_COLORS_STORAGE_KEY, DEFAULT_TIMEZONE, TIMEZONE_STORAGE_KEY } from '../../../components/chartDefaults'
 import { INDICATORS_STORAGE_KEY, INDICATOR_OVERRIDES_STORAGE_KEY } from '../../../components/indicators'
+import { DATA_SOURCE } from '../../../lib/dataSource.mjs'
 
-const HISTORICAL_CACHE_PREFIX = 'historicalDataCache:'
+// Keyed by data source: incremental polls append to the cached bars, so a
+// synthetic build must never pick up bars cached by a real-data build.
+const HISTORICAL_CACHE_PREFIX = `historicalDataCache:${DATA_SOURCE}:`
 // Older than this and we treat the cache as too stale to seed — saves a flash
 // of week-old bars if someone returns after a long gap.
 const HISTORICAL_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000

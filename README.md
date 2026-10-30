@@ -93,6 +93,19 @@ curl -X POST "http://localhost:7071/api/MarketDataFunction" \
 }
 ```
 
+## Public site vs. local data
+
+Yahoo Finance prices, the GEX computed from Yahoo option chains, and Databento /
+ThetaData files can't be redistributed, so the deployed frontend never serves them.
+Every build answers `/api/*` from a seeded synthetic generator
+(`frontend/lib/synthetic`: prices, GEX levels, backtest datasets) and labels every
+page "Simulated data" unless it runs locally with `GAMMAFLOW_DATA=real`, which
+`./dev.sh` sets. A hosted build (Vercel, Render, ...) that sets it fails on purpose.
+The bundled backtest example in `frontend/public/backtest/` is synthetic too
+(`npm run sample:synthetic`). Setting `API_ACCESS_KEY` on the deployed Spring backend
+makes its `/api/*` routes require an `X-Api-Key` header (the nightly workflow sends
+`GAMMAFLOW_API_KEY`).
+
 ## Local Development
 
 1. Install dependencies:
