@@ -10,6 +10,15 @@ cd "$(dirname "$0")"
 
 trap 'trap - INT TERM EXIT; kill 0' INT TERM EXIT
 
+# Read SUPABASE_PASSWORD from the repo-root .env with shell semantics (quotes,
+# escapes) and hand it to Spring as a real env var. spring-dotenv's parser can
+# read quoted/escaped values differently from the shell. Only this one key is
+# exported, so other .env entries (e.g. API_URL) don't change dev.sh behaviour.
+if [ -z "${SUPABASE_PASSWORD:-}" ] && [ -f .env ]; then
+  SUPABASE_PASSWORD="$(set +u; set -a; . ./.env >/dev/null 2>&1; printf '%s' "${SUPABASE_PASSWORD:-}")"
+  [ -n "$SUPABASE_PASSWORD" ] && export SUPABASE_PASSWORD
+fi
+
 (cd API_Server && TICK_PROFILE_ENABLED=true ./mvnw spring-boot:run) &
 (cd frontend && API_URL="${API_URL:-http://localhost:8080}" NEXT_PUBLIC_TICK_SOURCE=real npm run dev) &
 wait
