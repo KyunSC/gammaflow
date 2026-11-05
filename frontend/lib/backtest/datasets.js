@@ -13,6 +13,7 @@
 
 import { INTERVAL_SECONDS } from './time'
 import { DATA_SOURCE } from '../dataSource.mjs'
+import { sweepLegacyCaches } from '../legacyCacheSweep.mjs'
 
 const NA = Number.NaN
 export const ENGINE_VERSION = '2'
@@ -52,6 +53,7 @@ async function fetchJson(url, signal) {
     }
     const data = await res.json()
     if (url.startsWith('/api/backtest/')) {
+      sweepLegacyCaches()
       try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), data })) } catch { /* Storage is optional. */ }
     }
     return data

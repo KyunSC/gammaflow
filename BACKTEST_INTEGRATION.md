@@ -55,14 +55,43 @@ the forward-label horizon.
    filesystem. The Docker image does not embed generated datasets.
 4. The published datasets are for local and private use (the nightly workflow and
    `./dev.sh`); the public frontend never reads them. Set `API_ACCESS_KEY` on the
-   deployed backend so its `/api/*` routes need an `X-Api-Key` header. Schedule the export/publish command in your ingestion/job platform
-   after its source data refresh. This change does not create or modify cloud jobs.
+   deployed backend so everything except `/` and `/health` needs an `X-Api-Key` header, and the same
+   value as the `GAMMAFLOW_API_KEY` repository secret for the nightly workflow.
+   Schedule the export/publish command in your ingestion/job platform after its
+   source data refresh. This change does not create or modify cloud jobs.
 
 The publisher validates every dataset before changing the catalog. Local writes use
 atomic replacement; dataset IDs contain a SHA-256 digest of canonical content.
 Old artifacts remain available when a new catalog is published. Preserve them in
 object storage too, since links pin exact IDs. A failed publication leaves the old
 catalog intact. Gaps include overnight/weekend closures and are reported, not filled.
+
+## Nightly workflow
+
+`.github/workflows/nightly-backtest.yml` runs `frontend/scripts/nightly-backtest.mjs`
+against `API_BASE`, sending `GAMMAFLOW_API_KEY` as `X-Api-Key`. Live rows come from
+`/api/historical`, which has no GEX or model columns, so GEX and ML strategies run
+only on the datasets listed by `GET /api/backtest/datasets`. The bundled example is
+never scored and is not a fallback. The report sorts each research dataset into one
+of three outcomes:
+
+- **Tested**: its rows appear in the verdict table and join the Bonferroni family, so
+  the family grows and holdout CIs widen when research rows are present (32 rows live
+  only, 46 with QQQ and SPY if the published datasets carry GEX and ML columns).
+- **Skipped** (`### Skipped (deliberately not tested)`): no `API_BASE`, a 401 with no
+  `GAMMAFLOW_API_KEY` set, or a catalog that is empty or marked synthetic, or a
+  dataset marked synthetic. No rows, not in the family, and not a failure.
+- **Failed** (`### Failed`): anything else that stops a dataset being tested. That
+  includes the 503 the backend returns until datasets are published, a 401 despite a
+  key, and a dataset the client rejects.
+
+The run exits non-zero only when no dataset could be tested at all. A failed or
+skipped research dataset leaves the live rows in place.
+
+This repository is public, so its run summaries and artifacts are too. The report
+carries aggregates only (Sharpe, returns, trade counts, parameters, coverage dates,
+bar counts). It never includes bars, GEX levels, features or predictions, and
+`nightly.test.mjs` checks this.
 
 ## Contract and behavior
 

@@ -103,7 +103,7 @@ page "Simulated data" unless it runs locally with `GAMMAFLOW_DATA=real`, which
 `./dev.sh` sets. A hosted build (Vercel, Render, ...) that sets it fails on purpose.
 The bundled backtest example in `frontend/public/backtest/` is synthetic too
 (`npm run sample:synthetic`). Setting `API_ACCESS_KEY` on the deployed Spring backend
-makes its `/api/*` routes require an `X-Api-Key` header (the nightly workflow sends
+makes everything except `/` and `/health` require an `X-Api-Key` header (the nightly workflow sends
 `GAMMAFLOW_API_KEY`).
 
 ## Local Development

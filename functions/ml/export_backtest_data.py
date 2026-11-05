@@ -60,11 +60,11 @@ from eval import (  # noqa: E402
     compute_metrics,
 )
 from holdout import VERIFY_START, split_holdout  # noqa: E402
+from publish_backtest_data import PUBLIC_DIR, is_public_path, publish  # noqa: E402
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
 DEFAULT_OUT_DIR = DATA_DIR / "backtest_export"
-PUBLIC_DIR = FRONTEND_DIR / "public"
 VERIFY_OUT_DIR = DATA_DIR / "lab_verify"
 DEFAULT_API = "https://azure-market-data.onrender.com"
 
@@ -333,7 +333,8 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=None,
                     help=f"output dir (default {DEFAULT_OUT_DIR}; {VERIFY_OUT_DIR} with --verify-only)")
     ap.add_argument("--skip-ml", action="store_true", help="skip the walk-forward RF fit")
-    ap.add_argument("--publish-out", type=Path, help="Validate and publish immutable backend artifacts after export")
+    ap.add_argument("--publish-out", type=Path,
+                    help="Validate and publish immutable backend artifacts after export (never under frontend/public)")
     ap.add_argument("--research-only", action="store_true",
                     help="drop the sealed verify block + gap and blank the target (strategy lab)")
     ap.add_argument("--verify-only", action="store_true",
@@ -350,8 +351,9 @@ def main() -> None:
         if args.publish_out:
             ap.error("--verify-only data is never published")
     args.out = (args.out or DEFAULT_OUT_DIR).resolve()
-    if args.out.is_relative_to(PUBLIC_DIR.resolve()):
-        ap.error(f"real data must not be written under {PUBLIC_DIR}: everything there is served by the public site")
+    for flag, path in (("--out", args.out), ("--publish-out", args.publish_out)):
+        if path and is_public_path(path):
+            ap.error(f"{flag}: real data must not be written under {PUBLIC_DIR}: everything there is served by the public site")
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     args.out.mkdir(parents=True, exist_ok=True)
@@ -385,7 +387,6 @@ def main() -> None:
     (args.out / "index.json").write_text(json.dumps(index, indent=2))
     logging.info("wrote %s", args.out / "index.json")
     if args.publish_out:
-        from publish_backtest_data import publish
         publish(args.out, args.publish_out)
 
 

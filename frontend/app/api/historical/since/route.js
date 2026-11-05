@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic'
 export function GET(request) {
   const params = new URL(request.url).searchParams
   const symbol = cleanSymbol(params.get('symbol'))
-  const since = Number(params.get('since'))
-  if (!symbol || !Number.isFinite(since)) return error(400, 'symbol and since are required')
+  const since = /^-?\d{1,16}$/.test(params.get('since') || '') ? Number(params.get('since')) : NaN
+  if (!symbol || Number.isNaN(since)) return error(400, 'symbol and since are required')
   const interval = params.get('interval') || '1d'
   const now = nowSeconds()
   // Generation is cheap, so lastFetched is only echoed for the client's bookkeeping.

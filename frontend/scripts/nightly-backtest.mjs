@@ -2,10 +2,11 @@
  * Nightly headless backtests.
  *
  * Runs every strategy the registry offers against fresh live bars and the
- * bundled research datasets, using the same engine the /backtest terminal
- * uses. The question it answers is not "which config scored best" — that is a
- * maximum over noise — but "does the config picked in-sample still make money,
- * after costs, on a locked holdout it never saw".
+ * research datasets published on the backend (the only source of GEX and model
+ * features), using the same engine the /backtest terminal uses. The question it
+ * answers is not "which config scored best" — that is a maximum over noise — but
+ * "does the config picked in-sample still make money, after costs, on a locked
+ * holdout it never saw".
  *
  * Protocol per (dataset, strategy):
  *   1. Lock the last HOLDOUT_PCT of bars (split snapped to a session boundary).
@@ -16,7 +17,10 @@
  *   5. Walk-forward on the research window, and a slippage ladder on the holdout.
  *   6. Verdicts judge all rows in the report together (Bonferroni holdout CIs).
  *
- * Usage: API_BASE=https://… node scripts/nightly-backtest.mjs
+ * The report lands in a public repo's run summary and artifacts, so it carries
+ * aggregates only: no bars, GEX levels, features or predictions.
+ *
+ * Usage: API_BASE=https://… GAMMAFLOW_API_KEY=… node scripts/nightly-backtest.mjs
  */
 
 import { readFile, writeFile, mkdir, appendFile } from 'node:fs/promises'
@@ -52,9 +56,9 @@ const MIN_HOLDOUT_TRADES = 10
 const DSR_THRESHOLD = 0.95
 const FAMILY_ALPHA = 0.05
 const STALE_DAYS = 7
-// Live fetches stop being attempted after this, so the report is always
+// Backend fetches stop being attempted after this, so the report is always
 // written well inside the workflow's timeout even if Render hangs.
-const LIVE_BUDGET_MS = 25 * 60_000
+const BACKEND_BUDGET_MS = 25 * 60_000
 
 /**
  * Routes the relative URLs `datasets.js` uses: `/api/*` to the backend,
@@ -102,7 +106,7 @@ async function withRetry(fn, { tries = 3, waitMs = 20_000, deadline = Infinity }
   let last
   for (let k = 0; k < tries; k++) {
     if (Date.now() >= deadline) {
-      throw new Error(`${last ? `${last.message}; ` : ''}live-data time budget exhausted`)
+      throw new Error(`${last ? `${last.message}; ` : ''}backend time budget exhausted`)
     }
     try {
       return await fn()
@@ -282,6 +286,61 @@ function describe(ds, spec) {
   }
 }
 
+/**
+ * Report entries for the backend's published research datasets. `skipped` means
+ * a deliberate decision not to test and `error` means a test that should have
+ * happened and didn't. There is no fallback to the bundled example: it is
+ * generated noise (scripts/generate-synthetic-sample.mjs), and scoring it would
+ * only add trials to the family-wise correction.
+ */
+export async function researchEntries({ apiBase, apiKey, deadline = Infinity, waitMs = 20_000 } = {}) {
+  const retry = { deadline, waitMs }
+  const skip = (label, reason) => {
+    console.error(`– ${label}: skipped, ${reason}`)
+    return { label, plane: 'research', skipped: reason }
+  }
+  const fail = (label, e) => {
+    console.error(`✗ ${label}: ${e.message}`)
+    return { label, plane: 'research', error: e.message || String(e) }
+  }
+
+  if (!apiBase) return [skip('research datasets', 'no API_BASE configured')]
+  let index
+  try {
+    index = await withRetry(() => loadResearchIndex(), retry)
+  } catch (e) {
+    if (e.status === 401 && !apiKey) return [skip('research datasets', 'backend requires a key and GAMMAFLOW_API_KEY is not set')]
+    return [fail('research index', e)]
+  }
+  if (index.synthetic) return [skip('research datasets', 'backend catalog is synthetic, not market data')]
+  if (!index.datasets.length) return [skip('research datasets', 'backend catalog lists no datasets')]
+
+  const entries = []
+  for (const { symbol, id, synthetic } of index.datasets) {
+    const label = `${symbol} · research`
+    if (synthetic) {
+      entries.push(skip(label, 'catalog entry is synthetic, not market data'))
+      continue
+    }
+    try {
+      const ds = await withRetry(() => loadResearchDataset({ symbol, id }), retry)
+      if (ds.synthetic) {
+        entries.push(skip(label, 'dataset is synthetic, not market data'))
+        continue
+      }
+      const entry = describe(ds)
+      console.error(`… ${entry.label} (${entry.bars} bars)`)
+      entries.push({ ...entry, rows: evaluateDataset(ds) })
+    } catch (e) {
+      entries.push(fail(label, e))
+    }
+  }
+  return entries
+}
+
+/** A losing strategy is a result. Only "nothing could be tested" is a failure. */
+export const nothingTested = (datasets) => !datasets.some((d) => d.rows)
+
 // --- report -----------------------------------------------------------------
 
 const pct = (v) => (Number.isFinite(v) ? `${(v * 100).toFixed(2)}%` : '—')
@@ -308,15 +367,18 @@ export function toMarkdown(report) {
     lines.push(`| ${r.verdict} | ${ds} | ${r.strategy} | ${params} | ${num(r.research.sharpe)} | ${num(r.research.dsr)} | ${num(h.sharpe)} [${num(h.familyCi[0])}, ${num(h.familyCi[1])}] | ${pct(h.totalReturn)} | ${pct(h.buyHoldReturn)} | ${h.nTrades} | ${r.walkForward.error ? '—' : `${num(r.walkForward.avgOosSharpe)} (${r.walkForward.positiveFolds}/${r.walkForward.folds}+)`} | ${num(r.breakEvenBps, 1)} bps |`)
   }
 
-  const problems = report.datasets.flatMap((d) => [
+  const failed = report.datasets.flatMap((d) => [
     ...(d.error ? [`- ${d.label}: dataset failed — ${d.error}`] : []),
     ...(d.rows || []).filter((r) => r.error).map((r) => `- ${d.label} / ${r.strategy}: ${r.error}`),
   ])
-  if (problems.length) lines.push('', '### Skipped', ...problems)
+  if (failed.length) lines.push('', '### Failed', ...failed)
+
+  const skipped = report.datasets.filter((d) => d.skipped).map((d) => `- ${d.label}: ${d.skipped}`)
+  if (skipped.length) lines.push('', '### Skipped (deliberately not tested)', ...skipped)
 
   const stale = report.datasets.filter((d) => d.stale)
   if (stale.length) {
-    lines.push('', `⚠️ Research datasets end ${[...new Set(stale.map((d) => d.end.slice(0, 10)))].join(', ')} — GEX/ML rows are not re-tested on new data until \`build_dataset.py\` + \`export_backtest_data.py\` are re-run.`)
+    lines.push('', `⚠️ Research datasets end ${[...new Set(stale.map((d) => d.end.slice(0, 10)))].join(', ')} — GEX/ML rows are not re-tested on new data until \`build_dataset.py\` + \`export_backtest_data.py\` are re-run and published.`)
   }
   return lines.join('\n') + '\n'
 }
@@ -324,7 +386,9 @@ export function toMarkdown(report) {
 // --- main -------------------------------------------------------------------
 
 async function main() {
-  globalThis.fetch = makeFetch({ apiBase: process.env.API_BASE ?? 'https://azure-market-data.onrender.com' })
+  const apiBase = process.env.API_BASE ?? 'https://azure-market-data.onrender.com'
+  const apiKey = process.env.GAMMAFLOW_API_KEY
+  globalThis.fetch = makeFetch({ apiBase, apiKey })
   const report = {
     generatedAt: new Date().toISOString(),
     engineVersion: ENGINE_VERSION,
@@ -334,7 +398,7 @@ async function main() {
     datasets: [],
   }
 
-  const deadline = Date.now() + LIVE_BUDGET_MS
+  const deadline = Date.now() + BACKEND_BUDGET_MS
   for (const spec of LIVE_DATASETS) {
     const label = `${spec.symbol} ${spec.interval} · live ${spec.period}`
     try {
@@ -348,24 +412,7 @@ async function main() {
     }
   }
 
-  try {
-    const index = await loadResearchIndex(undefined, true)
-    // The bundled example is generated noise (scripts/generate-synthetic-sample.mjs);
-    // scoring it would only add trials to the family-wise correction.
-    if (index.synthetic) throw new Error('bundled example is synthetic, not market data; not tested')
-    for (const { symbol } of index.datasets) {
-      try {
-        const ds = await loadResearchDataset({ symbol, example: true })
-        const entry = describe(ds)
-        console.error(`… ${entry.label} (${entry.bars} bars)`)
-        report.datasets.push({ ...entry, rows: evaluateDataset(ds) })
-      } catch (e) {
-        report.datasets.push({ label: `${symbol} · research`, plane: 'research', error: e.message || String(e) })
-      }
-    }
-  } catch (e) {
-    report.datasets.push({ label: 'research index', plane: 'research', error: e.message || String(e) })
-  }
+  report.datasets.push(...await researchEntries({ apiBase, apiKey, deadline }))
 
   report.familySize = assignVerdicts(report.datasets.flatMap((d) => d.rows || []))
 
@@ -377,8 +424,7 @@ async function main() {
   if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, md)
   process.stdout.write(md)
 
-  // A losing strategy is a result. Only "nothing could be tested" is a failure.
-  if (report.datasets.every((d) => d.error)) process.exitCode = 1
+  if (nothingTested(report.datasets)) process.exitCode = 1
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs the Spring Boot API (port 8080) and the Next.js frontend (port 3000) together.
 # The frontend proxies /api/* to API_URL, which defaults to the local backend here
-# (next.config.mjs otherwise falls back to the Render deployment). Ctrl-C stops both.
+# and in next.config.mjs (its rewrites can't send the X-Api-Key the Render deployment
+# requires, so there is no Render fallback). Ctrl-C stops both.
 # Market data (Yahoo, Databento, ThetaData) can't be redistributed, so only local
 # runs use it: GAMMAFLOW_DATA=real makes the frontend proxy /api/* to the backend
 # instead of serving synthetic data (frontend/lib/dataSource.mjs; a hosted build

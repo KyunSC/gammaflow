@@ -23,6 +23,9 @@ import { etOffsetMinutes } from '../backtest/time'
 
 export const GENERATOR_VERSION = 1
 const DAY = 86400
+// Calendar walks stop after this many days: past Date's range nothing is a
+// trading day, so an open-ended `while (!isTradingDay)` would never return.
+const WEEK = 7
 
 export const dayNumber = (y, m, d) => Date.UTC(y, m - 1, d) / 86400000
 export const dayString = (n) => new Date(n * 86400000).toISOString().slice(0, 10)
@@ -112,30 +115,43 @@ const SYMBOL_DEFS = {
 /** Index ETF -> the futures contract that shares its family (for GEX strike conversion). */
 export const FUTURES_FOR = { SPY: 'ES=F', QQQ: 'NQ=F', IWM: 'RTY=F', DIA: 'YM=F' }
 
+// Symbols come straight from request URLs, so every per-symbol cache is bounded.
+// Each entry is a pure function of its key: an evicted one rebuilds identically.
+const LRU_LIMIT = 256
+function lru(map, key, make) {
+  let v = map.get(key)
+  if (v) {
+    map.delete(key)
+    map.set(key, v)
+    return v
+  }
+  v = make()
+  map.set(key, v)
+  if (map.size > LRU_LIMIT) map.delete(map.keys().next().value)
+  return v
+}
+
 const families = new Map()
 const symbols = new Map()
 
 function family(key, def) {
-  let f = families.get(key)
-  if (f) return f
-  const r = rng(hash(`family:${key}`))
-  f = { key, ...def, phases: [r() * 6.283, r() * 6.283, r() * 6.283] }
-  families.set(key, f)
-  return f
+  return lru(families, key, () => {
+    const r = rng(hash(`family:${key}`))
+    return { key, ...def, phases: [r() * 6.283, r() * 6.283, r() * 6.283] }
+  })
 }
 
 /** Session, scale and tick for any symbol. Unknown ones get a stable made-up profile. */
 export function symbolSpec(raw) {
   const sym = String(raw || '').trim().toUpperCase()
-  let s = symbols.get(sym)
-  if (s) return s
-  const known = SYMBOL_DEFS[sym]
-  if (known) {
-    const [famKey, scale, tick, volume] = known
-    const fam = family(famKey, FAMILY_DEFS[famKey])
-    const session = fam.session === 'globex' && !sym.endsWith('=F') ? 'rth' : fam.session
-    s = { symbol: sym, fam, scale, tick, volume, session }
-  } else {
+  return lru(symbols, sym, () => {
+    const known = SYMBOL_DEFS[sym]
+    if (known) {
+      const [famKey, scale, tick, volume] = known
+      const fam = family(famKey, FAMILY_DEFS[famKey])
+      const session = fam.session === 'globex' && !sym.endsWith('=F') ? 'rth' : fam.session
+      return { symbol: sym, fam, scale, tick, volume, session }
+    }
     const r = rng(hash(`symbol:${sym}`))
     const session = /=F$/.test(sym) ? 'globex' : /-USD$/.test(sym) ? 'utc24' : 'rth'
     const fam = family(`x:${sym}`, {
@@ -144,10 +160,8 @@ export function symbolSpec(raw) {
       drift: 0.05,
       session,
     })
-    s = { symbol: sym, fam, scale: 1, tick: session === 'globex' ? 0.25 : 0.01, volume: 2e6 + r() * 2e7, session }
-  }
-  symbols.set(sym, s)
-  return s
+    return { symbol: sym, fam, scale: 1, tick: session === 'globex' ? 0.25 : 0.01, volume: 2e6 + r() * 2e7, session }
+  })
 }
 
 export const isTradingDay = (spec, day) => spec.session === 'utc24' || (weekdayOf(day) >= 1 && weekdayOf(day) <= 5)
@@ -171,32 +185,39 @@ function dayShock(fam, day) {
 }
 
 // Log close per calendar day (weekends repeat Friday for weekday families).
+function buildChain(fam, day) {
+  const start = FIRST_DAY - 7
+  const end = Math.max(day + 30, etDay(Date.now() / 1000) + 30)
+  const log = new Float64Array(end - start + 1)
+  const ret = (d) => {
+    if (fam.session !== 'utc24' && (weekdayOf(d) === 0 || weekdayOf(d) === 6)) return 0
+    const s = dailySigma(fam, d)
+    return (fam.drift - 0.5 * fam.vol * fam.vol) / daysPerYear(fam) + s * dayShock(fam, d)
+  }
+  const a = ANCHOR_DAY - start
+  log[a] = Math.log(fam.base)
+  for (let i = a + 1; i < log.length; i++) log[i] = log[i - 1] + ret(start + i)
+  for (let i = a - 1; i >= 0; i--) log[i] = log[i + 1] - ret(start + i + 1)
+  return { start, log }
+}
+
 const chains = new Map()
 function chain(fam, day) {
-  let c = chains.get(fam.key)
-  if (!c || day >= c.start + c.log.length) {
-    const start = FIRST_DAY - 7
-    const end = Math.max(day + 30, etDay(Date.now() / 1000) + 30)
-    const log = new Float64Array(end - start + 1)
-    const ret = (d) => {
-      if (fam.session !== 'utc24' && (weekdayOf(d) === 0 || weekdayOf(d) === 6)) return 0
-      const s = dailySigma(fam, d)
-      return (fam.drift - 0.5 * fam.vol * fam.vol) / daysPerYear(fam) + s * dayShock(fam, d)
-    }
-    const a = ANCHOR_DAY - start
-    log[a] = Math.log(fam.base)
-    for (let i = a + 1; i < log.length; i++) log[i] = log[i - 1] + ret(start + i)
-    for (let i = a - 1; i >= 0; i--) log[i] = log[i + 1] - ret(start + i + 1)
-    c = { start, log }
+  let c = lru(chains, fam.key, () => buildChain(fam, day))
+  if (day >= c.start + c.log.length) {
+    c = buildChain(fam, day)
     chains.set(fam.key, c)
   }
   return c.log[Math.max(0, day - c.start)]
 }
 
+/** Entry counts of the per-symbol caches. */
+export const cacheSizes = () => ({ symbols: symbols.size, families: families.size, chains: chains.size })
+
 /** Family log close at the end of `day`'s session. */
 export function familyLogClose(fam, day) {
   if (fam.tracks) {
-    const parent = families.get(fam.tracks) || family(fam.tracks, FAMILY_DEFS[fam.tracks])
+    const parent = family(fam.tracks, FAMILY_DEFS[fam.tracks])
     const level = 100 * parent.vol * 0.85 * Math.exp(regime(parent, day))
     return Math.log(level) + 0.08 * dayShock(fam, day) - 0.15 * dayShock(parent, day)
   }
@@ -232,20 +253,6 @@ function volumeWeight(session, etMin) {
   }
   if (etMin >= 510 && etMin < 515) return 0.6
   return 0.06
-}
-
-const LRU_LIMIT = 256
-function lru(map, key, make) {
-  let v = map.get(key)
-  if (v) {
-    map.delete(key)
-    map.set(key, v)
-    return v
-  }
-  v = make()
-  map.set(key, v)
-  if (map.size > LRU_LIMIT) map.delete(map.keys().next().value)
-  return v
 }
 
 const pathCache = new Map()
@@ -379,15 +386,16 @@ function merge(bars, t) {
 
 /** Last trading day whose session has started by `now`. */
 export function lastSessionDay(spec, now) {
-  for (let d = etDay(now) + 1; ; d--) {
+  const start = etDay(now) + 1
+  for (let d = start; d > start - WEEK; d--) {
     if (isTradingDay(spec, d) && sessionWindow(spec.session, d)[0] <= now) return d
   }
+  return start
 }
 
 export function previousTradingDay(spec, day) {
-  let d = day - 1
-  while (!isTradingDay(spec, d)) d--
-  return d
+  for (let d = day - 1; d >= day - WEEK; d--) if (isTradingDay(spec, d)) return d
+  return day - 1
 }
 
 const dayCache = new Map()
@@ -432,7 +440,7 @@ export function dayBar(spec, day, now) {
 }
 
 const INTRADAY_STEP = { '1m': 60, '2m': 120, '5m': 300, '15m': 900, '30m': 1800, '60m': 3600, '90m': 5400, '1h': 3600, '4h': 14400 }
-export const isIntraday = (interval) => interval in INTRADAY_STEP
+export const isIntraday = (interval) => Object.hasOwn(INTRADAY_STEP, interval)
 
 /** Bars of one trading day aggregated to `interval`, buckets anchored on the session open. */
 export function intradayBars(spec, day, interval, now) {
@@ -474,6 +482,9 @@ export function periodStart(spec, period, last) {
   if (period === 'ytd') return dayNumber(date.getUTCFullYear(), 1, 1)
   if (!m) return periodStart(spec, '1mo', last)
   const n = Number(m[1])
+  // Every unit spans at least a calendar day, so this catches any count that
+  // reaches past the history, Infinity included, and bounds the walk below.
+  if (n > last - FIRST_DAY) return FIRST_DAY
   if (m[2] === 'd') {
     let d = last
     for (let k = 1; k < n; k++) d = previousTradingDay(spec, d)
@@ -494,12 +505,8 @@ const fmt = (b, intraday) => ({
   volume: b.v,
 })
 
-/** Rows for GET /api/historical, same shape as the backend's OhlcData. */
-export function historicalRows(symbol, period, interval, now = Date.now() / 1000) {
-  const spec = symbolSpec(symbol)
-  const last = lastSessionDay(spec, now)
-  let first = periodStart(spec, period, last)
-  if (MAX_LOOKBACK_DAYS[interval]) first = Math.max(first, last - MAX_LOOKBACK_DAYS[interval])
+/** Rows of `interval` for the trading days `first` to `last`. */
+function rowsBetween(spec, first, last, interval, now) {
   const days = tradingDays(spec, first, last)
   if (isIntraday(interval)) return days.flatMap((d) => intradayBars(spec, d, interval, now).map((b) => fmt(b, true)))
   const daily = days.map((d) => dayBar(spec, d, now)).filter(Boolean)
@@ -523,15 +530,33 @@ export function historicalRows(symbol, period, interval, now = Date.now() / 1000
   return daily.map((b) => fmt(b, false))
 }
 
-/** Rows for GET /api/historical/since: intraday bars whose bucket starts at or after `since`. */
-export function rowsSince(symbol, interval, since, now = Date.now() / 1000) {
+/** Rows for GET /api/historical, same shape as the backend's OhlcData. */
+export function historicalRows(symbol, period, interval, now = Date.now() / 1000) {
   const spec = symbolSpec(symbol)
   const last = lastSessionDay(spec, now)
-  const from = Math.max(etDay(since) - 1, last - 7)
+  let first = periodStart(spec, period, last)
+  if (isIntraday(interval)) first = Math.max(first, last - MAX_LOOKBACK_DAYS[interval])
+  return rowsBetween(spec, first, last, interval, now)
+}
+
+/**
+ * Rows for GET /api/historical/since: bars whose bucket starts at or after
+ * `since`, oldest first, like the backend. The chart keeps its bars older than
+ * the first row and appends the rest, so the rows have to start at `since`, not
+ * at the newest bars. One response covers at most the interval's full-fetch
+ * lookback from there: a client further behind gets the oldest stretch, and its
+ * next poll, sent from the new last bar, carries on until it has caught up.
+ */
+export function rowsSince(symbol, interval, since, now = Date.now() / 1000) {
+  if (!(since <= now)) return []
+  const spec = symbolSpec(symbol)
+  const last = lastSessionDay(spec, now)
+  // Clamped before etDay, which goes through Intl and throws outside Date's range.
+  const from = etDay(Math.max(since, FIRST_DAY * DAY)) - 1
   if (!isIntraday(interval)) {
-    return historicalRows(symbol, '5d', interval, now).filter((r) => Date.parse(`${r.time}T00:00:00Z`) / 1000 >= since - DAY)
+    return rowsBetween(spec, from, last, interval, now).filter((r) => Date.parse(`${r.time}T00:00:00Z`) / 1000 >= since - DAY)
   }
-  return tradingDays(spec, from, last)
+  return tradingDays(spec, from, Math.min(last, from + MAX_LOOKBACK_DAYS[interval]))
     .flatMap((d) => intradayBars(spec, d, interval, now))
     .filter((b) => b.t >= since)
     .map((b) => fmt(b, true))

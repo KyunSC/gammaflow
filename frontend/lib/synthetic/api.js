@@ -4,13 +4,32 @@
  * X-Data-Source header and each payload's `synthetic: true` say what they are.
  */
 import { createHash } from 'node:crypto'
-import { GENERATOR_VERSION, dayString, dayNumber, etToUtc, lastSessionDay, previousTradingDay, sessionWindow, symbolSpec, tradingDays, dayBar } from './market'
+import { GENERATOR_VERSION, dayString, dayNumber, etDay, etToUtc, lastSessionDay, previousTradingDay, sessionWindow, symbolSpec, tradingDays, dayBar } from './market'
 import { datasetQuality, researchDataset } from './research'
 
-const HEADERS = { 'X-Data-Source': 'synthetic' }
+const HEADERS = { 'X-Data-Source': 'synthetic', 'Content-Type': 'application/json' }
+
+// Vercel refuses a buffered function response over 4.5 MB; streamed ones aren't
+// subject to that limit (vercel.com/kb/guide/how-to-bypass-vercel-body-size-limit-serverless-functions).
+// Rows can't get much smaller without renaming the fields clients read, and 24/7
+// crypto at 5m runs past it, so the body stays the same and only the delivery changes.
+const BUFFERED_LIMIT = 4_000_000
+const STREAM_CHUNK = 64 * 1024
+
+function chunked(bytes) {
+  let at = 0
+  return new ReadableStream({
+    pull(controller) {
+      controller.enqueue(bytes.subarray(at, at + STREAM_CHUNK))
+      at += STREAM_CHUNK
+      if (at >= bytes.length) controller.close()
+    },
+  })
+}
 
 export function json(body, { status = 200, cache = 'no-store' } = {}) {
-  return Response.json(body, { status, headers: { ...HEADERS, 'Cache-Control': cache } })
+  const bytes = new TextEncoder().encode(JSON.stringify(body))
+  return new Response(bytes.length > BUFFERED_LIMIT ? chunked(bytes) : bytes, { status, headers: { ...HEADERS, 'Cache-Control': cache } })
 }
 
 export const error = (status, message) => json({ message, synthetic: true }, { status })
@@ -50,10 +69,10 @@ export function parseDatasetId(id, now = nowSeconds()) {
   const from = fromCompact(m[2])
   const to = fromCompact(m[3])
   if (!RESEARCH_SYMBOLS.includes(symbol) || !(from <= to) || datasetId(symbol, from, to).id !== id) return null
-  const spec = symbolSpec(symbol)
-  const days = tradingDays(spec, from, to)
   const [start, minutes] = sessionWindow('rth', to)
-  if (!days.length || days.length > MAX_SESSIONS || start + minutes * 60 > now) return null
+  if (start + minutes * 60 > now) return null
+  const days = tradingDays(symbolSpec(symbol), from, to)
+  if (!days.length || days.length > MAX_SESSIONS) return null
   return { symbol, from, to, version: m[4] }
 }
 
@@ -119,19 +138,41 @@ export function researchArtifact(id, now = nowSeconds()) {
 export const BENCHMARK_SYMBOLS = ['SPY', 'QQQ', 'XEQT.TO']
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
-/** Body of GET /api/backtest/benchmark, or an Error carrying the backend's 400 message. */
+/** Day number of a real calendar date, else null (Date.parse rolls 02-30 over to March). */
+function isoDay(s) {
+  if (!ISO_DATE.test(s || '')) return null
+  const day = Date.parse(`${s}T00:00:00Z`) / 86400000
+  return Number.isNaN(day) || dayString(day) !== s ? null : day
+}
+
+/** LocalDate.minusYears(10): Feb 29 lands on Feb 28 of a non-leap year. */
+function tenYearsBefore(day) {
+  const date = new Date(day * 86400000)
+  const dayOfMonth = date.getUTCDate()
+  date.setUTCFullYear(date.getUTCFullYear() - 10)
+  if (date.getUTCDate() !== dayOfMonth) date.setUTCDate(0)
+  return date.getTime() / 86400000
+}
+
+/**
+ * Body of GET /api/backtest/benchmark, or an Error with the backend's message;
+ * `.status` is set when it isn't a 400. Limits follow BenchmarkService: "today"
+ * is the New York calendar date whether or not the market traded, an end date
+ * of today is valid, and closes stop the day before.
+ */
 export function benchmark(symbol, start, end, now = nowSeconds()) {
   if (!BENCHMARK_SYMBOLS.includes(symbol)) return new Error('Unsupported benchmark')
-  if (!ISO_DATE.test(start || '') || !ISO_DATE.test(end || '')) return new Error('Use ISO dates for benchmark coverage')
-  const from = Date.parse(`${start}T00:00:00Z`) / 86400000
-  const to = Date.parse(`${end}T00:00:00Z`) / 86400000
+  const from = isoDay(start)
+  const to = isoDay(end)
+  if (from === null || to === null) return new Error('Use ISO dates for benchmark coverage')
+  const today = etDay(now)
+  if (to < from || from < tenYearsBefore(to) || to > today) return new Error('Benchmark range must be historical and at most ten years')
   const spec = symbolSpec(symbol)
-  const today = lastSessionDay(spec, now)
-  if (!(to >= from) || from < to - 3653 || to > today + 1) return new Error('Benchmark range must be historical and at most ten years')
   const data = tradingDays(spec, from, Math.min(to, today - 1))
     .map((d) => dayBar(spec, d, now))
     .filter(Boolean)
     .map((b) => ({ date: dayString(b.t), adjustedClose: b.c }))
-  if (data.length < 2) return new Error('At least two completed daily closes required')
+  // The backend's parse failure falls into its provider catch, which answers 503.
+  if (data.length < 2) return Object.assign(new Error('Benchmark history unavailable. Please retry.'), { status: 503 })
   return { symbol, currency: symbol === 'XEQT.TO' ? 'CAD' : 'USD', priceBasis: 'adjusted-close', synthetic: true, data }
 }

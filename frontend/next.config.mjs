@@ -2,7 +2,9 @@ import { resolveDataSource } from './lib/dataSource.mjs'
 
 // 'synthetic' unless GAMMAFLOW_DATA=real on a local machine (see lib/dataSource.mjs).
 const dataSource = resolveDataSource()
-const apiUrl = process.env.API_URL || 'https://azure-market-data.onrender.com'
+// Only the real-mode rewrites below use this. Real mode is local-only, and rewrites
+// can't attach the X-Api-Key a deployed backend requires, so the default is local.
+const apiUrl = process.env.API_URL || 'http://localhost:8080'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {

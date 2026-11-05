@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Dashboard from '../components/Dashboard'
 import { DATA_SOURCE } from '../lib/dataSource.mjs'
+import { sweepLegacyCaches } from '../lib/legacyCacheSweep.mjs'
 
 const EQUITIES_TICKERS = ['ES=F', 'NQ=F', 'SPY', 'QQQ', '^VIX', 'XEQT.TO']
 const CRYPTO_TICKERS = ['BTC-USD', 'ETH-USD', 'SOL-USD']
@@ -32,6 +33,7 @@ const readMarketCache = (key) => {
 }
 
 const writeMarketCache = (key, payload) => {
+  sweepLegacyCaches()
   try {
     localStorage.setItem(MARKET_CACHE_PREFIX + key, JSON.stringify({
       payload,

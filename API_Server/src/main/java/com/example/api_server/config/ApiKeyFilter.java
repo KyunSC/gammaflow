@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -17,10 +18,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * serves synthetic data and never calls this server. With API_ACCESS_KEY set
  * (the deployed backend), a request needs a matching X-Api-Key header, which the
  * nightly workflow and export_backtest_data.py send from GAMMAFLOW_API_KEY.
- * Unset (local runs), every request passes. /health and / stay open for warm-up pings.
+ * Unset (local runs), every request passes. /health and / stay open for warm-up pings;
+ * with a key set, everything else is denied by default, not only paths under /api.
  */
 @Component
 public class ApiKeyFilter extends OncePerRequestFilter {
+    private static final Set<String> PUBLIC_PATHS = Set.of("/", "/health");
+
     private final byte[] key;
 
     public ApiKeyFilter(@Value("${app.api.access-key:}") String key) {
@@ -30,8 +34,15 @@ public class ApiKeyFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         return key.length == 0
-                || !request.getRequestURI().startsWith("/api/")
+                || PUBLIC_PATHS.contains(normalizedPath(request))
                 || "OPTIONS".equals(request.getMethod());
+    }
+
+    // Decoded, with path parameters and dot segments removed by the container. getRequestURI()
+    // is raw, so /api;x=1/... and /%61pi/... don't look like the /api routes they reach.
+    private static String normalizedPath(HttpServletRequest request) {
+        String pathInfo = request.getPathInfo();
+        return pathInfo == null ? request.getServletPath() : request.getServletPath() + pathInfo;
     }
 
     @Override
