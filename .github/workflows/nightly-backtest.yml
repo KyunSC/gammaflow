@@ -3,6 +3,8 @@ name: Nightly backtest
 # Re-tests every strategy on fresh bars after the close and reports whether the
 # in-sample winner still makes money on a locked holdout, net of costs. Results
 # land in the run summary and as a downloadable artifact — nothing is committed.
+# Both are public on this repo, so the report must stay aggregates only: no bars,
+# GEX levels, features or predictions (real data can't be redistributed).
 on:
   schedule:
     # 21:30 UTC Mon-Fri: after the ~16:10 ET post-close ingestion in both EDT
@@ -16,7 +18,7 @@ permissions:
 jobs:
   backtest:
     runs-on: ubuntu-latest
-    # The script stops starting live fetches after 25 min (LIVE_BUDGET_MS), so
+    # The script stops starting backend fetches after 25 min (BACKEND_BUDGET_MS), so
     # even a hung backend leaves ~15 min to evaluate and write the report.
     timeout-minutes: 45
     defaults:
@@ -40,6 +42,9 @@ jobs:
         run: npm run backtest:nightly
         env:
           API_BASE: https://azure-market-data.onrender.com
+          # Matches API_ACCESS_KEY on Render; empty is fine while the key is unset there.
+          # Also reads the published research datasets, the only source of GEX/ML rows.
+          GAMMAFLOW_API_KEY: ${{ secrets.GAMMAFLOW_API_KEY }}
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -1,31 +1,34 @@
 {
-  "generatedAt": "2026-07-26T22:46:26+00:00",
+  "generatedAt": "2026-07-11T00:00:00+00:00",
+  "synthetic": true,
   "datasets": [
     {
       "symbol": "QQQ",
       "file": "qqq_5m.json",
-      "bars": 3226,
-      "start": "2026-04-24T14:05:00+00:00",
-      "end": "2026-07-10T19:40:00+00:00",
+      "bars": 4290,
+      "start": "2026-04-27T13:30:00+00:00",
+      "end": "2026-07-10T19:55:00+00:00",
       "interval": "5m",
       "horizonMinutes": 15,
-      "sizeKb": 960,
+      "sizeKb": 1172,
       "hasMl": true,
-      "oosSharpe": 0.7619,
-      "oosIc": -0.0157
+      "oosSharpe": -1.957605,
+      "oosIc": -0.038836,
+      "synthetic": true
     },
     {
       "symbol": "SPY",
       "file": "spy_5m.json",
-      "bars": 3115,
-      "start": "2026-04-24T13:35:00+00:00",
-      "end": "2026-07-10T19:40:00+00:00",
+      "bars": 4290,
+      "start": "2026-04-27T13:30:00+00:00",
+      "end": "2026-07-10T19:55:00+00:00",
       "interval": "5m",
       "horizonMinutes": 15,
-      "sizeKb": 933,
+      "sizeKb": 1178,
       "hasMl": true,
-      "oosSharpe": 0.0472,
-      "oosIc": 0.0223
+      "oosSharpe": -1.74577,
+      "oosIc": 0.003259,
+      "synthetic": true
     }
   ]
 }

@@ -11,12 +11,25 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 
+def write_unflagged_sample(folder):
+    # publish() refuses the bundled sample, so these tests use a copy without its synthetic flags.
+    folder.mkdir()
+    for path in (ROOT / 'frontend/public/backtest').glob('*.json'):
+        payload = json.loads(path.read_text())
+        payload.pop('synthetic', None)
+        for entry in payload.get('datasets', []):
+            entry.pop('synthetic', None)
+        (folder / path.name).write_text(json.dumps(payload))
+    return folder
+
+
 class PublishTests(unittest.TestCase):
     def test_version_retention_and_atomic_catalog(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory)
-            first = module.publish(ROOT / 'frontend/public/backtest', out)
-            second = module.publish(ROOT / 'frontend/public/backtest', out)
+            sample = write_unflagged_sample(out / 'sample')
+            first = module.publish(sample, out)
+            second = module.publish(sample, out)
             self.assertEqual(first['datasets'], second['datasets'])
             self.assertEqual(2, len(first['datasets']))
             for entry in first['datasets']:

@@ -86,7 +86,8 @@ test('outages use a labeled cache; missing versions never use cache', async () =
     globalThis.fetch = async () => ({ ok: false, status: 404 })
     await assert.rejects(loadResearchDataset({ symbol: 'SPY', id }), /version unavailable/)
     const key = `/api/backtest/datasets/${id}`
-    memory.set(`backtestCache:${key}`, JSON.stringify({ at: Date.now() - 86400001, data: artifact }))
+    // Cache keys are namespaced by data source; tests run as a synthetic build.
+    memory.set(`backtestCache:synthetic:${key}`, JSON.stringify({ at: Date.now() - 86400001, data: artifact }))
     globalThis.fetch = async () => { throw new Error('offline') }
     await assert.rejects(loadResearchDataset({ symbol: 'SPY', id }), /offline/)
   } finally {

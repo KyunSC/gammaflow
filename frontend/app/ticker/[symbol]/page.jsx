@@ -12,8 +12,12 @@ import TrendLogicTable from '../../../components/TrendLogicTable'
 import DrawingsInspector from '../../../components/DrawingsInspector'
 import { DEFAULT_CHART_COLORS, CHART_COLORS_STORAGE_KEY, DEFAULT_TIMEZONE, TIMEZONE_STORAGE_KEY } from '../../../components/chartDefaults'
 import { INDICATORS_STORAGE_KEY, INDICATOR_OVERRIDES_STORAGE_KEY } from '../../../components/indicators'
+import { DATA_SOURCE } from '../../../lib/dataSource.mjs'
+import { sweepLegacyCaches } from '../../../lib/legacyCacheSweep.mjs'
 
-const HISTORICAL_CACHE_PREFIX = 'historicalDataCache:'
+// Keyed by data source: incremental polls append to the cached bars, so a
+// synthetic build must never pick up bars cached by a real-data build.
+const HISTORICAL_CACHE_PREFIX = `historicalDataCache:${DATA_SOURCE}:`
 // Older than this and we treat the cache as too stale to seed — saves a flash
 // of week-old bars if someone returns after a long gap.
 const HISTORICAL_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
@@ -30,6 +34,7 @@ const readHistoricalCache = (key) => {
 }
 
 const writeHistoricalCache = (key, data, lastFetched) => {
+  sweepLegacyCaches()
   try {
     localStorage.setItem(HISTORICAL_CACHE_PREFIX + key, JSON.stringify({
       data,
@@ -351,6 +356,9 @@ export default function TickerDetail({ params }) {
 
         const firstNew = Number(newBars[0].time)
         if (!Number.isFinite(firstNew)) return
+        // Further behind than a long weekend means /since is still catching up
+        // after a long absence; merging now would jump past it and leave a hole.
+        if (firstNew - Number(lastBars[lastBars.length - 1].time) > 4 * 86400) return
         const merged = lastBars.filter(b => Number(b.time) < firstNew).concat(newBars)
         lastBars = merged
         setOhlcData(merged)

@@ -1,6 +1,8 @@
 """Validate and atomically publish exports to a versioned dataset directory.
 
-Usage: python functions/ml/publish_backtest_data.py --source frontend/public/backtest --out API_Server/backtest-data
+Usage: python functions/ml/publish_backtest_data.py --source functions/ml/data/backtest_export --out API_Server/backtest-data
+Refuses a source flagged `synthetic` (frontend/public/backtest is the generated
+example, not research data) and any destination under frontend/public.
 Upload all versioned JSON files to durable HTTPS storage before uploading index.json.
 Retain old versions so shared links remain replayable. Uses only the standard library.
 """
@@ -12,6 +14,20 @@ import os
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+
+PUBLIC_DIR = Path(__file__).resolve().parents[2] / 'frontend' / 'public'
+
+
+def is_public_path(path):
+    """True when path lands under frontend/public, which ships with the public site.
+
+    resolve() settles relative paths, `..` and symlinks but keeps the spelling, so
+    samefile covers the same folder reached as frontend/PUBLIC on a case-insensitive disk.
+    """
+    resolved, public = Path(path).resolve(), PUBLIC_DIR.resolve()
+    if resolved.is_relative_to(public):
+        return True
+    return public.exists() and any(p.exists() and p.samefile(public) for p in (resolved, *resolved.parents))
 
 
 def validate(data):
@@ -73,13 +89,19 @@ def atomic_json(path, data):
 
 def publish(source, out):
     source, out = Path(source), Path(out)
+    if is_public_path(out):
+        raise ValueError(f'Refusing to publish under {PUBLIC_DIR}: everything there is served by the public site')
     manifest = json.loads((source / 'index.json').read_text())
+    if manifest.get('synthetic'):
+        raise ValueError(f'Refusing to publish synthetic data from {source}')
     prepared = []
     for entry in manifest['datasets']:
         filename = entry['file']
         if Path(filename).name != filename:
             raise ValueError('Invalid export filename')
         data = json.loads((source / filename).read_text())
+        if entry.get('synthetic') or data.get('synthetic'):
+            raise ValueError(f'Refusing to publish synthetic data from {source / filename}')
         if data['symbol'] not in ('QQQ', 'SPY') or data['interval'] != '5m':
             raise ValueError('Initial publication supports QQQ/SPY 5m only')
         data['quality'] = validate(data)
