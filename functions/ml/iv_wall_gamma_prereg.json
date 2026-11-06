@@ -1,0 +1,30 @@
+{
+  "id": "iv_wall_gamma_split",
+  "created": "2026-11-05",
+  "family": ["iv_wall_break", "dealer_gamma_regime"],
+  "origin": "After 12 forward trades at -0.175R (17% of 12-trade stretches in 2022-26 were as bad), the user asked whether to trade the NQ IV-wall break only in negative or positive dealer gamma. Written before any gamma split of these trades was computed.",
+  "status": "SPENT DATA, INFORMATION ONLY. val1 and val2 picked the strategy, so this split cannot validate a filter. The frozen rules (touch / fixed 2R / 0.4 sigma) are not changed by anything here. Any filter is judged only on forward trades (see forward).",
+  "strategy": "frozen NQ IV-wall break exactly as iv_wall_paper.py / iv_wall_grid.py: IVGrid('touch', 'fixed', 0.4), research_loop_nq evaluator, base costs, net R = usd / (risk_pts x $2).",
+  "regime": {
+    "source_historical": "QQQ ThetaData rebuild of the live GEX calculator: data/thetadata_gex/qqq_gex_snapshots_2016_2021.parquet + qqq_gex_snapshots.parquet (5m, 09:35-16:00 ET; nearest 4 expirations <= 30 DTE; OI = prior close)",
+    "source_live": "Supabase gamma_exposure / gamma_levels, symbol QQQ (the live Azure function; 09:25 pre-market snapshot onward)",
+    "value": "net_gex = sum of gex over the stored key levels (call wall, put wall, zero gamma, up to 3 more significant strikes per side), as build_dataset's readers do",
+    "timing": "the latest snapshot with computed_at <= the entry 1m bar's start time (session.t[j_entry]) on the same ET session date. No same-day snapshot -> 'unknown', excluded and counted.",
+    "label": "neg if net_gex < 0, else pos"
+  },
+  "hypothesis": "one-sided, direction fixed: breaks do better when dealers are short gamma. mean net R (neg) > mean net R (pos).",
+  "windows": "NQ val1 2019-01..2021-12 and val2 2022-01..2026-08-14 (as the grid evaluator loads them). Primary = pooled; each window reported.",
+  "statistics": {
+    "primary": "diff = mean net R(neg) - mean net R(pos), pooled",
+    "p_value": "one-sided, 20,000 permutations of the regime labels WITHIN calendar year (gamma regimes cluster by year; 2022 was mostly short gamma and carried 63% of val2 USD)",
+    "ci": "95% trade bootstrap (10,000) of each subset mean and of diff"
+  },
+  "diagnostics_not_selectable": [
+    "random-direction twins (40 seeds, side by coin, same entries/stops/targets) mean net R per regime, and edge = real - coin per regime: does short gamma help any break (bigger moves) or only the real direction",
+    "longs vs shorts per regime; per year per regime; exit mix per regime",
+    "live vs ThetaData agreement of the regime label on the overlap 2026-08-17..2026-09-25"
+  ],
+  "worth_tracking_if": "ALL of: pooled diff > 0; within-year permutation p < 0.05; diff > 0 in val1 and in val2 separately; neg-gamma edge over coin > all-trades edge over coin. Otherwise: no filter; forward tagging continues as information.",
+  "forward": "Every forward trade (iv_wall_paper.py journal, from 2026-08-17) is tagged with the LIVE regime (what a trader would have seen) in data/iv_wall/paper/gamma.csv. The frozen rules keep trading all regimes. Forward check at >= 100 forward trades: neg mean net R > pos mean net R and neg mean net R > 0. That is weak evidence by design (~50 trades per side); switching rules stays the user's call and needs a new prereg.",
+  "not_changed": "walls, sigma, stop, target, flat time, sizing, the forward journal files sessions.csv / trades.csv"
+}

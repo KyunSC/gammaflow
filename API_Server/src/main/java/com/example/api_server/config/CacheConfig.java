@@ -65,7 +65,10 @@ public class CacheConfig {
                 // entirely). Sized to roll the developing bar over at minute
                 // boundaries without burning DB egress between 5-minute
                 // ingestion runs.
-                buildCache("liveHistoricalData", Duration.ofSeconds(30), 50)
+                buildCache("liveHistoricalData", Duration.ofSeconds(30), 50),
+                // Daily ^VIX/^VXN bars for the IV-wall indicator. The walls only need the prior close, so an
+                // hour is plenty and keeps Yahoo calls to a couple per hour.
+                buildCache("liveVolIndexDaily", Duration.ofHours(1), 10)
         ));
         return manager;
     }

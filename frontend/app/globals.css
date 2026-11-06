@@ -1091,3 +1091,40 @@ body {
   padding: 0.5rem 0;
   animation: pulse-opacity 1.5s ease-in-out infinite;
 }
+
+/* IV walls panel (components/IvWallsPanel.jsx), below the chart */
+.iv-walls-panel {
+  background: #252526;
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  margin: 0.75rem 0 1rem;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 0.9rem;
+  color: #e0e0e0;
+  display: grid;
+  gap: 0.6rem;
+}
+.iv-walls-panel .iv-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.iv-walls-panel h3 { margin: 0; font-size: 1rem; font-weight: 600; color: #eceff1; }
+.iv-walls-panel .iv-chip { font-size: 0.78rem; padding: 0.2rem 0.55rem; border-radius: 999px; border: 1px solid #5c8df6; color: #a9c1fb; }
+.iv-walls-panel .iv-chip.warn { border-color: #ffb74d; color: #ffcc80; }
+.iv-walls-panel .iv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; }
+.iv-walls-panel .iv-grid > div { background: #2d2d30; border-radius: 8px; padding: 0.5rem 0.65rem; display: grid; gap: 0.1rem; }
+.iv-walls-panel .iv-grid span { font-size: 0.75rem; color: #9e9e9e; }
+.iv-walls-panel .iv-grid b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.iv-walls-panel .iv-grid small { font-size: 0.75rem; color: #9e9e9e; font-variant-numeric: tabular-nums; }
+.iv-walls-panel .iv-grid .up { box-shadow: inset 3px 0 0 #26a69a; }
+.iv-walls-panel .iv-grid .down { box-shadow: inset 3px 0 0 #ef5350; }
+.iv-walls-panel .iv-status { margin: 0; color: #eceff1; }
+.iv-walls-panel .iv-note { margin: 0; font-size: 0.78rem; color: #9e9e9e; max-width: 80ch; }
+.iv-walls-panel .iv-table-wrap { overflow-x: auto; }
+.iv-walls-panel .iv-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.iv-walls-panel .iv-table th { text-align: left; font-weight: 600; font-size: 0.75rem; color: #9e9e9e; padding: 0.35rem 0.5rem; border-bottom: 1px solid #3a3a3d; }
+.iv-walls-panel .iv-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #333336; white-space: nowrap; }
+.iv-walls-panel .up { color: #26a69a; }
+.iv-walls-panel .down { color: #ef5350; }
+.iv-walls-panel .iv-grid .up, .iv-walls-panel .iv-grid .down { color: inherit; }
+.iv-walls-panel .iv-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.82rem; color: #bdbdbd; }
+.iv-walls-panel .iv-foot button { background: #2d2d30; color: #e0e0e0; border: 1px solid #3a3a3d; border-radius: 6px; padding: 0.3rem 0.7rem; cursor: pointer; }
+.iv-walls-panel .iv-foot button:hover { border-color: #5c8df6; }
+.iv-walls-panel .iv-foot button:focus-visible { outline: 2px solid #5c8df6; outline-offset: 2px; }

@@ -1,0 +1,19 @@
+{
+  "id": "iv_wall_break",
+  "created": "2026-11-05",
+  "family": ["implied_move_band", "iv_wall_break", "volatility_band_breakout"],
+  "origin": "Post-hoc reverse reading of iv_wall_fade (iv_wall_prereg.json), which FAILED ES+NQ dev 2011-18 with twin p up to 0.998, i.e. the opposite direction did better there. Because that window suggested this idea, dev 2011-18 is in-sample for it and only reported for information; the evidence is val1.",
+  "hypothesis": "When ES/NQ first trades through the day's expected-range wall (prior RTH close +/- 1 sigma, sigma = mean of the VIX/VXN-implied daily move and 20-day historical vol), the move continues, so a stop entry through the wall with a stop back inside and a 2R target beats random-direction twins at the same fills.",
+  "data": "Same evaluators, vol series and sigma as iv_wall_prereg.json. Evidence window: val1 2019-01-01..2021-12-31 (first 5 sessions warmup), ES and NQ, one look. dev 2011-18 run alongside as in-sample information only.",
+  "rules": {
+    "sigma": "identical to iv_wall_prereg.json",
+    "walls": "U = prev_close + sigma, L = prev_close - sigma; no trading on roll days; skip sessions whose first 5m bar opens outside (L, U)",
+    "entry": "decisions at each 5m close from the 09:30 bar through the 15:25 bar; while flat, rest a 1-bar stop entry at the nearer untouched wall: buy stop at U / sell stop at L. A wall traded through without a fill counts as used.",
+    "bracket": "stop = wall -/+ s*sigma back inside the band, target = 2R beyond the wall",
+    "per_session": "each wall at most once; at most 2 trades",
+    "exit": "stop, target, or engine flat at 15:55"
+  },
+  "grid": {"k": 1.0, "target_r": 2.0, "s": [0.15, 0.25, 0.40]},
+  "gate": "val1: frozen research_loop 'val' criteria per product (>=100 trades, side-matched twin p < 0.05, mean R > 0, session CI low > 0, stress R > 0, year share <= 0.40, ex-top5 > 0, >= 2/3 folds positive), and neighbour s values net positive. Bonferroni over the 3 s values: a cell counts only with twin p < 0.0167. A product passes if any cell passes. Only a val1 pass may open val2 (2022-01-01..2026-08-14) for the passing cells, with the same gate; if val1 fails on both products the idea is closed and val2 stays unopened.",
+  "reports_only": "gross R, cost R, exit mix, longs vs shorts, by year, vol-index tercile"
+}

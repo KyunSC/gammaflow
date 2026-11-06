@@ -1,0 +1,24 @@
+{
+  "id": "iv_wall_news_filter",
+  "created": "2026-11-05",
+  "family": ["iv_wall_break", "news_filter"],
+  "origin": "The user asked how the frozen NQ IV-wall break does with or without a news filter: not trading on news days, or closing before news. Written before any news split of these trades was computed.",
+  "status": "SPENT DATA, INFORMATION ONLY. val1 and val2 picked the strategy, so nothing here can validate a filter, and the frozen rules (touch / fixed 2R / 0.4 sigma) are not changed. Three variants are tried, so count them as 3 trials.",
+  "strategy": "frozen NQ IV-wall break exactly as iv_wall_paper.py / iv_wall_grid.py: IVGrid('touch', 'fixed', 0.4), research_loop_nq evaluator, base costs (stress also reported), net R = usd / (risk_pts x $2).",
+  "calendar": "research_loop_nq/eval/news.json (the evaluator's frozen snapshot): news_day = any high-impact US release that ET date incl. 08:30 (CPI, NFP, PPI, retail sales, PCE, GDP advance, ISM mfg/services, FOMC decision/presser/minutes); rth = ET minutes of high-impact releases inside 09:30-16:00 (ISM 10:00, FOMC 14:00/14:30, minutes 14:00). Pre-2022 RTH minutes cover FOMC + ISM only.",
+  "variants": {
+    "A_all": "baseline, every trade",
+    "B1_skip_news_days": "no trades on any high-impact news day (drop those sessions; walls do not depend on trades, so this is exact)",
+    "B2_skip_rth_news_days": "no trades on days with a high-impact release during RTH (10:00 / 14:00 / 14:30 days); 08:30-only days still trade",
+    "C_flat_for_news": "engine run with a wrapper: on a 5m decision whose next bar overlaps [event - 5m, event + 15m) for any RTH high-impact event, an open position exits at that next bar's open (market, base 1 tick) and no entry order is placed; the wall stays fresh and may trigger after the window (a touch during the window still marks it used, as the frozen rule does)"
+  },
+  "windows": "NQ val1 2019-01..2021-12 and val2 2022-01..2026-08-14. Primary = pooled; each window and each year reported.",
+  "statistics": {
+    "B": "mean net R on news days vs non-news days; two-sided p from 20,000 permutations of the day label within calendar year; bootstrap 95% CI of the difference. Also total R per year kept vs dropped.",
+    "C": "per-session paired difference (C minus A, sum of net R per session); bootstrap 95% CI over sessions of the total difference; how many trades were cut short, blocked, or newly taken.",
+    "edge": "random-direction twins (40 seeds) mean net R for each variant: does the filter change the edge over a coin or only the trade count"
+  },
+  "worth_tracking_if": "B or C: pooled improvement in mean net R AND total R per year not lower than A, improvement in val1 and val2 separately, p < 0.05 (B) or CI of total difference above 0 (C). Otherwise no filter. Even then it stays information until forward data; switching rules is the user's call and needs a new prereg.",
+  "forward": "forward journal trades (paper/trades.csv) are labelled news day / RTH news day where the calendar covers the date (news.json through 2026-10-16).",
+  "not_changed": "walls, sigma, stop, target, flat time, sizing, the forward journal files"
+}

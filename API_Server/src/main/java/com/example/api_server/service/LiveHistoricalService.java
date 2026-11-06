@@ -15,6 +15,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Serves recent 1m OHLC bars by calling Yahoo Finance's chart endpoint
@@ -27,6 +28,9 @@ import java.util.Map;
 public class LiveHistoricalService {
 
     private static final Logger logger = LoggerFactory.getLogger(LiveHistoricalService.class);
+
+    /** Volatility indices the IV-wall chart indicator reads (VIX for ES, VXN for NQ). */
+    public static final Set<String> VOL_INDICES = Set.of("^VIX", "^VXN");
 
     private final WebClient webClient;
 
@@ -60,29 +64,59 @@ public class LiveHistoricalService {
             return emptyResponse(normalized);
         }
 
-        return buildResponse(normalized, body);
+        return buildResponse(normalized, body, "1m", 60);
     }
 
-    private HistoricalDataResponse buildResponse(String symbol, Map<String, Object> body) {
+    /**
+     * About three months of daily bars for a volatility index, fetched from Yahoo. ^VXN is not ingested into
+     * Supabase, so the IV-wall indicator reads both indices here. The last bar can be today's developing one;
+     * callers use the close dated before the session. Cached per symbol in {@code liveVolIndexDaily} (1h).
+     */
+    @Cacheable(value = "liveVolIndexDaily", key = "#symbol.toUpperCase()")
+    public HistoricalDataResponse getVolIndexDaily(String symbol) {
+        String normalized = symbol.toUpperCase();
+        if (!VOL_INDICES.contains(normalized)) {
+            throw new IllegalArgumentException("unsupported volatility index: " + symbol);
+        }
+        Map<String, Object> body;
+        try {
+            body = webClient.get()
+                    .uri(uri -> uri
+                            .path("/v8/finance/chart/{symbol}")
+                            .queryParam("interval", "1d")
+                            .queryParam("range", "3mo")
+                            .build(normalized))
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .timeout(Duration.ofSeconds(6))
+                    .block();
+        } catch (Exception ex) {
+            logger.warn("Daily fetch for {} failed: {}", normalized, ex.getMessage());
+            return wrap(normalized, List.of(), "1d");
+        }
+        return buildResponse(normalized, body, "1d", 1);
+    }
+
+    private HistoricalDataResponse buildResponse(String symbol, Map<String, Object> body, String interval, long alignSeconds) {
         List<OhlcData> bars = new ArrayList<>();
-        if (body == null) return wrap(symbol, bars);
+        if (body == null) return wrap(symbol, bars, interval);
 
         Object chart = body.get("chart");
-        if (!(chart instanceof Map<?, ?> chartMap)) return wrap(symbol, bars);
+        if (!(chart instanceof Map<?, ?> chartMap)) return wrap(symbol, bars, interval);
         Object result = chartMap.get("result");
-        if (!(result instanceof List<?> results) || results.isEmpty()) return wrap(symbol, bars);
+        if (!(result instanceof List<?> results) || results.isEmpty()) return wrap(symbol, bars, interval);
         Object first = results.get(0);
-        if (!(first instanceof Map<?, ?> firstMap)) return wrap(symbol, bars);
+        if (!(first instanceof Map<?, ?> firstMap)) return wrap(symbol, bars, interval);
 
         Object timestampsRaw = firstMap.get("timestamp");
-        if (!(timestampsRaw instanceof List<?> timestamps)) return wrap(symbol, bars);
+        if (!(timestampsRaw instanceof List<?> timestamps)) return wrap(symbol, bars, interval);
 
         Object indicatorsRaw = firstMap.get("indicators");
-        if (!(indicatorsRaw instanceof Map<?, ?> indicators)) return wrap(symbol, bars);
+        if (!(indicatorsRaw instanceof Map<?, ?> indicators)) return wrap(symbol, bars, interval);
         Object quoteRaw = indicators.get("quote");
-        if (!(quoteRaw instanceof List<?> quoteList) || quoteList.isEmpty()) return wrap(symbol, bars);
+        if (!(quoteRaw instanceof List<?> quoteList) || quoteList.isEmpty()) return wrap(symbol, bars, interval);
         Object quoteFirst = quoteList.get(0);
-        if (!(quoteFirst instanceof Map<?, ?> quote)) return wrap(symbol, bars);
+        if (!(quoteFirst instanceof Map<?, ?> quote)) return wrap(symbol, bars, interval);
 
         List<?> opens = asList(quote.get("open"));
         List<?> highs = asList(quote.get("high"));
@@ -106,7 +140,7 @@ public class LiveHistoricalService {
             Long volume = readLong(get(volumes, i));
             if (ts == null || open == null || high == null || low == null || close == null) continue;
 
-            long aligned = ts - (ts % 60);
+            long aligned = ts - (ts % alignSeconds);
             String alignedTime = String.valueOf(aligned);
             long vol = volume == null ? 0L : volume;
 
@@ -123,20 +157,20 @@ public class LiveHistoricalService {
                 bars.add(new OhlcData(alignedTime, open, high, low, close, vol));
             }
         }
-        return wrap(symbol, bars);
+        return wrap(symbol, bars, interval);
     }
 
-    private HistoricalDataResponse wrap(String symbol, List<OhlcData> bars) {
+    private HistoricalDataResponse wrap(String symbol, List<OhlcData> bars, String interval) {
         return new HistoricalDataResponse(
                 symbol,
                 "live",
-                "1m",
+                interval,
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
                 bars);
     }
 
     private HistoricalDataResponse emptyResponse(String symbol) {
-        return wrap(symbol, List.of());
+        return wrap(symbol, List.of(), "1m");
     }
 
     private static List<?> asList(Object o) {

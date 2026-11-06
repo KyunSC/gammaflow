@@ -1,0 +1,11 @@
+{
+  "id": "iv_wall_open930",
+  "created": "2026-11-06",
+  "family": ["iv_wall_break", "order_timing"],
+  "origin": "The user cannot schedule the 09:35 OCO on TradeSea / MotiveWave and asked to check placing it earlier. Written before any 09:30 variant was computed.",
+  "status": "SPENT DATA, INFORMATION ONLY. val1 and val2 picked the strategy; the frozen rules (orders live from 09:35) are not changed by anything here.",
+  "variant": "OCO stop entries at both walls live from the 09:30 open instead of 09:35 (only on days that open inside the walls, as now). A wall touched 09:30-09:35 now fills instead of dying. Fills, exits and costs exactly as the research_loop_nq engine: stop entry at max(open, wall) on the 1m bar that touches it, stop checked on the entry bar and target not, stop wins ties, targets need a tick through, flat at the open of the last 5m bar. The later trades of the same session are kept only on the other wall and only if they entered in a 5m bar after the early trade's exit bar (exactly what the frozen rule would then do).",
+  "windows": "NQ val1 2019-01..2021-12 and val2 2022-01..2026-08-14; pooled, per window, per year.",
+  "report": "the early (09:30-09:35) trades on their own: n, mean net R base and stress, edge over random-direction twins (40 seeds); the variant vs the frozen rule: mean net R, R per year, paired per-session difference with a session bootstrap 95% CI.",
+  "reading": "Early trades with mean net R at or above the frozen rule's and a paired CI that does not sit below 0 = placing at 09:30 is an acceptable fallback when the user cannot be at the screen at 09:35. Otherwise keep 09:35 and skip days you cannot place it. Either way the frozen rule stays 09:35."
+}

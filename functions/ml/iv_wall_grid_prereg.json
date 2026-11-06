@@ -1,0 +1,26 @@
+{
+  "id": "iv_wall_grid",
+  "created": "2026-11-05",
+  "family": ["implied_move_band", "iv_wall_break", "volatility_band_breakout"],
+  "origin": "Follow-up to iv_wall_break (iv_wall_break_prereg.json): NQ val1 2019-21 near miss. User asked to tune the stop, try trailing stops and wait for confirmation. 2011-2021 has been seen for the touch-entry break, so it is the tuning window; NQ 2022-01-01..2026-08-14 (val2) is the one clean test.",
+  "walls": "identical to iv_wall_prereg.json: prior RTH close +/- sigma, sigma = mean(VIX/VXN-implied daily move, 20-day HV); no roll days; skip sessions opening outside the band; decisions at 5m closes of slots 0..71 (09:30..15:25 bars); each wall at most once a session; one position at a time.",
+  "axes": {
+    "entry": {
+      "touch": "rest a 1-bar buy stop at U / sell stop at L at the nearer untouched wall (as iv_wall_break). A wall traded through without a fill is used.",
+      "close": "first 5m close beyond a wall (c > U or c < L) -> market entry at the next bar open in the break direction. A close beyond while a position is open uses the wall.",
+      "retest": "first 5m close beyond a wall arms it; while armed and flat, rest a 1-bar limit back at the wall (buy U / sell L; fills only on a tick through) at every decision until slot 71. If a decision close is back at or inside the wall with no fill, the wall is used."
+    },
+    "s": "initial stop at wall -/+ s*sigma back inside the band (all entry types), s in {0.4, 0.6}",
+    "exit": {
+      "fixed": "target = entry decision price + 2 x (decision price - stop); stop fixed",
+      "be1": "same target; once the 5m high (long) / low (short) since the entry bar reaches entry fill + 1R (R = fill - initial stop), move the stop to the entry fill at the first decision whose close is beyond the fill",
+      "trail": "no target; at each 5m close the stop moves to (highest 5m high since entry - s*sigma) for longs / (lowest low + s*sigma) for shorts when that tightens it and the close is beyond it"
+    },
+    "flat": "engine flat at 15:55 in every version"
+  },
+  "grid_size": 18,
+  "tuning_window": "NQ dev 2011-01..2018-12 and val1 2019-01..2021-12, run separately on the frozen research_loop_nq evaluator, then pooled (trades concatenated, side-matched twin test on the pooled trades). ES run on the same grid and windows for direction information only.",
+  "selection_rule": "Eligible: pooled net R > 0, net R > 0 in dev and in val1 separately, pooled stress R > 0, pooled twin p < 0.05/18 = 0.00278, >= 200 pooled trades. Neighbours = configurations that differ on exactly one axis (5 each). Score = (own pooled net R + mean neighbour pooled net R) / 2. Pick the eligible configuration with the highest score. If none is eligible, stop: val2 is not opened.",
+  "final_test": "One look: the picked configuration on NQ val2 2022-01-01..2026-08-14 (first 5 sessions warmup), frozen research_loop 'val' criteria: >= 100 trades, side-matched twin p < 0.05, net R > 0, session-bootstrap CI low > 0, stress R > 0, max year share <= 0.40, ex-top5 > 0, >= 2/3 folds positive. Nothing is changed after it. ES val2 is not opened.",
+  "reports_only": "per-config pooled/dev/val1 R, twin p, exit mix, longs vs shorts; ES grid"
+}

@@ -1,0 +1,22 @@
+{
+  "id": "iv_wall_fade",
+  "created": "2026-11-05",
+  "family": ["implied_move_band", "iv_wall_fade", "volatility_band_reversal"],
+  "hypothesis": "When ES/NQ first tests the day's expected-range wall (prior RTH close +/- 1 sigma, sigma = mean of the VIX/VXN-implied daily move and 20-day historical vol), price reverses often enough that a tight-stop fade with a 2R target beats random-direction twins taken at the same fills.",
+  "closed_ideas_check": "Differs from the closed expected_move_study (QQQ/SPY 2022-25): that one waited for a 5m close back inside the band and used a far stop (2 sigma) with a negative RR; this one fades the touch itself with a resting limit, a tight stop just beyond the wall, and a 2R target, anchors on the prior close, and blends historical vol in. ES/NQ 2011-18 were never read for the implied-move family.",
+  "data": "ES: research_loop/eval (frozen, MES costs). NQ: research_loop_nq/eval (frozen, MNQ costs). Split dev 2011-01-01..2018-12-31 only. VIX close from data/research_loop_volsig/cboe/VIX_History.csv, VXN close from data/iv_wall/cboe/VXN_History.csv (Cboe, fetched 2026-11-05); the value used for session D is the close of the last Cboe date strictly before D.",
+  "rules": {
+    "sigma_iv": "prev_close * IDX/100 / sqrt(252), IDX = VIX for ES, VXN for NQ",
+    "sigma_hv": "prev_close * stdev(last 20 same-contract session close-to-close log returns), roll returns skipped; needs 20",
+    "sigma": "(sigma_iv + sigma_hv) / 2",
+    "walls": "U = prev_close + sigma, L = prev_close - sigma; no trading on roll days (prev_close None)",
+    "skip": "the session's first 5m bar opens outside (L, U)",
+    "entry": "decisions at each 5m close from 09:30 bar through the 15:25 bar; while flat, rest a 1-bar limit at the nearer untouched wall: short at U / long at L (engine fills only after a tick through). A wall whose price is traded through without a fill (bar high >= U or low <= L while not filled) counts as used.",
+    "bracket": "stop = wall +/- s*sigma beyond the wall, target = 2R back inside",
+    "per_session": "each wall at most once; at most 2 trades",
+    "exit": "stop, target, or engine flat at 15:55"
+  },
+  "grid": {"k": 1.0, "target_r": 2.0, "s": [0.15, 0.25, 0.40]},
+  "gate": "frozen research_loop dev criteria (>=200 trades, side-matched twin p < 0.005, mean R > 0, session CI low > 0, stress R > 0, year share <= 0.40, ex-top5 > 0, >= 2/3 folds positive) plus neighbour s values positive. One look per product; nothing is tuned after the run.",
+  "reports_only": "gross R, cost R, exit mix, longs vs shorts, by year, VIX tercile"
+}

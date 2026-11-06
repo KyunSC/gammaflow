@@ -1,6 +1,7 @@
 import { atr } from '../lib/backtest/series'
 import { sessionLevels, floorPivots, zoneSeries, buildZones, isIntraday, PIVOT_KEYS, PIVOT_METHODS } from '../lib/levels'
 import { TICK_SOURCE } from '../lib/tickProfile'
+import { ivWallSeries, IV_WALL_DEFAULTS } from '../lib/ivWalls'
 
 // Order flow runs on simulated prints outside local dev (lib/tickProfile.js).
 const PRINTS_TAG = TICK_SOURCE === 'real' ? 'tick' : 'Simulated'
@@ -25,6 +26,8 @@ export const AVAILABLE_INDICATORS = [
   // Futures RTH only: drawn from trade prints, real or simulated (lib/orderFlow.js).
   { id: 'delta-bubbles', label: `Delta Bubbles (${PRINTS_TAG})`, type: 'delta-bubbles', minPct: 80, maxRadius: 18, color: '#26a69a' },
   { id: 'tick-nodes', label: `POC / HVN / LVN (${PRINTS_TAG})`, type: 'tick-nodes', rows: 80, maxHvn: 3, zones: 'on', zonePct: 70, color: '#ffca28' },
+  // NQ/ES only: prior RTH close ± blended VXN/VIX + 20-day σ, with the backtested break signals (lib/ivWalls.js).
+  { id: 'iv-walls', label: 'IV Walls (break)', type: 'iv-walls', stopSigma: IV_WALL_DEFAULTS.stopSigma, targetR: IV_WALL_DEFAULTS.targetR, color: '#5c8df6' },
 ]
 
 export const TREND_COLORS = {
@@ -60,6 +63,10 @@ export const EDITABLE_FIELDS_BY_TYPE = {
   'delta-bubbles': [
     { key: 'minPct',    label: 'Min |Δ| percentile', min: 1, max: 99 },
     { key: 'maxRadius', label: 'Max size (px)',      min: 4, max: 60 },
+  ],
+  'iv-walls':     [
+    { key: 'stopSigma', label: 'Stop (σ, tested 0.4)', min: 0.05, max: 3, step: 0.05 },
+    { key: 'targetR',   label: 'Target (R, tested 2)', min: 0.5,  max: 10, step: 0.25 },
   ],
   'tick-nodes':   [
     { key: 'rows',   label: 'Rows per session', min: 10, max: 400 },
@@ -230,6 +237,7 @@ function levelLine(data, values) {
 function toColumns(data) {
   return {
     time: data.map(d => (typeof d.utc === 'number' ? d.utc : NaN)),
+    open: data.map(d => d.open),
     high: data.map(d => d.high),
     low: data.map(d => d.low),
     close: data.map(d => d.close),
@@ -290,6 +298,35 @@ export function computeIndicator(indicator, data, context = {}) {
       return {
         type: 'levels',
         lines: SESSION_LINES.map(l => ({ ...l, data: levelLine(data, lv[l.key]) })),
+      }
+    }
+    case 'iv-walls': {
+      const inputs = context.ivWalls
+      if (!inputs) return null
+      const cols = toColumns(data)
+      if (!isIntraday(cols.time)) return null
+      const params = {
+        stopSigma: indicator.stopSigma ?? IV_WALL_DEFAULTS.stopSigma,
+        targetR: indicator.targetR ?? IV_WALL_DEFAULTS.targetR,
+      }
+      const res = ivWallSeries(cols, inputs.closes, inputs.vols, params)
+      // Signals replay 5-minute decisions; on coarser bars the touch order inside a bar is unknown.
+      const gaps = []
+      for (let i = 1; i < cols.time.length && gaps.length < 64; i++) gaps.push(cols.time[i] - cols.time[i - 1])
+      gaps.sort((a, b) => a - b)
+      const signalsOk = gaps.length > 0 && gaps[gaps.length >> 1] <= 300
+      return {
+        type: 'iv-walls',
+        lines: [
+          { key: 'upper', label: 'IV ▲', color: indicator.color, width: 2, data: levelLine(data, res.upper) },
+          { key: 'lower', label: 'IV ▼', color: indicator.color, width: 2, data: levelLine(data, res.lower) },
+          { key: 'pc', label: 'PC', color: '#9e9e9e', style: 2, data: levelLine(data, res.pc) },
+        ],
+        signals: signalsOk ? res.signals : [],
+        signalsOk,
+        sessions: res.sessions,
+        params,
+        volSymbol: inputs.volSymbol,
       }
     }
     case 'sr-pivots': {

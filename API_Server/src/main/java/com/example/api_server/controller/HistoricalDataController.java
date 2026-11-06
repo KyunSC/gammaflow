@@ -61,4 +61,17 @@ public class HistoricalDataController {
     public HistoricalDataResponse getRecent1mBars(@RequestParam String symbol) {
         return liveHistoricalService.getRecent1mBars(symbol);
     }
+
+    /**
+     * About three months of daily bars for ^VIX or ^VXN, fetched live from Yahoo (^VXN is not ingested).
+     * Feeds the chart's IV-wall indicator. Any other symbol is a 400.
+     */
+    @GetMapping("/vol-index")
+    @RateLimiter(name = "marketDataApi")
+    public org.springframework.http.ResponseEntity<HistoricalDataResponse> getVolIndexDaily(@RequestParam String symbol) {
+        if (!LiveHistoricalService.VOL_INDICES.contains(symbol.toUpperCase())) {
+            return org.springframework.http.ResponseEntity.badRequest().build();
+        }
+        return org.springframework.http.ResponseEntity.ok(liveHistoricalService.getVolIndexDaily(symbol));
+    }
 }

@@ -9,6 +9,8 @@ import IndicatorSelector from '../../../components/IndicatorSelector'
 import DrawingSelector from '../../../components/DrawingSelector'
 import ChartTypeSelector from '../../../components/ChartTypeSelector'
 import TrendLogicTable from '../../../components/TrendLogicTable'
+import IvWallsPanel from '../../../components/IvWallsPanel'
+import { IV_WALL_VOL_INDEX, rthCloses, dailyCloses } from '../../../lib/ivWalls'
 import DrawingsInspector from '../../../components/DrawingsInspector'
 import { DEFAULT_CHART_COLORS, CHART_COLORS_STORAGE_KEY, DEFAULT_TIMEZONE, TIMEZONE_STORAGE_KEY } from '../../../components/chartDefaults'
 import { INDICATORS_STORAGE_KEY, INDICATOR_OVERRIDES_STORAGE_KEY } from '../../../components/indicators'
@@ -71,6 +73,8 @@ export default function TickerDetail({ params }) {
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE)
   const [livePrice, setLivePrice] = useState(null)
   const [warmingUp, setWarmingUp] = useState(false)
+  const [ivWallInputs, setIvWallInputs] = useState(null)
+  const [ivWalls, setIvWalls] = useState(null)
 
   // Hydrate from localStorage after mount to avoid SSR/client mismatch
   useEffect(() => {
@@ -129,6 +133,42 @@ export default function TickerDetail({ params }) {
     const gexInterval = window.setInterval(fetchGex, 5 * 60 * 1000)
     return () => window.clearInterval(gexInterval)
   }, [symbol])
+
+  // IV walls (NQ/ES): ~3 months of 1h bars for the 16:00 closes and 20-day σ, plus daily VXN/VIX from Yahoo
+  // (/api/historical/vol-index, since ^VXN is not ingested). The walls only change once a day.
+  const ivVolSymbol = IV_WALL_VOL_INDEX[symbol]
+  const ivActive = activeIndicators.includes('iv-walls') && !!ivVolSymbol
+  useEffect(() => {
+    if (!ivActive) {
+      setIvWallInputs(null)
+      setIvWalls(null)
+      return
+    }
+    let cancelled = false
+    const toCols = (bars) => ({
+      time: bars.map(b => Number(b.time)),
+      close: bars.map(b => Number(b.close)),
+    })
+    const load = async () => {
+      try {
+        const [hRes, vRes] = await Promise.all([
+          fetch(`/api/historical?symbol=${encodeURIComponent(symbol)}&period=3mo&interval=1h`),
+          fetch(`/api/historical/vol-index?symbol=${encodeURIComponent(ivVolSymbol)}`),
+        ])
+        if (!hRes.ok || !vRes.ok) return
+        const [h, v] = await Promise.all([hRes.json(), vRes.json()])
+        if (cancelled) return
+        const hc = toCols(h.data || [])
+        const vc = toCols(v.data || [])
+        setIvWallInputs({ closes: rthCloses(hc.time, hc.close), vols: dailyCloses(vc.time, vc.close), volSymbol: ivVolSymbol })
+      } catch (err) {
+        console.error('IV walls fetch error:', err)
+      }
+    }
+    load()
+    const timer = window.setInterval(load, 15 * 60 * 1000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [symbol, ivActive, ivVolSymbol])
 
   // Aggregate N consecutive bars into one tick bar
   function aggregateToTickBars(data, n) {
@@ -524,11 +564,14 @@ export default function TickerDetail({ params }) {
         )}
         {!loading && !warmingUp && !error && ohlcData.length > 0 && (
           <div className="chart-with-trend">
-            <CandlestickChart data={tickBars ? aggregateToTickBars(ohlcData, tickBars) : ohlcData} symbol={symbol} upColor={upColor} downColor={downColor} bgColor={bgColor} borderUpColor={borderUpColor} borderDownColor={borderDownColor} activeIndicators={activeIndicators} indicatorOverrides={indicatorOverrides} gexLevels={gexLevels} gexUseEtfStrike={!!gexSource?.useEtfStrike} chartType={chartType} drawingTool={drawingTool} drawings={drawings} onDrawingComplete={(d) => { setDrawings(prev => [...prev, d]); setDrawingTool(null) }} onDrawingUpdate={(idx, updated) => { setDrawings(prev => updated === null ? prev.filter((_, i) => i !== idx) : prev.map((d, i) => i === idx ? updated : d)) }} timezone={timezone} livePrice={livePrice} />
+            <CandlestickChart data={tickBars ? aggregateToTickBars(ohlcData, tickBars) : ohlcData} symbol={symbol} upColor={upColor} downColor={downColor} bgColor={bgColor} borderUpColor={borderUpColor} borderDownColor={borderDownColor} activeIndicators={activeIndicators} indicatorOverrides={indicatorOverrides} gexLevels={gexLevels} gexUseEtfStrike={!!gexSource?.useEtfStrike} chartType={chartType} drawingTool={drawingTool} drawings={drawings} onDrawingComplete={(d) => { setDrawings(prev => [...prev, d]); setDrawingTool(null) }} onDrawingUpdate={(idx, updated) => { setDrawings(prev => updated === null ? prev.filter((_, i) => i !== idx) : prev.map((d, i) => i === idx ? updated : d)) }} timezone={timezone} livePrice={livePrice} ivWallInputs={ivActive ? ivWallInputs : null} onIvWalls={setIvWalls} />
             {activeIndicators.includes('trend-logic') && (
               <TrendLogicTable symbol={symbol} />
             )}
           </div>
+        )}
+        {!loading && !warmingUp && !error && ohlcData.length > 0 && ivActive && (
+          <IvWallsPanel result={ivWalls} symbol={symbol} />
         )}
         {!loading && !warmingUp && !error && ohlcData.length === 0 && (
           <p className="status">No data available for this timeframe</p>

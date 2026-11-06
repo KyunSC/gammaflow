@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createChart, CandlestickSeries, LineSeries, HistogramSeries, BarSeries, AreaSeries } from 'lightweight-charts'
+import { createChart, createSeriesMarkers, CandlestickSeries, LineSeries, HistogramSeries, BarSeries, AreaSeries } from 'lightweight-charts'
 import { DEFAULT_CHART_COLORS } from './chartDefaults'
 import { computeIndicator, TREND_COLORS, resolveIndicator } from './indicators'
 import { computeVolumeProfile, computeValueArea, profileNodes } from '../lib/volumeProfile'
@@ -265,6 +265,8 @@ export default function CandlestickChart({
   onDrawingUpdate = () => {},
   timezone = 'America/New_York',
   livePrice = null,
+  ivWallInputs = null,
+  onIvWalls = null,
 }) {
   const chartContainerRef = useRef()
   const chartRef = useRef()
@@ -338,6 +340,11 @@ export default function CandlestickChart({
   const isFirstDataRef = useRef(true)
   const gexPriceLinesRef = useRef([])
   const srPriceLinesRef = useRef([])
+  const ivPriceLinesRef = useRef([])
+  const ivMarkersRef = useRef(null) // { series, api } — markers plugin bound to the current main series
+  const onIvWallsRef = useRef(onIvWalls)
+  const ivSigRef = useRef(undefined)
+  onIvWallsRef.current = onIvWalls
   const srCanvasRef = useRef()
   const [srZones, setSrZones] = useState(null)
   const orderFlowCanvasRef = useRef()
@@ -792,14 +799,17 @@ export default function CandlestickChart({
 
     for (const pl of srPriceLinesRef.current) mainSeries.removePriceLine(pl)
     srPriceLinesRef.current = []
+    for (const pl of ivPriceLinesRef.current) mainSeries.removePriceLine(pl)
+    ivPriceLinesRef.current = []
     let zonesResult = null
+    let ivResult = null
 
     for (const indId of activeIndicators) {
       const indicator = resolveIndicator(indId, indicatorOverrides)
       if (!indicator) continue
       const context = indId === 'sr-zones'
         ? { extraLevels: chartExtraLevels(parsedData, gexLevels, gexUseEtfStrike, srTickVolume) }
-        : undefined
+        : indId === 'iv-walls' ? { ivWalls: ivWallInputs } : undefined
       const result = indId === 'trend-logic' ? trendResult : computeIndicator(indicator, parsedData, context)
       if (!result) continue
 
@@ -852,6 +862,28 @@ export default function CandlestickChart({
           series.setData(line.data)
           indicatorSeriesRef.current.push({ series, data: line.data })
         }
+      } else if (result.type === 'iv-walls') {
+        ivResult = result
+        for (const line of result.lines) {
+          const series = chart.addSeries(LineSeries, {
+            color: line.color,
+            lineWidth: line.width || 1,
+            lineStyle: line.style || 0,
+            title: line.label,
+            crosshairMarkerVisible: false,
+            priceLineVisible: false,
+            lastValueVisible: true,
+          })
+          series.setData(line.data)
+          indicatorSeriesRef.current.push({ series, data: line.data })
+        }
+        // A trade still open on the latest session gets its stop and target on the price scale.
+        const open = result.signals.filter(sg => sg.exitKind === 'open').at(-1)
+        if (open) {
+          for (const [price, color, title] of [[open.stop, downColor, 'IV stop'], [open.target, upColor, 'IV target']]) {
+            ivPriceLinesRef.current.push(mainSeries.createPriceLine({ price, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title }))
+          }
+        }
       } else if (result.type === 'zones') {
         zonesResult = result
         for (const z of result.zones) {
@@ -881,6 +913,48 @@ export default function CandlestickChart({
     }
 
     setSrZones(zonesResult)
+
+    // IV-wall entries and exits as series markers (one plugin per main series; the chart rebuilds it on
+    // chart-type changes).
+    if (ivMarkersRef.current && ivMarkersRef.current.series !== mainSeries) ivMarkersRef.current = null
+    const ivMarkers = []
+    for (const sg of ivResult?.signals || []) {
+      const entryBar = parsedData[sg.entryIndex]
+      if (entryBar) {
+        ivMarkers.push({
+          time: entryBar.time,
+          position: sg.side > 0 ? 'belowBar' : 'aboveBar',
+          shape: sg.side > 0 ? 'arrowUp' : 'arrowDown',
+          color: sg.side > 0 ? upColor : downColor,
+          text: sg.side > 0 ? 'IV long' : 'IV short',
+        })
+      }
+      const exitBar = sg.exitKind !== 'open' ? parsedData[sg.exitIndex] : null
+      if (exitBar) {
+        ivMarkers.push({
+          time: exitBar.time,
+          position: sg.side > 0 ? 'aboveBar' : 'belowBar',
+          shape: 'circle',
+          color: sg.r > 0 ? upColor : downColor,
+          text: `${sg.r >= 0 ? '+' : ''}${sg.r.toFixed(1)}R ${sg.exitKind}`,
+        })
+      }
+    }
+    ivMarkers.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0))
+    if (ivMarkers.length || ivMarkersRef.current) {
+      if (!ivMarkersRef.current) ivMarkersRef.current = { series: mainSeries, api: createSeriesMarkers(mainSeries, []) }
+      ivMarkersRef.current.api.setMarkers(ivMarkers)
+    }
+    // Report to the page only on change: in tick-bar mode the data prop is rebuilt every render, and an
+    // unconditional callback would re-render the page, rebuild the data and loop.
+    const ivSig = ivResult
+      ? JSON.stringify([[...ivResult.sessions.values()].at(-1), ivResult.params, ivResult.signalsOk,
+          ivResult.signals.map(sg => [sg.date, sg.wall, sg.exitKind, +sg.r.toFixed(4)])])
+      : null
+    if (ivSig !== ivSigRef.current) {
+      ivSigRef.current = ivSig
+      onIvWallsRef.current?.(ivResult)
+    }
 
     // Remove old GEX price lines before adding new ones
     for (const pl of gexPriceLinesRef.current) {
@@ -917,7 +991,7 @@ export default function CandlestickChart({
         chart.timeScale().fitContent()
       }
     }
-  }, [parsedData, activeIndicators, indicatorOverrides, gexLevels, gexUseEtfStrike, chartType, upColor, downColor, borderUpColor, borderDownColor, srTickVolume])
+  }, [parsedData, activeIndicators, indicatorOverrides, gexLevels, gexUseEtfStrike, chartType, upColor, downColor, borderUpColor, borderDownColor, srTickVolume, ivWallInputs])
 
   // Delta bubbles and per-session POC/HVN/LVN, from trade prints only.
   const showBubbles = activeIndicators.includes('delta-bubbles')
