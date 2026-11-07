@@ -2,23 +2,36 @@
 
 The browser runs simulations. Spring Boot serves immutable research datasets at
 `GET /api/backtest/datasets/{id}` and the current catalog at
-`GET /api/backtest/datasets`. Next.js proxies both to `API_URL`.
+`GET /api/backtest/datasets`. A local real-data build of Next.js proxies both to
+`API_URL`; the public build serves synthetic datasets instead.
 Live TA runs continue to use `/api/historical` and represent exploratory snapshots.
+
+## Real data is local-only
+
+Yahoo prices, the GEX built from Yahoo option chains, and Databento/ThetaData
+files can't be redistributed. The deployed frontend therefore never proxies to
+this backend: unless `GAMMAFLOW_DATA=real` is set on a local machine, Next.js
+answers every `/api/*` route itself from `frontend/lib/synthetic` (see
+`frontend/lib/dataSource.mjs`). The bundled example under
+`frontend/public/backtest/` is synthetic too (`npm run sample:synthetic`), and
+`export_backtest_data.py` refuses to write real exports there.
 
 ## Local startup
 
-From the repository root, publish the existing QQQ/SPY exports:
+From the repository root, export and publish the real QQQ/SPY datasets
+(`export_backtest_data.py` writes to `functions/ml/data/backtest_export/`, which is
+gitignored):
 
 ```sh
-python3 functions/ml/publish_backtest_data.py --source frontend/public/backtest --out API_Server/backtest-data
+python3 functions/ml/export_backtest_data.py --symbols QQQ SPY
+python3 functions/ml/publish_backtest_data.py --source functions/ml/data/backtest_export --out API_Server/backtest-data
 ```
 
-Then start Spring Boot from `API_Server` with `./mvnw spring-boot:run`.
-Start the frontend from `frontend` with `API_URL=http://localhost:8080 npm run dev`.
-Open `/backtest`; research uses the backend by default. The explicit **Use bundled
-examples** option loads the original static fixtures. These are historical examples,
-not current market data. Legacy model exports are labeled as unverified for training
-label overlap; newly generated predictions purge the forward-label horizon.
+Then run `./dev.sh` from the repository root (Spring Boot on 8080, Next.js on 3000
+with `GAMMAFLOW_DATA=real`). Open `/backtest`; research uses the backend by default.
+The **Bundled sample** option loads the synthetic example. Legacy model exports are
+labeled as unverified for training label overlap; newly generated predictions purge
+the forward-label horizon.
 
 ## Refresh and production publishing
 
@@ -40,15 +53,45 @@ label overlap; newly generated predictions purge the forward-label horizon.
    frontend variables. The backend's default directory is relative to its working
    directory and is for local development; it is not durable on Render's ephemeral
    filesystem. The Docker image does not embed generated datasets.
-4. Configure production `API_URL` before building Next.js. Deploy the backend before
-   the frontend. Schedule the export/publish command in your ingestion/job platform
-   after its source data refresh. This change does not create or modify cloud jobs.
+4. The published datasets are for local and private use (the nightly workflow and
+   `./dev.sh`); the public frontend never reads them. Set `API_ACCESS_KEY` on the
+   deployed backend so everything except `/` and `/health` needs an `X-Api-Key` header, and the same
+   value as the `GAMMAFLOW_API_KEY` repository secret for the nightly workflow.
+   Schedule the export/publish command in your ingestion/job platform after its
+   source data refresh. This change does not create or modify cloud jobs.
 
 The publisher validates every dataset before changing the catalog. Local writes use
 atomic replacement; dataset IDs contain a SHA-256 digest of canonical content.
 Old artifacts remain available when a new catalog is published. Preserve them in
 object storage too, since links pin exact IDs. A failed publication leaves the old
 catalog intact. Gaps include overnight/weekend closures and are reported, not filled.
+
+## Nightly workflow
+
+`.github/workflows/nightly-backtest.yml` runs `frontend/scripts/nightly-backtest.mjs`
+against `API_BASE`, sending `GAMMAFLOW_API_KEY` as `X-Api-Key`. Live rows come from
+`/api/historical`, which has no GEX or model columns, so GEX and ML strategies run
+only on the datasets listed by `GET /api/backtest/datasets`. The bundled example is
+never scored and is not a fallback. The report sorts each research dataset into one
+of three outcomes:
+
+- **Tested**: its rows appear in the verdict table and join the Bonferroni family, so
+  the family grows and holdout CIs widen when research rows are present (32 rows live
+  only, 46 with QQQ and SPY if the published datasets carry GEX and ML columns).
+- **Skipped** (`### Skipped (deliberately not tested)`): no `API_BASE`, a 401 with no
+  `GAMMAFLOW_API_KEY` set, or a catalog that is empty or marked synthetic, or a
+  dataset marked synthetic. No rows, not in the family, and not a failure.
+- **Failed** (`### Failed`): anything else that stops a dataset being tested. That
+  includes the 503 the backend returns until datasets are published, a 401 despite a
+  key, and a dataset the client rejects.
+
+The run exits non-zero only when no dataset could be tested at all. A failed or
+skipped research dataset leaves the live rows in place.
+
+This repository is public, so its run summaries and artifacts are too. The report
+carries aggregates only (Sharpe, returns, trade counts, parameters, coverage dates,
+bar counts). It never includes bars, GEX levels, features or predictions, and
+`nightly.test.mjs` checks this.
 
 ## Contract and behavior
 

@@ -25,8 +25,9 @@ function bars(start, count, step = 300) {
   return out
 }
 
-test('defaults to simulated prints unless the build asks for real ones', () => {
-  assert.equal(TICK_SOURCE, process.env.NEXT_PUBLIC_TICK_SOURCE === 'real' ? 'real' : 'synthetic')
+test('defaults to simulated prints unless a real-data build asks for real ones', () => {
+  const real = process.env.GF_DATA_SOURCE === 'real' && process.env.NEXT_PUBLIC_TICK_SOURCE === 'real'
+  assert.equal(TICK_SOURCE, real ? 'real' : 'synthetic')
 })
 
 test('the same bars give the same prints', () => {

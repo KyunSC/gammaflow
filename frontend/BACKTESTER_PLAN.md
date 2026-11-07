@@ -26,7 +26,8 @@ and all 22 baseline + GEX features per bar. Two corrections to the original assu
   re-fits the walk-forward RF over the whole current sample instead.
 
 A one-off export script ([`functions/ml/export_backtest_data.py`](../functions/ml/export_backtest_data.py))
-turns those into static JSON under `public/backtest/`. That is a data asset, not an endpoint.
+turns those into JSON under `functions/ml/data/backtest_export/`, published to the backend catalog.
+`public/backtest/` only holds a generated synthetic sample; real data must never be written there.
 
 This yields **two data planes**, surfaced as a dataset switcher in the UI:
 
