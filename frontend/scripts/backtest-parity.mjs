@@ -47,6 +47,9 @@ const results = input.cases.map((cfg) => {
   return {
     trades: clean(r.trades),
     equity: arr(r.equity),
+    returns: arr(r.returns),
+    buyHold: arr(r.buyHold),
+    ddCurve: arr(ddCurve),
     positions: Array.from(r.positions),
     barLo: arr(r.barLo),
     barHi: arr(r.barHi),

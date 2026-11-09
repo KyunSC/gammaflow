@@ -20,12 +20,14 @@ from __future__ import annotations
 
 import math
 import time as _time
-from dataclasses import asdict, dataclass, field
+import warnings
+from dataclasses import asdict, dataclass, field, fields
 from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 
+from ._js import js_round as _js_round
 from .metrics import buy_hold_curve, compute_metrics, dataset_periods_per_year
 from .news import bar_seconds, news_blackout_flags
 from .series import flat_by_flags, get_series, session_end_flags
@@ -57,7 +59,7 @@ class Instrument:
     points (QQQ -> NQ is ~41.2) and is 1 on real futures bars. Slippage is in ticks, commission per contract
     per side."""
     point_value: float
-    tick_size: float
+    tick_size: float = 0.0
     contracts: int = 1
     commission_per_side: float = 0.0
     slippage_ticks: float = 0.0
@@ -114,22 +116,62 @@ class BacktestResult:
 
     def trades_frame(self) -> pd.DataFrame:
         """Trades as a DataFrame with UTC timestamps, for analysis in a notebook."""
-        df = pd.DataFrame([asdict(t) for t in self.trades])
-        if len(df):
-            for k in ("entry_time", "exit_time"):
-                df[k] = pd.to_datetime(df[k], unit="s", utc=True)
+        df = pd.DataFrame([asdict(t) for t in self.trades], columns=[f.name for f in fields(Trade)])
+        for k in ("entry_time", "exit_time"):
+            df[k] = pd.to_datetime(df[k], unit="s", utc=True)
         return df
 
 
 def _instrument(x):
     if x is None:
         return None
-    inst = x if isinstance(x, Instrument) else Instrument(**x)
-    return inst if inst.contracts > 0 and inst.point_value > 0 else None
+    if not isinstance(x, Instrument):
+        x = Instrument(**{k: v for k, v in x.items() if v is not None})
+    return x if x.contracts > 0 and x.point_value > 0 else None
 
 
-def _js_round(x: float) -> int:
-    return math.floor(x + 0.5)
+NEWS_KEYS = {"impact", "before_min", "after_min", "max_bar_min"}
+
+
+def _check_config(strategy, params, c, r):
+    """Unknown keys raise instead of being ignored: with snake_case costs/risk next to camelCase strategy params,
+    `short_side=False` or `stopPct=1` are easy typos, and a typo that silently runs the defaults is the worst kind."""
+    unknown = (set(c) - set(DEFAULT_COSTS)) | (set(r) - set(DEFAULT_RISK))
+    if unknown:
+        raise ValueError(f"unknown cost/risk keys {sorted(unknown)}; expected {sorted(DEFAULT_COSTS)} / {sorted(DEFAULT_RISK)}")
+    schema = {q.key: q for q in strategy.params}
+    if schema:
+        bad = set(params) - set(schema)
+        if bad:
+            raise ValueError(f"unknown {strategy.id} params {sorted(bad)}; it takes {sorted(schema)}")
+        for k, v in params.items():
+            if schema[k].options and v not in schema[k].options:
+                raise ValueError(f"{strategy.id}.{k} must be one of {schema[k].options}, got {v!r}")
+    nb = r["news_blackout"]
+    if nb:
+        bad = set(nb) - NEWS_KEYS
+        if bad:
+            raise ValueError(f"unknown news_blackout keys {sorted(bad)}; expected {sorted(NEWS_KEYS)}")
+        if nb.get("impact") and nb["impact"] not in ("high", "medium", "low"):
+            raise ValueError(f"news_blackout impact must be high, medium or low, got {nb['impact']!r}")
+
+
+def _window(window, n):
+    """(start, end) inclusive from a tuple or the JS-style {'start', 'end'} dict; None bounds mean the data's ends."""
+    if window is None:
+        return 0, n - 1
+    lo, hi = (window.get("start"), window.get("end")) if isinstance(window, dict) else window
+    lo = max(0, 0 if lo is None else int(lo))
+    hi = min(n - 1, n - 1 if hi is None else int(hi))
+    if lo > hi:
+        raise ValueError(f"empty window {window!r} for {n} bars")
+    return lo, hi
+
+
+def _missing_columns(strategy, ds) -> list:
+    """Research strategies read GEX/ML columns. Without them they never trade, which looks like a result."""
+    return [k for k in getattr(strategy, "requires", ()) if not np.isfinite(get_series(ds, k)).any()]
+
 
 
 def run_backtest(ds, strategy, params: dict | None = None, costs: dict | None = None, risk: dict | None = None,
@@ -140,22 +182,23 @@ def run_backtest(ds, strategy, params: dict | None = None, costs: dict | None = 
     from .strategies import get_strategy
     if isinstance(strategy, str):
         strategy = get_strategy(strategy)
-    p = {**strategy.defaults(), **(params or {})}
     c = {**DEFAULT_COSTS, **(costs or {})}
-    r = {**DEFAULT_RISK, **(risk or {})}
-    unknown = (set(c) - set(DEFAULT_COSTS)) | (set(r) - set(DEFAULT_RISK))
-    if unknown:
-        raise ValueError(f"unknown cost/risk keys: {sorted(unknown)}")
+    r = {**DEFAULT_RISK, **{k: v for k, v in (risk or {}).items() if v is not None}}
+    _check_config(strategy, params or {}, c, r)
+    p = {**strategy.defaults(), **(params or {})}
     n = len(ds.close)
-    w_start = max(0, window[0] if window else 0)
-    w_end = min(n - 1, window[1] if window else n - 1)
+    w_start, w_end = _window(window, n)
+    missing = _missing_columns(strategy, ds)
+    if missing:
+        warnings.warn(f"{strategy.id} needs {missing}, which are all NaN in {ds.id or ds.symbol}: it cannot trade",
+                      stacklevel=2)
 
     inst = _instrument(c["instrument"])
     cap = float(c["initial_capital"])
     slip = c["slippage_bps"] / 10000
     slip_pts = (inst.slippage_ticks or 0) * (inst.tick_size or 0) if inst else 0.0
     commission = (inst.commission_per_side or 0) * inst.contracts if inst else c["commission_per_trade"]
-    scale = inst.price_scale if inst and inst.price_scale > 0 else 1.0
+    scale = inst.price_scale if inst and (inst.price_scale or 0) > 0 else 1.0
     O, H, L, C = ((a if scale == 1 else a * scale).tolist() for a in (ds.open, ds.high, ds.low, ds.close))
     times = ds.time.tolist()
 
@@ -172,7 +215,9 @@ def run_backtest(ds, strategy, params: dict | None = None, costs: dict | None = 
     news_end = news_blocked = news_no_entry = None
     uncovered = 0
     if rule and not news_skipped:
-        flags = get_series(ds, f"news:{rule['impact']}:{rule.get('before_min', 5)}:{rule.get('after_min', 15)}")
+        before = 5 if rule.get("before_min") is None else rule["before_min"]
+        after = 15 if rule.get("after_min") is None else rule["after_min"]
+        flags = get_series(ds, f"news:{rule['impact']}:{before}:{after}")
         e, b, ne, uncovered = news_blackout_flags(flags, w_start, w_end)
         news_end, news_blocked, news_no_entry = e.tolist(), b.tolist(), ne.tolist()
 

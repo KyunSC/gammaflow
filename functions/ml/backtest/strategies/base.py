@@ -7,6 +7,9 @@
 `signal` sees bar i and earlier only by convention, but it cannot act on bar i: the engine fills its answer at
 bar i+1's open. `prev` is the target it returned last time, which lets a stateful strategy (hold until the
 mid) work without keeping its own position copy.
+
+Keep per-run state in the object `prepare` returns, never on `self`: strategy instances are shared singletons
+in the registry, so state on `self` would leak from one run into the next.
 """
 from __future__ import annotations
 
@@ -28,6 +31,7 @@ class Strategy:
     label: str = ""
     family: str = "ta"
     plane: str = "live"        # 'research' strategies need GEX / ML columns
+    requires: tuple[str, ...] = ()   # series keys that must not be all NaN (a warning, not an error)
     params: tuple[Param, ...] = ()
 
     def defaults(self) -> dict:

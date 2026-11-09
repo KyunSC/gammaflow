@@ -33,14 +33,28 @@ def _value(text: str):
 
 def _hhmm(text: str) -> int:
     h, m = text.split(":")
-    return int(h) * 60 + int(m)
+    minute = int(h) * 60 + int(m)
+    if not 0 < minute < 24 * 60:
+        raise argparse.ArgumentTypeError("use a time after 00:00 and before 24:00, e.g. 16:45")
+    return minute
+
+
+def _finite(x):
+    """JSON has no NaN or Infinity: write them as null (and their sign as a string, so +inf is not lost)."""
+    if isinstance(x, float) and not math.isfinite(x):
+        return None if math.isnan(x) else ("Infinity" if x > 0 else "-Infinity")
+    if isinstance(x, dict):
+        return {k: _finite(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_finite(v) for v in x]
+    return x
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python -m backtest", description="GammaFlow backtest engine (Python)")
     ap.add_argument("--data", required=True, help="research dataset JSON (frontend/public/backtest/*.json format)")
     ap.add_argument("--config", help="JSON run config: strategy, params, costs, risk, window")
-    ap.add_argument("--strategy", choices=sorted(STRATEGIES))
+    ap.add_argument("--strategy", help=f"one of {', '.join(sorted(STRATEGIES))}")
     ap.add_argument("--param", action="append", default=[], metavar="KEY=VALUE", help="strategy parameter (repeat)")
     ap.add_argument("--slippage-bps", type=float)
     ap.add_argument("--commission", type=float, help="dollars per side")
@@ -52,11 +66,18 @@ def main(argv=None) -> int:
     ap.add_argument("--flat-by", type=_hhmm, metavar="HH:MM", help="be flat by this ET time (prop rule)")
     ap.add_argument("--long-only", action="store_true")
     ap.add_argument("--news", metavar="IMPACT[:BEFORE:AFTER]", help="flat through scheduled news, e.g. high:5:15")
+    ap.add_argument("--window", nargs=2, type=int, metavar=("START", "END"), help="trade only bars START..END")
     ap.add_argument("--trades", metavar="CSV", help="write the trade list here")
     ap.add_argument("--json", action="store_true", help="print metrics as JSON")
     a = ap.parse_args(argv)
 
-    cfg = json.loads(open(a.config).read()) if a.config else {}
+    cfg = {}
+    if a.config:
+        with open(a.config) as f:
+            cfg = json.load(f)
+        unknown = set(cfg) - {"strategy", "params", "costs", "risk", "window"}
+        if unknown:
+            ap.error(f"unknown config keys {sorted(unknown)}")
     strategy = a.strategy or cfg.get("strategy")
     if not strategy:
         ap.error("--strategy or a config with 'strategy' is required")
@@ -78,14 +99,17 @@ def main(argv=None) -> int:
     if a.news:
         impact, *win = a.news.split(":")
         risk["news_blackout"] = dict(impact=impact, **dict(zip(("before_min", "after_min"), map(float, win))))
-    window = tuple(cfg["window"]) if cfg.get("window") else None
+    window = tuple(a.window) if a.window else cfg.get("window")
 
     ds = Dataset.from_json(a.data)
-    res = run_backtest(ds, strategy, params, costs, risk, window)
+    try:
+        res = run_backtest(ds, strategy, params, costs, risk, window)
+    except (KeyError, ValueError) as e:
+        ap.error(str(e).strip('"'))
     m = res.metrics
     if a.json:
         out = {k: v for k, v in m.items() if k != "dd_curve"}
-        print(json.dumps(out, default=lambda x: None if isinstance(x, float) and not math.isfinite(x) else x, indent=2))
+        print(json.dumps(_finite(out), indent=2, allow_nan=False))
     else:
         inf = m["inference"]
         if ds.synthetic:

@@ -65,7 +65,7 @@ def moments(returns) -> dict:
     m4 /= n
     sd = math.sqrt(m2)
     return dict(n=n, mean=m, sd=math.sqrt((m2 * n) / (n - 1)),
-                skew=m3 / sd ** 3 if sd > 0 else 0.0, kurt=m4 / m2 ** 2 if sd > 0 else 3.0)
+                skew=m3 / sd ** 3 if sd > 0 else 0.0, kurt=m4 / (m2 * m2) if sd > 0 else 3.0)
 
 
 def _sharpe_se(sr, n, skew, kurt):
@@ -77,6 +77,8 @@ def _sharpe_se(sr, n, skew, kurt):
 
 
 def sharpe_inference(returns, ppy: float, z: float = 1.959963984540054) -> dict:
+    """Per-bar Sharpe `sr` with its Mertens standard error, skew/kurtosis, the annualised `sharpe` and 95% `ci`,
+    and `psr` = P(true Sharpe > 0)."""
     mo = moments(returns)
     sr = mo["mean"] / mo["sd"] if mo["sd"] > 0 else 0.0
     se = _sharpe_se(sr, mo["n"], mo["skew"], mo["kurt"])
@@ -107,7 +109,7 @@ def deflated_sharpe(inference: dict, trial_srs) -> dict:
             m += x
         m /= trials
         for x in srs:
-            var += (x - m) ** 2
+            var += (x - m) * (x - m)   # V8's x ** 2 is exactly x * x; CPython's pow is not always
         var /= trials - 1
     sr0 = expected_max_sharpe(trials, var)
     se = _sharpe_se(inference["sr"], inference["n"], inference["skew"], inference["kurt"])

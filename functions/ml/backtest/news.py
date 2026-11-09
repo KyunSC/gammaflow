@@ -14,8 +14,11 @@ import numpy as np
 
 from .clock import INTERVAL_SECONDS
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import econ_calendar as ec  # noqa: E402
+try:
+    import econ_calendar as ec
+except ModuleNotFoundError:  # imported from outside functions/ml: the calendar module sits next to the package
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    import econ_calendar as ec
 
 IMPACT_RANK = ec.IMPACT_RANK
 

@@ -6,7 +6,7 @@ import math
 
 import numpy as np
 
-from ..metrics import _js_round
+from .._js import js_round as _js_round
 from ..series import get_series
 from .base import Param, Strategy
 
@@ -14,6 +14,7 @@ from .base import Param, Strategy
 class GexRegime(Strategy):
     """Above zero gamma dealers hedge against price (mean-revert); below it they hedge with it (trend-follow)."""
     id, label, family, plane = "gexRegime", "GEX Regime Switch", "gex", "research"
+    requires = ("f:above_zero_gamma", "f:gamma_regime_strength")
     params = (Param("lookback", 6, min=1, max=60), Param("revertZ", 0.15, min=0.01, max=2),
               Param("momentumBp", 8, min=0, max=100), Param("minStrength", 0, min=0, max=1),
               Param("shortSide", True, "boolean"))
@@ -64,6 +65,8 @@ class GexRegime(Strategy):
 class GexWallFade(Strategy):
     """Short into the call wall, buy the put wall, only while price sits above zero gamma."""
     id, label, family, plane = "gexWallFade", "GEX Wall Fade", "gex", "research"
+    requires = ("f:dist_call_wall_atr", "f:dist_put_wall_atr", "f:above_zero_gamma", "f:call_wall_strength",
+                "f:put_wall_strength")
     params = (Param("band", 0.5, min=0.05, max=3), Param("exitBand", 1.5, min=0.1, max=6),
               Param("minWallStrength", 0.1, min=0, max=0.9), Param("regimeGate", True, "boolean"),
               Param("shortSide", True, "boolean"))
@@ -99,6 +102,7 @@ class MlSignal(Strategy):
     """Trade the walk-forward OOS forest prediction past +-threshold; exit after `holdBars` (or follow sign).
     `ml:pred` is NaN on every bar a fold was still training on, so this can only trade out of sample."""
     id, label, family, plane = "mlSignal", "ML Signal (RF)", "ml", "research"
+    requires = ("ml:pred",)
     params = (Param("thresholdBp", 3, min=0, max=50), Param("holdBars", 3, min=1, max=60),
               Param("mode", "hold", "select", options=("hold", "follow")), Param("shortSide", True, "boolean"))
 

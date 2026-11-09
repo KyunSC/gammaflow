@@ -154,6 +154,116 @@ class PythonOnlyTests(unittest.TestCase):
         self.assertEqual(str(df.entry_time.dt.tz), "UTC")
         self.assertTrue(math.isclose(df.pnl.sum(), r.equity[-1] - 100_000))
 
+    def test_two_days_fall_back_to_the_interval_label(self):
+        # The JS needs 3+ trading days before it trusts a median of bars per day.
+        start = int(pd.Timestamp("2026-06-07T22:00Z").timestamp())
+        for days, want in ((2, periods_per_year("5m")), (3, 252 * 276)):
+            time = [start + d * 86400 + b * 300 for d in range(days) for b in range(276)]
+            one = np.ones(len(time))
+            ds = Dataset(time=time, open=one, high=one, low=one, close=one, volume=one, interval="5m")
+            self.assertEqual(dataset_periods_per_year(ds), want, days)
+
+    def test_news_flags_are_nan_from_the_coverage_end_on(self):
+        import econ_calendar as ec
+        from backtest.news import news_window_flags
+        end = min(ec._cover_end(k) for k in ec._selected("high", None))
+        time = [end - 600, end - 300, end, end + 300]
+        one = np.ones(4)
+        flags = news_window_flags(Dataset(time=time, open=one, high=one, low=one, close=one, volume=one), "high")
+        self.assertEqual([math.isnan(x) for x in flags], [False, False, True, True])
+
+
+class ValidationTests(unittest.TestCase):
+    """Inputs that would otherwise give a quietly wrong answer."""
+
+    def setUp(self):
+        self.ds = dataset(decline())
+
+    def test_unknown_or_misspelled_params_raise(self):
+        from backtest import get_strategy
+        with self.assertRaisesRegex(ValueError, "short_side"):
+            run_backtest(self.ds, "smaCross", {"short_side": False})
+        with self.assertRaisesRegex(ValueError, "maType"):
+            run_backtest(self.ds, "smaCross", {"maType": "wma"})
+        with self.assertRaisesRegex(ValueError, "before"):
+            run_backtest(self.ds, "smaCross", risk=dict(news_blackout=dict(impact="high", before=30)))
+        with self.assertRaisesRegex(ValueError, "impact"):
+            run_backtest(self.ds, "smaCross", risk=dict(news_blackout=dict(impact="hgh")))
+        self.assertEqual(get_strategy("smaCross").id, "smaCross")
+
+    def test_bad_bars_are_refused(self):
+        rows = decline()
+        o, h, l, c = map(list, zip(*rows))
+        good = dict(open=o, high=h, low=l, close=c, volume=[1] * len(c))
+        t = [T0 + i * 300 for i in range(len(c))]
+        with self.assertRaisesRegex(ValueError, "NaN"):
+            Dataset(time=t, **dict(good, close=[math.nan] + c[1:]))
+        with self.assertRaisesRegex(ValueError, "epoch seconds"):
+            Dataset(time=[x * 1000 for x in t], **good)              # milliseconds
+        with self.assertRaisesRegex(ValueError, "epoch seconds"):
+            Dataset(time=list(range(len(c))), **good)                 # a row number
+        with self.assertRaisesRegex(ValueError, "OHLC"):
+            Dataset(time=t, **dict(good, high=[x - 5 for x in h]))
+        with self.assertRaisesRegex(ValueError, "DatetimeIndex"):
+            Dataset.from_frame(pd.DataFrame(good), "5m")
+
+    def test_from_frame_reads_timestamps_and_any_case(self):
+        idx = pd.date_range("2026-06-01 13:30", periods=12, freq="5min", tz="UTC")
+        o, h, l, c = map(list, zip(*decline()))
+        df = pd.DataFrame(dict(Open=o, High=h, Low=l, Close=c, Volume=1.0, net_gex=1.0), index=idx)
+        ds = Dataset.from_frame(df, "5m", features={"extra": np.zeros(12)})
+        self.assertEqual(ds.time[0], idx[0].timestamp())
+        self.assertEqual(sorted(ds.features), ["extra", "net_gex"])
+
+    def test_bars_are_frozen_and_copies_get_a_fresh_cache(self):
+        import dataclasses
+        from backtest.series import get_series
+        get_series(self.ds, "sma:3")
+        with self.assertRaises(ValueError):
+            self.ds.close[0] = 1.0                                    # would leave the cached SMA stale
+        other = dataclasses.replace(self.ds, close=self.ds.close * 1.01, high=self.ds.high * 1.01)
+        self.assertIsNot(other.cache, self.ds.cache)
+        self.assertEqual(other.cache, {})
+
+    def test_windows(self):
+        n = len(self.ds)
+        r = run_backtest(self.ds, Always(1), window={"start": 2, "end": None})
+        self.assertEqual((r.window_start, r.window_end), (2, n - 1))
+        with self.assertRaisesRegex(ValueError, "empty window"):
+            run_backtest(self.ds, Always(1), window=(8, 4))
+
+    def test_huge_annualised_growth_is_inf_not_a_crash(self):
+        # 12 bars rising 1% each with 500 contracts: CAGR overflows a float. JS reports Infinity.
+        rows, p = [], 100.0
+        for _ in range(12):
+            rows.append((p, p * 1.01, p, p * 1.01))
+            p *= 1.01
+        r = run_backtest(dataset(rows), Always(1), costs=dict(instrument=dict(point_value=20, contracts=500)))
+        self.assertEqual(r.metrics["cagr"], math.inf)
+
+    def test_research_strategy_without_its_columns_warns(self):
+        with self.assertWarnsRegex(UserWarning, "cannot trade"):
+            r = run_backtest(self.ds, "gexRegime")
+        self.assertEqual(r.trades, [])
+        self.assertEqual(list(r.trades_frame().columns)[:3], ["side", "entry_idx", "entry_time"])
+
+    def test_js_round(self):
+        from backtest._js import js_round
+        self.assertEqual([js_round(x) for x in (2.5, -2.5, 0.49999999999999994, 1.4999, -0.5)], [3, -2, 0, 1, 0])
+
+    def test_cli_json_is_strict_json(self):
+        import contextlib
+        import io
+        import json
+        from pathlib import Path
+        from backtest.__main__ import main
+        path = Path(__file__).resolve().parents[2] / "frontend" / "public" / "backtest" / "qqq_5m.json"
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            main(["--data", str(path), "--strategy", "smaCross", "--window", "100", "100", "--json"])
+        m = json.loads(out.getvalue(), parse_constant=lambda c: self.fail(f"non-standard JSON constant {c}"))
+        self.assertIsNone(m["inference"]["psr"])                     # NaN: one bar has no Sharpe
+
 
 if __name__ == "__main__":
     unittest.main()

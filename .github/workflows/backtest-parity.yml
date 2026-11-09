@@ -1,0 +1,46 @@
+name: Backtest engine parity
+
+# The browser engine (frontend/lib/backtest) and its Python port (functions/ml/backtest) must agree trade for
+# trade. Any change to either side, or to the shared news calendar, runs the Python unit tests and the JS-vs-Python
+# parity tests. CI=true makes the parity tests fail instead of skip if Node were ever missing.
+on:
+  pull_request:
+    paths:
+      - 'frontend/lib/backtest/**'
+      - 'frontend/lib/levels.js'
+      - 'frontend/scripts/backtest-parity.mjs'
+      - 'functions/ml/backtest/**'
+      - 'functions/ml/test_backtest_*.py'
+      - 'functions/ml/econ_calendar*'
+      - '.github/workflows/backtest-parity.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/lib/backtest/**'
+      - 'functions/ml/backtest/**'
+      - 'functions/ml/econ_calendar*'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: functions/ml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22        # the harness needs no npm install
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install numpy pandas
+      - name: Engine unit tests and JS-vs-Python parity
+        env:
+          CI: 'true'
+        run: python -m unittest -v test_backtest_engine test_backtest_parity

@@ -11,16 +11,13 @@ import math
 import numpy as np
 
 from .clock import trading_day
+from ._js import js_round as _js_round
 from .stats import sharpe_inference
 
 TRADING_DAYS = 252
 RTH_MINUTES = 390
 INTRADAY_MINUTES = {"1m": 1, "2m": 2, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "1h": 60, "4h": 240}
 
-
-def _js_round(x: float) -> int:
-    """JavaScript Math.round: halves go up (Python's round() goes to even, so round(2.5) == 2)."""
-    return math.floor(x + 0.5)
 
 
 def periods_per_year(interval: str) -> float:
@@ -67,7 +64,9 @@ def sortino(returns, ppy: float) -> float:
 def drawdown(equity) -> dict:
     """Max drawdown (positive fraction), the drawdown curve and the longest underwater stretch in bars."""
     eq = np.asarray(equity, dtype=np.float64)
-    peak = eq[0] or 1.0
+    if not len(eq):
+        return dict(max_dd=0.0, curve=eq.copy(), duration=0, trough_idx=0)
+    peak = eq[0] if eq[0] == eq[0] and eq[0] != 0 else 1.0   # JS `equity[0] || 1`: NaN and 0 both fall back
     max_dd = 0.0
     peak_idx = longest = trough = 0
     curve = np.zeros(len(eq))
@@ -85,12 +84,28 @@ def drawdown(equity) -> dict:
     return dict(max_dd=max_dd, curve=curve, duration=longest, trough_idx=trough)
 
 
+def _cagr(growth: float, years: float) -> float:
+    """growth ** (1 / years) - 1, but +inf where JS gives Infinity: a short walk-forward fold with a big move
+    annualises past the float range, and Python's float pow raises OverflowError there instead."""
+    try:
+        return growth ** (1 / years) - 1
+    except OverflowError:
+        return math.inf
+
+
 def compute_metrics(equity, returns, trades, bars_in_market: int, ppy: float, initial_capital: float) -> dict:
+    """Headline statistics of one run (equity and returns already cut to the traded window).
+
+    Keys: total_return, final_equity, cagr, sharpe, sortino, vol_ann, max_dd (positive fraction),
+    max_dd_duration (bars), calmar, hit_rate, profit_factor, expectancy ($/trade), avg_win, avg_loss, n_trades,
+    avg_bars_held, exposure (share of bars in a position), turnover (trades/year), dd_curve, periods_per_year,
+    and inference (per-bar sr, se, skew, kurt, annualised sharpe and 95% ci, psr; see stats.sharpe_inference).
+    """
     n = len(equity)
     last = float(equity[-1]) if n else initial_capital
     total_return = last / initial_capital - 1 if initial_capital > 0 else 0.0
     years = n / ppy if n > 0 else 0.0
-    cagr = (last / initial_capital) ** (1 / years) - 1 if years > 0 and last > 0 else 0.0
+    cagr = _cagr(last / initial_capital, years) if years > 0 and last > 0 and initial_capital > 0 else 0.0
     dd = drawdown(equity)
 
     wins = 0

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 
-from ..metrics import _js_round
+from .._js import js_round as _js_round
 from ..series import get_series
 from .base import Param, Strategy
 
