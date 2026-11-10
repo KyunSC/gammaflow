@@ -12,13 +12,21 @@ on:
       - 'functions/ml/backtest/**'
       - 'functions/ml/test_backtest_*.py'
       - 'functions/ml/econ_calendar*'
+      - 'frontend/public/backtest/*.json'
+      - 'frontend/package.json'
       - '.github/workflows/backtest-parity.yml'
   push:
     branches: [main]
     paths:
       - 'frontend/lib/backtest/**'
+      - 'frontend/lib/levels.js'
+      - 'frontend/scripts/backtest-parity.mjs'
       - 'functions/ml/backtest/**'
+      - 'functions/ml/test_backtest_*.py'
       - 'functions/ml/econ_calendar*'
+      - 'frontend/public/backtest/*.json'
+      - 'frontend/package.json'
+      - '.github/workflows/backtest-parity.yml'
   workflow_dispatch: {}
 
 permissions:

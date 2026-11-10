@@ -67,9 +67,13 @@ def stdev(src, period: int) -> np.ndarray:
     if period < 2 or n < period:
         return out
     mean = sma(src, period)
-    win = np.lib.stride_tricks.sliding_window_view(src, period)          # row r = src[r : r + period]
-    sq = (win - mean[period - 1:, None]) ** 2
-    out[period - 1:] = np.sqrt(np.cumsum(sq, axis=1)[:, -1] / period)    # cumsum: same order as the JS loop
+    m = n - period + 1
+    mu = mean[period - 1:]
+    acc = np.zeros(m)
+    for j in range(period):            # add the window's terms oldest first, the same order as the JS loop,
+        d = src[j:j + m] - mu          # without an n x period matrix (O(n) memory on 1m bars over years)
+        acc += d * d
+    out[period - 1:] = np.sqrt(acc / period)
     return out
 
 

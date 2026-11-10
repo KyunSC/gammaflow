@@ -2,7 +2,7 @@
 
 Runs the same configs through frontend/lib/backtest (under Node) and functions/ml/backtest, and requires the
 same trades (entry/exit bar, side, reason, prices, P&L), the same equity, returns, positions and benchmark curves
-bar for bar (exactly, not to a tolerance), and the same metrics. Three layers:
+bar for bar (exactly, not to a tolerance), and the same metrics. Two layers:
 
   Parity.test_cases   hand-picked configs on the bundled QQQ/SPY samples and on synthetic Globex weeks built
                       to hit rare paths (stop and target in one bar, price ties, zero/missing volume, NaN

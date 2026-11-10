@@ -191,6 +191,26 @@ class ValidationTests(unittest.TestCase):
             run_backtest(self.ds, "smaCross", risk=dict(news_blackout=dict(impact="hgh")))
         self.assertEqual(get_strategy("smaCross").id, "smaCross")
 
+    def test_param_types_are_checked(self):
+        with self.assertRaisesRegex(ValueError, "true or false"):
+            run_backtest(self.ds, "smaCross", {"shortSide": "no"})            # a truthy string
+        with self.assertRaisesRegex(ValueError, "finite number"):
+            run_backtest(self.ds, "smaCross", {"fast": math.inf})
+        with self.assertRaisesRegex(ValueError, "finite number"):
+            run_backtest(self.ds, "smaCross", {"fast": "10"})
+
+    def test_null_config_values_do_not_flip_meaning(self):
+        # JS ignores an instrument without contracts > 0 and reads allowShort: null as "no shorts";
+        # Python would otherwise default to 1 lot / shorts on, so both are refused.
+        with self.assertRaisesRegex(ValueError, "contracts"):
+            run_backtest(self.ds, Always(1), costs=dict(instrument=dict(point_value=20, tick_size=0.25)))
+        with self.assertRaisesRegex(ValueError, "contracts"):
+            run_backtest(self.ds, Always(1), costs=dict(instrument=dict(point_value=20, contracts=None)))
+        r = run_backtest(self.ds, Always(1), costs=dict(instrument=dict(point_value=20, contracts=0)))
+        self.assertIsNone(r.bar_lo)                                          # contracts 0 = percent sizing
+        with self.assertRaisesRegex(ValueError, "allow_short"):
+            run_backtest(self.ds, Always(-1), risk=dict(allow_short=None))
+
     def test_bad_bars_are_refused(self):
         rows = decline()
         o, h, l, c = map(list, zip(*rows))
@@ -204,6 +224,10 @@ class ValidationTests(unittest.TestCase):
             Dataset(time=list(range(len(c))), **good)                 # a row number
         with self.assertRaisesRegex(ValueError, "OHLC"):
             Dataset(time=t, **dict(good, high=[x - 5 for x in h]))
+        with self.assertRaisesRegex(ValueError, "infinite volume"):
+            Dataset(time=t, **dict(good, volume=[math.inf] + [1] * (len(c) - 1)))
+        old = int(pd.Timestamp("1993-02-01").timestamp())                     # long daily history is fine
+        Dataset(time=[old + i * 86400 for i in range(len(c))], **good)
         with self.assertRaisesRegex(ValueError, "DatetimeIndex"):
             Dataset.from_frame(pd.DataFrame(good), "5m")
 
@@ -263,6 +287,20 @@ class ValidationTests(unittest.TestCase):
             main(["--data", str(path), "--strategy", "smaCross", "--window", "100", "100", "--json"])
         m = json.loads(out.getvalue(), parse_constant=lambda c: self.fail(f"non-standard JSON constant {c}"))
         self.assertIsNone(m["inference"]["psr"])                     # NaN: one bar has no Sharpe
+
+    def test_cli_rejects_bad_input_cleanly(self):
+        import contextlib
+        import io
+        from pathlib import Path
+        from backtest.__main__ import _hhmm, main
+        path = str(Path(__file__).resolve().parents[2] / "frontend" / "public" / "backtest" / "qqq_5m.json")
+        for args in (["--param", "shortSide=no"], ["--param", "fast=inf"], ["--news", "high:abc"],
+                     ["--news", "high:5:15:9"], ["--flat-by", "16:75"], ["--data", "/nonexistent.json"]):
+            with self.subTest(args=args), contextlib.redirect_stderr(io.StringIO()), \
+                    self.assertRaises(SystemExit) as cm:
+                main(["--data", path, "--strategy", "smaCross", *args])
+            self.assertEqual(cm.exception.code, 2)                       # argparse error, not a traceback
+        self.assertEqual(_hhmm("16:45"), 1005)
 
 
 if __name__ == "__main__":

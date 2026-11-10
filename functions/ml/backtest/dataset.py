@@ -21,8 +21,9 @@ def _f64(values) -> np.ndarray:
     return np.array([np.nan if v is None else v for v in values], dtype=np.float64)
 
 
-# Epoch seconds between 2001-09 and 2100: catches milliseconds (x1000) and a RangeIndex read as time (0, 1, 2...).
-_EPOCH_RANGE = (1e9, 4.1e9)
+# Epoch seconds between 1973-03 and 2100: catches milliseconds (x1000) and a RangeIndex read as time (0, 1, 2...)
+# while still taking long daily histories (SPY from 1993).
+_EPOCH_RANGE = (1e8, 4.1e9)
 
 
 def _frozen(a) -> np.ndarray:
@@ -62,7 +63,7 @@ class Dataset:
                 raise ValueError(f"column {k} has {len(getattr(self, k))} rows, close has {n}")
         t = self.time
         if not np.all(np.isfinite(t)) or t[0] < _EPOCH_RANGE[0] or t[-1] > _EPOCH_RANGE[1]:
-            raise ValueError("time must be epoch seconds (UTC bar open); got values outside 2001-2100, "
+            raise ValueError("time must be epoch seconds (UTC bar open); got values outside 1973-2100, "
                              "milliseconds or a row number?")
         if np.any(np.diff(t) <= 0):
             raise ValueError("timestamps must be strictly increasing")
@@ -76,8 +77,9 @@ class Dataset:
         bad = (l <= 0) | (l > np.minimum(o, c)) | (h < np.maximum(o, c))
         if bad.any():
             raise ValueError(f"invalid OHLC at row {int(np.argmax(bad))}: need 0 < low <= open, close <= high")
-        if np.any(self.volume < 0):
-            raise ValueError("negative volume")
+        if np.any(self.volume < 0) or np.any(np.isinf(self.volume)):
+            # NaN is allowed (missing volume, counted as 0 by VWAP); inf would turn VWAP NaN for the rest of the day
+            raise ValueError("negative or infinite volume")
         for group in (self.features, self.ml):
             for k, v in group.items():
                 group[k] = _frozen(v)

@@ -126,6 +126,10 @@ def _instrument(x):
     if x is None:
         return None
     if not isinstance(x, Instrument):
+        # JS sizes as a percent of equity unless `contracts > 0` is given; a dataclass default of 1 lot here
+        # would silently switch a partial instrument to futures sizing, so it has to be stated.
+        if x.get("contracts") is None:
+            raise ValueError("instrument needs contracts (0 = percent-of-equity sizing)")
         x = Instrument(**{k: v for k, v in x.items() if v is not None})
     return x if x.contracts > 0 and x.point_value > 0 else None
 
@@ -145,6 +149,11 @@ def _check_config(strategy, params, c, r):
         if bad:
             raise ValueError(f"unknown {strategy.id} params {sorted(bad)}; it takes {sorted(schema)}")
         for k, v in params.items():
+            kind = schema[k].kind
+            if kind == "boolean" and not isinstance(v, bool):
+                raise ValueError(f"{strategy.id}.{k} must be true or false, got {v!r}")
+            if kind == "number" and (isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)):
+                raise ValueError(f"{strategy.id}.{k} must be a finite number, got {v!r}")
             if schema[k].options and v not in schema[k].options:
                 raise ValueError(f"{strategy.id}.{k} must be one of {schema[k].options}, got {v!r}")
     nb = r["news_blackout"]
@@ -183,6 +192,9 @@ def run_backtest(ds, strategy, params: dict | None = None, costs: dict | None = 
     if isinstance(strategy, str):
         strategy = get_strategy(strategy)
     c = {**DEFAULT_COSTS, **(costs or {})}
+    if (risk or {}).get("allow_short", True) is None:
+        # Dropping it would mean "default" (shorts on), while JS treats null as falsy (shorts off).
+        raise ValueError("allow_short must be True or False, not None")
     r = {**DEFAULT_RISK, **{k: v for k, v in (risk or {}).items() if v is not None}}
     _check_config(strategy, params or {}, c, r)
     p = {**strategy.defaults(), **(params or {})}

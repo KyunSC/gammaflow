@@ -68,7 +68,9 @@ keys are Pythonic snake_case (`stopPct` becomes `stop_pct`; the parity test conv
 state belongs in what `prepare` returns, never on `self`, because strategy instances are shared.
 
 **Wrong input fails loudly.** A typo that silently runs the defaults is the worst kind of backtest bug, so:
-unknown strategy params, cost, risk or news keys raise (with the valid names); NaN prices, millisecond or
+unknown strategy params, cost, risk or news keys raise (with the valid names), and so do params of the
+wrong type (`shortSide="no"`, a non-finite number) and nulls JS would read differently (an instrument
+without `contracts`, `allow_short=None`); NaN prices, millisecond or
 row-number timestamps and impossible OHLC are refused when the `Dataset` is built; a research strategy whose
 GEX/ML columns are all NaN warns that it cannot trade. The bar columns are read-only, because indicators are
 memoised per dataset and editing prices in place would leave them stale; `dataclasses.replace` gets a fresh

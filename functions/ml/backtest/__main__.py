@@ -32,9 +32,12 @@ def _value(text: str):
 
 
 def _hhmm(text: str) -> int:
-    h, m = text.split(":")
-    minute = int(h) * 60 + int(m)
-    if not 0 < minute < 24 * 60:
+    try:
+        h, m = (int(x) for x in text.split(":"))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"use HH:MM, e.g. 16:45, got {text!r}")
+    minute = h * 60 + m
+    if not (0 <= h < 24 and 0 <= m < 60 and minute > 0):
         raise argparse.ArgumentTypeError("use a time after 00:00 and before 24:00, e.g. 16:45")
     return minute
 
@@ -98,13 +101,22 @@ def main(argv=None) -> int:
         risk["allow_short"] = False
     if a.news:
         impact, *win = a.news.split(":")
-        risk["news_blackout"] = dict(impact=impact, **dict(zip(("before_min", "after_min"), map(float, win))))
+        if len(win) > 2:
+            ap.error(f"--news wants IMPACT[:BEFORE[:AFTER]], got {a.news!r}")
+        try:
+            mins = [float(x) for x in win]
+        except ValueError:
+            ap.error(f"--news minutes must be numbers, got {a.news!r}")
+        risk["news_blackout"] = dict(impact=impact, **dict(zip(("before_min", "after_min"), mins)))
     window = tuple(a.window) if a.window else cfg.get("window")
 
-    ds = Dataset.from_json(a.data)
+    try:
+        ds = Dataset.from_json(a.data)
+    except (OSError, KeyError, ValueError, TypeError) as e:
+        ap.error(f"cannot load {a.data}: {e}")
     try:
         res = run_backtest(ds, strategy, params, costs, risk, window)
-    except (KeyError, ValueError) as e:
+    except (KeyError, ValueError, TypeError, OverflowError) as e:
         ap.error(str(e).strip('"'))
     m = res.metrics
     if a.json:
