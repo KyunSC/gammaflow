@@ -3,7 +3,8 @@
 import { useRef, useState, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useBacktest } from '../../lib/backtest/store'
-import { fmtTime, fmtMoneySigned, fmtPct, fmtNum, signClass } from '../../lib/backtest/format'
+import { fmtTime, fmtMoneySigned, fmtPct, fmtPctAbs, fmtNum, signClass } from '../../lib/backtest/format'
+import { barSeconds, tradeCalendar, isGapped } from '../../lib/backtest/tradeInsight'
 import { EmptyState, NoRunYet } from './Panel'
 
 const COLS = [
@@ -18,7 +19,11 @@ const COLS = [
   { key: 'pnl', label: 'p/l', w: 'w-20', align: 'text-right' },
   { key: 'mae', label: 'mae', w: 'w-14', align: 'text-right' },
   { key: 'reason', label: 'exit why', w: 'w-16', align: 'text-left' },
+  { key: 'flag', label: 'flag', w: 'w-10', align: 'text-left' },
 ]
+
+// Sort order for the flag column: gapped first, then overnight, then clean.
+const FLAG_RANK = { gap: 2, overnight: 1, '': 0 }
 
 /**
  * Every fill the engine made. Virtualized because a 5m mean-reversion strategy
@@ -32,16 +37,29 @@ export default function Blotter() {
   const parentRef = useRef(null)
   const [sort, setSort] = useState({ key: null, dir: 1 })
 
+  const dataset = useBacktest((s) => s.dataset)
+
+  // Calendar flags: a trade held across a missing session is marked from the
+  // close before the hole to the first bar after it, so its P&L is suspect.
+  const flagged = useMemo(() => {
+    if (!result?.trades || !dataset || result.config.datasetId !== dataset.id) return result?.trades ?? []
+    const spacing = barSeconds(dataset.time)
+    return result.trades.map((t) => {
+      const cal = tradeCalendar(t, dataset.time, spacing)
+      return { ...t, flag: isGapped(cal) ? 'gap' : cal.overnight ? 'overnight' : '' }
+    })
+  }, [result, dataset])
+
   const trades = useMemo(() => {
-    const list = result?.trades ? result.trades.map((t, i) => ({ ...t, n: i + 1 })) : []
+    const list = flagged.map((t, i) => ({ ...t, n: i + 1 }))
     if (!sort.key) return list
     return [...list].sort((a, b) => {
-      const av = a[sort.key]
-      const bv = b[sort.key]
+      const av = sort.key === 'flag' ? FLAG_RANK[a.flag || ''] : a[sort.key]
+      const bv = sort.key === 'flag' ? FLAG_RANK[b.flag || ''] : b[sort.key]
       if (typeof av === 'string') return sort.dir * av.localeCompare(bv)
       return sort.dir * (av - bv)
     })
-  }, [result, sort])
+  }, [flagged, sort])
 
   const rowVirtualizer = useVirtualizer({
     count: trades.length,
@@ -90,7 +108,7 @@ export default function Blotter() {
                 className={`flex cursor-pointer items-center gap-2 px-2 font-mono text-[10px] ${
                   isSel ? 'bg-amber/10' : v.index % 2 ? 'bg-panel-2/40' : ''
                 } hover:bg-panel-3`}
-                title="Click to pan the chart to this trade"
+                title="Click to inspect this trade on the chart"
               >
                 <span className="w-9 shrink-0 text-right text-dim">{t.n}</span>
                 <span className={`w-12 shrink-0 ${t.side === 'long' ? 'text-pos' : 'text-neg'}`}>{t.side}</span>
@@ -103,6 +121,12 @@ export default function Blotter() {
                 <span className={`w-20 shrink-0 text-right ${signClass(t.pnl)}`}>{fmtMoneySigned(t.pnl, 0)}</span>
                 <span className="w-14 shrink-0 text-right text-dim">{fmtPct(t.mae, 1)}</span>
                 <span className="w-16 shrink-0 text-dim">{t.reason}</span>
+                <span
+                  className={`w-10 shrink-0 ${t.flag === 'gap' ? 'text-neg' : 'text-amber/70'}`}
+                  title={t.flag === 'gap' ? 'Held across missing bars or sessions' : t.flag === 'overnight' ? 'Held overnight' : undefined}
+                >
+                  {t.flag === 'gap' ? '⚠ gap' : t.flag === 'overnight' ? 'o/n' : ''}
+                </span>
               </div>
             )
           })}
@@ -112,7 +136,8 @@ export default function Blotter() {
       <div className="hair-t flex items-center gap-3 bg-panel-2 px-2 py-1 font-mono text-[9px] text-dim">
         <span>{trades.length} trades</span>
         <span>· exits: {summariseReasons(trades)}</span>
-        <span className="ml-auto">click a row to pan the chart</span>
+        <GapSummary trades={trades} />
+        <span className="ml-auto">click a row to inspect · J/K to step</span>
       </div>
     </div>
   )
@@ -125,4 +150,18 @@ function summariseReasons(trades) {
     .sort((a, b) => b[1] - a[1])
     .map(([k, v]) => `${k} ${v}`)
     .join(', ')
+}
+
+/** How much of the run's net P&L sits on trades held across missing bars. */
+function GapSummary({ trades }) {
+  const gapped = trades.filter((t) => t.flag === 'gap')
+  if (!gapped.length) return null
+  const net = trades.reduce((a, t) => a + t.pnl, 0)
+  const gapNet = gapped.reduce((a, t) => a + t.pnl, 0)
+  return (
+    <span className="text-neg" title="Trades held across missing sessions or bars, and their share of net P&L">
+      · {gapped.length} gapped ({fmtMoneySigned(gapNet, 0)}
+      {Math.abs(net) > 1e-9 ? `, ${fmtPctAbs(gapNet / net, 0)} of net` : ''})
+    </span>
+  )
 }

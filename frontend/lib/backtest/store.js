@@ -95,6 +95,7 @@ export const useBacktest = create((rawSet, get) => {
   slots: { A: null, B: null, C: null },
   focusedParam: null,
   selectedTrade: null,
+  strategyLines: true,
   paletteOpen: false,
   shortcutsOpen: false,
   activeTab: 'blotter',
@@ -373,6 +374,8 @@ export const useBacktest = create((rawSet, get) => {
         lastRunMs: result.elapsedMs,
         mc: { ...s.mc, running: false, data: null },
         costCurve: null,
+        // Keep inspecting the same entry across a parameter nudge when it survives.
+        selectedTrade: s.selectedTrade ? result.trades.find((t) => t.entryIdx === s.selectedTrade.entryIdx) || null : null,
       }))
     } catch (e) {
       if (token !== revision) return
@@ -585,7 +588,23 @@ export const useBacktest = create((rawSet, get) => {
     set({ activeTab })
   },
   selectTrade(trade) {
-    set({ selectedTrade: trade })
+    // Store the engine's own object (the blotter hands over a decorated copy),
+    // so stepping and identity checks work against `result.trades`.
+    const trades = get().result?.trades
+    const own = trade && trades ? trades.find((t) => t.entryIdx === trade.entryIdx) : null
+    set({ selectedTrade: own || trade || null })
+  },
+  /** Step the inspector to the previous (-1) or next (+1) trade in time. */
+  stepTrade(dir) {
+    const trades = get().result?.trades
+    if (!trades?.length) return
+    const cur = get().selectedTrade
+    const k = cur ? trades.findIndex((t) => t.entryIdx === cur.entryIdx) : -1
+    const next = k < 0 ? (dir > 0 ? 0 : trades.length - 1) : Math.max(0, Math.min(trades.length - 1, k + dir))
+    set({ selectedTrade: trades[next] })
+  },
+  toggleStrategyLines() {
+    set({ strategyLines: !get().strategyLines })
   },
   togglePalette(open) {
     set({ paletteOpen: open ?? !get().paletteOpen })
