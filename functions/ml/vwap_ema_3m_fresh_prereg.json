@@ -1,0 +1,21 @@
+{
+ "frozen": "2026-11-03",
+ "approval": "User in chat 2026-11-03: 'ok do it' (lock one config, buy NQ after 2026-08-14, test once).",
+ "symbol": "NQ",
+ "window_sessions": [
+  "2026-08-17",
+  "2026-11-02"
+ ],
+ "data": "Databento GLBX.MDP3 ohlcv-1m NQ.v.0, bought after this file was written",
+ "primary": "v2|ema|flip|rth|ema34|none",
+ "report_only": [
+  "v2|ema|noflip|rth|ema34|none"
+ ],
+ "chosen_how": "best NQ Sharpe in 2024-2026 among the 32 regular-hours cells, picked after seeing 2022-2026",
+ "pass_rule": "PASS if the primary's net $ total after costs > 0 AND it beats the always-long twin of the same trades (net $ total). Otherwise FAIL. No retries, no parameter changes.",
+ "power_note": "2024-26 rate (+$16.9/day, sd $246/day) over ~52 sessions gives an expected total near +$880 with a standard error near $1,770, so even a true edge passes only about 70% of the time. A PASS is a sanity check, not proof; a FAIL is weak evidence against it.",
+ "runner_sha256": "581252941fcf27d2672e9344fee6623b07bc5021aff2728bea84e14ead69b860",
+ "study_sha256": "bfa1be80398f56b123e6f0038ecf4cf976fe6bd9aef370334023fae24632a659",
+ "spec_sha256": "c13d0f926fbb831eaca5f04430c85ab02f64aad839e4ead26e6b38d9f0d2f9a5",
+ "spec2_sha256": "59bb3fb6eeb087725ad0399a1bb4dbd23fa1420fccf11dea3eb07e450d3fb139"
+}
