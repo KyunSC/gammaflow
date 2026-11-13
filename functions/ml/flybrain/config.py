@@ -1,8 +1,12 @@
+import os
 from pathlib import Path
 
 ML_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = ML_DIR / 'data' / 'flybrain'
 RUNS_DIR = Path(__file__).parent / 'runs'
+# Disk cap for cached reservoir states (data/flybrain/states). Least recently used files are
+# deleted past it; a single result bigger than the cap stays in memory. Override in GB.
+STATE_CACHE_MAX_BYTES = int(float(os.environ.get('FLYBRAIN_STATE_CACHE_GB', '5')) * 1024**3)
 SYMBOLS = {'QQQ': 'MNQ', 'SPY': 'MES'}
 RATIO = {'QQQ': 41.2, 'SPY': 10.05}
 CONTRACTS = {k: dict(point_value=v, tick=0.25) for k, v in [('MNQ', 2), ('MES', 5), ('NQ', 20), ('ES', 50)]}

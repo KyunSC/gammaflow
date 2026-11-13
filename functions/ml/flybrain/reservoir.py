@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import time
 from pathlib import Path
 from scipy import sparse
 import numpy as np
@@ -83,6 +84,40 @@ def _load_valid(paths, shapes):
     return loaded if all(loaded[k].shape == shapes[k] for k in loaded) else None
 
 
+STALE_TMP_SECONDS = 24 * 3600
+
+
+def _touch(path):
+    """Mark a cache file as recently used so pruning keeps it."""
+    try:
+        os.utime(path)
+    except OSError:
+        pass
+
+
+def _prune_cache(base, budget):
+    """Delete least recently used state files until the cache fits in `budget` bytes.
+    Temp files left by killed runs are removed once they are a day old."""
+    now = time.time()
+    files = []
+    for path in base.iterdir():
+        try:
+            st = path.stat()
+        except OSError:
+            continue  # removed by another run meanwhile
+        if path.name.endswith('.tmp'):
+            if now - st.st_mtime > STALE_TMP_SECONDS:
+                path.unlink(missing_ok=True)
+        elif path.suffix == '.npy':
+            files.append((st.st_mtime, st.st_size, path))
+    total = sum(size for _, size, _ in files)
+    for _, size, path in sorted(files):
+        if total <= budget:
+            break
+        path.unlink(missing_ok=True)
+        total -= size
+
+
 def cached_states(circuit, df, params):
     columns = df.attrs['features']
     X, mask = pack_sessions(df, params.get('gex_off'))
@@ -100,15 +135,30 @@ def cached_states(circuit, df, params):
     shapes = {k: (int(mask.sum()), len(circuit.groups[k]) if circuit else X.shape[2]) for k in paths}
     hit = _load_valid(paths, shapes)
     if hit is not None:
+        for path in paths.values():
+            _touch(path)
         return hit
     states = run_reservoir(circuit, X, mask, params)
-    for k, path in paths.items():
-        # Write beside the target and rename: an interrupted run never leaves a truncated cache file.
-        tmp = path.with_name(path.name + f'.{os.getpid()}.tmp')
-        try:
+    need = sum(states[k].nbytes for k in paths)
+    if need > config.STATE_CACHE_MAX_BYTES:
+        return states  # too big to cache under the cap: use it in memory only
+    for path in paths.values():
+        path.unlink(missing_ok=True)  # failed validation above: must not count against the budget
+    _prune_cache(base, config.STATE_CACHE_MAX_BYTES - need)
+    # Write beside the target and rename: an interrupted run never leaves a truncated cache file.
+    tmps = {k: path.with_name(path.name + f'.{os.getpid()}.tmp') for k, path in paths.items()}
+    try:
+        for k, tmp in tmps.items():
             with tmp.open('wb') as f:
                 np.save(f, states[k], allow_pickle=False)
-            os.replace(tmp, path)
-        finally:
+        # The cap is on bytes on disk, and a .npy file is its array plus a header.
+        size = sum(tmp.stat().st_size for tmp in tmps.values())
+        if size > config.STATE_CACHE_MAX_BYTES:
+            return states
+        _prune_cache(base, config.STATE_CACHE_MAX_BYTES - size)
+        for k, tmp in tmps.items():
+            os.replace(tmp, paths[k])
+    finally:
+        for tmp in tmps.values():
             tmp.unlink(missing_ok=True)
     return {k: np.load(path, mmap_mode='r') for k, path in paths.items()}

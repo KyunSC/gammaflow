@@ -225,6 +225,46 @@ class ReservoirTests(unittest.TestCase):
             np.testing.assert_array_equal(np.array(b['kc']), expected)
             self.assertFalse(list(Path(d, 'states').glob('*.tmp')))
 
+    def test_cache_stays_under_size_cap(self):
+        import os, tempfile, time
+        from pathlib import Path
+        from unittest.mock import patch
+        from flybrain import config
+        from flybrain.reservoir import cached_states, STALE_TMP_SECONDS
+        self.addCleanup(setattr, config, 'STATE_CACHE_MAX_BYTES', config.STATE_CACHE_MAX_BYTES)
+        df = frame(n=4, bars=6)
+        seed = lambda s: dict(params(), seed=s)
+        with tempfile.TemporaryDirectory() as d, patch.object(config, 'DATA_DIR', Path(d)):
+            states = Path(d, 'states')
+            cached_states(None, df, seed(1))
+            size = next(states.glob('*.npy')).stat().st_size
+            config.STATE_CACHE_MAX_BYTES = 2 * size + size // 2  # room for two files, not three
+            cached_states(None, df, seed(2))
+            first, second = sorted(states.glob('*.npy'), key=lambda f: f.stat().st_mtime)
+            old = time.time() - 100
+            os.utime(first, (old, old)); os.utime(second, (old + 1, old + 1))
+            stale = states / 'x.npy.1.tmp'; stale.write_bytes(b'0')
+            os.utime(stale, (old - STALE_TMP_SECONDS,) * 2)
+            cached_states(None, df, seed(1))  # hit: now the most recent
+            cached_states(None, df, seed(3))  # third file evicts the least recently used
+            left = set(states.iterdir())
+            self.assertEqual(len(left), 2)
+            self.assertIn(first, left); self.assertNotIn(second, left); self.assertNotIn(stale, left)
+            self.assertLessEqual(sum(f.stat().st_size for f in left), config.STATE_CACHE_MAX_BYTES)
+
+    def test_cache_skips_results_bigger_than_cap(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from flybrain import config
+        from flybrain.reservoir import cached_states
+        df = frame(n=4, bars=6); p = params()
+        with tempfile.TemporaryDirectory() as d, patch.object(config, 'DATA_DIR', Path(d)), \
+                patch.object(config, 'STATE_CACHE_MAX_BYTES', 10):
+            out = cached_states(None, df, p)
+            self.assertEqual(len(out['kc']), len(df))
+            self.assertFalse(list(Path(d, 'states').iterdir()))
+
     def rising(self, n=1, bars=40):
         # Every bar opens at the previous close and gains 0.5 ATR: a horizon-1 paper bet always earns +0.5.
         df = frame(n=n, bars=bars); df['close'] = 100 + np.arange(len(df)) * .5
