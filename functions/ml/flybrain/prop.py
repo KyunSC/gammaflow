@@ -16,8 +16,8 @@ def _plans():
     return json.loads((Path(__file__).parent/'fixtures'/'lucid_plans.json').read_text())['plans']
 
 
-def resolve_plan(plan=config.PROP['plan'], size=config.PROP['size'], dll=config.PROP['dll']):
-    return dict(next(p for p in _plans() if p['plan']==plan and p['size']==size and p['dll']==dll))
+def resolve_plan(plan=config.PROP['plan'], size=config.PROP['size'], dll=config.PROP['dll'], firm='lucid'):
+    return dict(next(p for p in _plans() if p['firm']==firm and p['plan']==plan and p['size']==size and p['dll']==dll))
 
 
 def mulberry32(a):
@@ -32,6 +32,13 @@ def mulberry32(a):
 
 def nth(values,k):
     return values[min(k,len(values)-1)] if values else None
+
+
+def funded_minis(scaling,profit):
+    minis=scaling[0][1]
+    for floor,m in scaling:
+        if profit>=floor: minis=m
+    return minis
 
 
 def build_day_table(result, time=None, initial_capital=None):
@@ -57,9 +64,12 @@ def build_day_table(result, time=None, initial_capital=None):
 
 
 def run_stage(days,next_day,k0,plan,stage):
-    start=plan['startBalance']; lock_at=start+plan['lockOffset']
-    intraday=stage=='funded' and plan['fundedDrawdown']=='intraday'
-    dll=plan['dailyLossLimit'] or 0
+    start=plan['startBalance']
+    lock_offset=plan['evalLockOffset'] if stage=='eval' and 'evalLockOffset' in plan else plan['lockOffset']
+    lock_at=math.inf if lock_offset is None else start+lock_offset
+    intraday=(plan.get('evalDrawdown') if stage=='eval' else plan['fundedDrawdown'])=='intraday'
+    dll=0 if plan.get('dllFundedOnly') and stage=='eval' else plan['dailyLossLimit'] or 0
+    scaling=plan.get('fundedScaling') if stage=='funded' and (plan.get('tradedMinis') or 0)>0 else None
     bal=peak=start; locked=False; threshold=min(peak-plan['maxLoss'],lock_at)
     active_days=best_day=dll_hits=cycle_active=cycle_profit_days=cycle_best=0
     cycle_start=start; payouts=[]
@@ -71,22 +81,24 @@ def run_stage(days,next_day,k0,plan,stage):
         if d<0: return done('open','end-of-data',k)
         s,e=days['start'][d],days['end'][d]
         day_base=bal; dll_level=day_base-dll if dll else -math.inf; pnl=None
-        safe = not intraday and day_base + days['min_lo'][d] > max(threshold, dll_level)
+        # Scaling plan: the session's size cap follows the profit it opened with (account.js).
+        scale=min(1,funded_minis(scaling,day_base-start)/plan['tradedMinis']) if scaling else 1
+        safe = not intraday and day_base + scale*days['min_lo'][d] > max(threshold, dll_level)
         for i in (() if safe else range(s,e+1)):
             if intraday and not locked:
-                peak=max(peak,day_base+days['hi'][i]); threshold=min(peak-plan['maxLoss'],lock_at)
-            worst=day_base+days['lo'][i]
+                peak=max(peak,day_base+scale*days['hi'][i]); threshold=min(peak-plan['maxLoss'],lock_at)
+            worst=day_base+scale*days['lo'][i]
             if dll and worst<=dll_level and dll_level>threshold:
-                frozen=min(dll_level,day_base+days['open'][i]); dll_hits+=1
+                frozen=min(dll_level,day_base+scale*days['open'][i]); dll_hits+=1
                 if frozen<=threshold:
                     bal=frozen
                     return done('breached','max-loss',k+1)
                 pnl=frozen-day_base
                 break
             if worst<=threshold:
-                bal=min(threshold,day_base+days['open'][i])
+                bal=min(threshold,day_base+scale*days['open'][i])
                 return done('breached','max-loss',k+1)
-        if pnl is None: pnl=days['close'][e]
+        if pnl is None: pnl=scale*days['close'][e]
         bal=day_base+pnl; act=days['active'][d]==1
         if act: active_days+=1
         if not locked:
@@ -101,15 +113,19 @@ def run_stage(days,next_day,k0,plan,stage):
         if act and pnl>0 and pnl>=plan['minDayProfit']: cycle_profit_days+=1
         cycle_best=max(cycle_best,pnl); cycle_profit=bal-cycle_start; idx=len(payouts)
         goal=nth(plan['profitGoal'],idx) or 0
+        c=plan['fundedConsistency']
+        consistent=not c or (cycle_best<c*cycle_profit-EPS if plan.get('fundedConsistencyStrict') else cycle_best<=c*cycle_profit+EPS)
         eligible=(cycle_active>=plan['fundedMinDays'] and cycle_profit_days>=plan['minProfitDays'] and cycle_profit>0 and cycle_profit>=goal
-            and (not plan['fundedConsistency'] or cycle_best<=plan['fundedConsistency']*cycle_profit+EPS) and (not plan['buffer'] or bal>plan['buffer']))
+            and consistent and (not plan['buffer'] or bal>plan['buffer']))
         if eligible:
             amount=plan['payoutFraction']*(bal-start) if plan['payoutFraction'] is not None else bal-max(plan['buffer'] or 0,start)
             cap=nth(plan['payoutCap'],idx)
             if cap is not None and cap>0: amount=min(amount,cap)
             amount=math.floor(amount)
             if amount>=plan['minPayout']:
-                payouts.append(amount); bal-=amount; locked=True; threshold=lock_at
+                payouts.append(amount); bal-=amount
+                if not plan.get('payoutKeepsMll'):
+                    locked=True; threshold=lock_at
                 cycle_start=bal; cycle_active=cycle_profit_days=cycle_best=0
                 if len(payouts)>=plan['maxPayouts']: return done('graduated','max-payouts',k+1)
         k+=1
@@ -130,14 +146,23 @@ def simulate_account(days,next_day,plan):
     return out
 
 
+def attempt_cost(attempt,plan):
+    """What one attempt paid the firm: billing cycles used, plus activation if owed."""
+    rebill=plan.get('rebillDays')
+    cycles=max(1,math.ceil(attempt['evalDays']/rebill)) if rebill else 1
+    activation=0 if plan.get('activationOnPass') and attempt['outcome']=='failed' else plan['activationFee'] or 0
+    return plan['price']*cycles+activation
+
+
 def summarize_attempts(attempts,plan):
     mean=lambda a:sum(a)/len(a) if len(a) else math.nan
     pct=lambda a,q:float(np.quantile(a,q)) if len(a) else math.nan
-    cost=plan['price']+(plan['activationFee'] or 0)
     resolved=[a for a in attempts if a['outcome']!='eval-open']; passed=[a for a in resolved if a['outcome']!='failed']
+    costs=[attempt_cost(a,plan) for a in resolved]
+    cost=mean(costs) if costs else attempt_cost(dict(evalDays=0,outcome='graduated'),plan)
     outcomes=dict(Counter(a['outcome'] for a in attempts))
     days=sorted(a['evalDays'] for a in passed); rate=len(passed)/len(resolved) if resolved else math.nan
-    take=mean([a['take'] for a in resolved]); nets=sorted(a['take']-cost for a in resolved)
+    take=mean([a['take'] for a in resolved]); nets=sorted(a['take']-c for a,c in zip(resolved,costs))
     cash=[a for a in resolved if math.isfinite(a.get('cashPnl',math.nan))]
     return dict(attempts=len(attempts),resolved=len(resolved),censored=len(attempts)-len(resolved),fundedOpen=outcomes.get('funded-open',0),outcomes=outcomes,
         passRate=rate,medianDaysToPass=pct(days,.5),pPayout=mean([int(bool(a['payouts'])) for a in resolved]),
