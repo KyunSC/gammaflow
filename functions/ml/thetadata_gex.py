@@ -34,6 +34,8 @@ private (never in frontend/public), delete with the rest on cancellation.
 Run: python functions/ml/thetadata_gex.py --symbol QQQ
      python functions/ml/thetadata_gex.py --symbol SPY --start 2022-01-01 --workers 8
      python functions/ml/thetadata_gex.py --symbol QQQ --expiries 0dte
+     python functions/ml/thetadata_gex.py --symbol QQQ --start 2016-01-01 --end 2022-01-01 \
+         --out data/thetadata_gex/qqq_gex_snapshots_2016_2021.parquet   # never touches the 2022+ file
 """
 from __future__ import annotations
 
@@ -144,6 +146,13 @@ def day_snapshots(symbol: str, day: date, expiries: str = "nearest4") -> list[di
     return rows
 
 
+def output_path(symbol: str, expiries: str, out: str | None) -> Path:
+    if out is not None:
+        p = Path(out)
+        return p if p.is_absolute() else HERE / p
+    return OUT_DIR / f"{symbol.lower()}_gex_snapshots{'_0dte' if expiries == '0dte' else ''}.parquet"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--symbol", default="QQQ")
@@ -151,6 +160,8 @@ def main() -> int:
     ap.add_argument("--end", default=None, help="exclusive; default: all downloaded days")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--expiries", choices=["nearest4", "0dte"], default="nearest4")
+    ap.add_argument("--out", default=None, help="output parquet; relative paths resolve from functions/ml "
+                                                "(default: data/thetadata_gex/<symbol>_gex_snapshots[_0dte].parquet)")
     args = ap.parse_args()
     symbol = args.symbol.upper()
 
@@ -170,8 +181,8 @@ def main() -> int:
             if (i + 1) % 100 == 0 or i + 1 == len(days):
                 print(f"  {i + 1}/{len(days)} days, {len(rows)} snapshots ({time.time() - t0:.0f}s)", flush=True)
     df = pd.DataFrame(rows, columns=COLUMNS).sort_values("computed_at").reset_index(drop=True)
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = OUT_DIR / f"{symbol.lower()}_gex_snapshots{'_0dte' if args.expiries == '0dte' else ''}.parquet"
+    out = output_path(symbol, args.expiries, args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out, index=False)
     per_day = df.groupby(df["computed_at"].dt.tz_convert("America/New_York").dt.date).size()
     print(f"{symbol}: {len(df)} snapshots over {per_day.size} days "

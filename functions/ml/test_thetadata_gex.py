@@ -174,5 +174,13 @@ class Finish(unittest.TestCase):
         self.assertTrue(all(np.isnan(f[c]) for c in bd.FEATURE_COLS_VEX_CEX))
 
 
+class OutputPath(unittest.TestCase):
+    def test_default_and_override(self):
+        self.assertEqual(g.output_path("QQQ", "nearest4", None), g.OUT_DIR / "qqq_gex_snapshots.parquet")
+        self.assertEqual(g.output_path("SPY", "0dte", None), g.OUT_DIR / "spy_gex_snapshots_0dte.parquet")
+        self.assertEqual(g.output_path("QQQ", "nearest4", "data/x.parquet"), g.HERE / "data" / "x.parquet")
+        self.assertEqual(g.output_path("QQQ", "nearest4", "/tmp/y.parquet"), Path("/tmp/y.parquet"))
+
+
 if __name__ == "__main__":
     unittest.main()

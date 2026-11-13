@@ -19,11 +19,15 @@ EXPS = [date(2026, 9, 1), D2, date(2026, 9, 25), date(2026, 10, 16), date(2026, 
 
 
 class Rpc(grpc.RpcError):
-    def __init__(self, code):
+    def __init__(self, code, details=""):
         self._code = code
+        self._details = details
 
     def code(self):
         return self._code
+
+    def details(self):
+        return self._details
 
 
 def oi_frame():
@@ -188,6 +192,40 @@ class Partitions(Tmp):
         self.assertEqual(len(iv), 6)
         log = [r for r in b_log(self.root) if r["job"] == "iv_5m"][0]
         self.assertEqual((log["status"], log["rows_kept"]), ("unmatched", 6))
+
+    def test_malformed_expiration_is_skipped_and_marked_partial(self):
+        client = fake_client()
+
+        def iv(root, exp, **kw):
+            if exp == date(2026, 9, 25):
+                raise Rpc(grpc.StatusCode.INVALID_ARGUMENT, "Wrong number of data fields")
+            return iv_frame(exp)
+        client.option_history_greeks_implied_volatility.side_effect = iv
+        self.run_units(client, [(D2, "QQQ")])
+        frame = pd.read_parquet(fetch.partition_dir("iv_5m", "QQQ", D2) / "part.parquet")
+        self.assertEqual(set(frame.expiration), {"2026-10-16"})
+        log = [r for r in b_log(self.root) if r["job"] == "iv_5m"][0]
+        self.assertEqual(log["status"], "partial")
+
+    def test_other_invalid_argument_is_not_swallowed(self):
+        client = fake_client()
+        client.option_history_greeks_implied_volatility.side_effect = Rpc(grpc.StatusCode.INVALID_ARGUMENT, "bad interval")
+        bad = []
+        with self.assertRaises(grpc.RpcError):
+            fetch.fetch_iv(client, "QQQ", D2, [date(2026, 9, 25)], bad=bad)
+        self.assertEqual(bad, [])
+
+    def test_partial_wins_over_unmatched(self):
+        client = fake_client()
+
+        def iv(root, exp, **kw):
+            if exp == date(2026, 9, 25):
+                raise Rpc(grpc.StatusCode.INVALID_ARGUMENT, "Wrong number of data fields")
+            return iv_frame(exp).assign(strike=[499.78, 509.78, 519.78])
+        client.option_history_greeks_implied_volatility.side_effect = iv
+        self.run_units(client, [(D2, "QQQ")])
+        log = [r for r in b_log(self.root) if r["job"] == "iv_5m"][0]
+        self.assertEqual((log["status"], log["rows"]), ("partial", log["rows_kept"]))
 
     def test_keep_zero_oi(self):
         client = fake_client()

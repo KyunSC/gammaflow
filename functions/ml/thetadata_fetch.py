@@ -77,14 +77,26 @@ class DiskGuard(Exception):
     """--max-gb reached or free disk below MIN_FREE_BYTES."""
 
 
-def grpc_code(exc: BaseException) -> grpc.StatusCode | None:
-    code = getattr(exc, "code", None)
-    if isinstance(exc, grpc.RpcError) and callable(code):
+def _rpc_attr(exc: BaseException, name: str):
+    """exc.code() / exc.details() of an RpcError that carries one, else None."""
+    getter = getattr(exc, name, None)
+    if isinstance(exc, grpc.RpcError) and callable(getter):
         try:
-            return code()
+            return getter()
         except Exception:
             return None
     return None
+
+
+def grpc_code(exc: BaseException) -> grpc.StatusCode | None:
+    return _rpc_attr(exc, "code")
+
+
+MALFORMED_ROW = "Wrong number of data fields"  # vendor's INVALID_ARGUMENT text for a corrupt history row
+
+
+def grpc_details(exc: BaseException) -> str:
+    return _rpc_attr(exc, "details") or ""
 
 
 def with_retry(fn, tries: int = 5, base: float = 2.0, cap: float = 60.0):
@@ -210,8 +222,13 @@ def fetch_oi(client, root: str, d: date) -> pd.DataFrame | None:
         return None
 
 
-def fetch_iv(client, root: str, d: date, exps: list[date], strike_range: int | None = None) -> pd.DataFrame | None:
-    """5-minute bid/mid/ask IV for every strike of each expiration (the endpoint rejects expiration='*')."""
+def fetch_iv(client, root: str, d: date, exps: list[date], strike_range: int | None = None,
+             bad: list | None = None) -> pd.DataFrame | None:
+    """5-minute bid/mid/ask IV for every strike of each expiration (the endpoint rejects expiration='*').
+
+    The vendor answers INVALID_ARGUMENT for a few malformed history rows (e.g. QQQ 2016-11-11 on
+    2016-10-26: "Wrong number of data fields"); that expiration is skipped and appended to `bad`.
+    """
     frames = []
     for e in exps:
         try:
@@ -220,6 +237,13 @@ def fetch_iv(client, root: str, d: date, exps: list[date], strike_range: int | N
                 strike_range=strike_range)))
         except NoDataFoundError:
             continue
+        except grpc.RpcError as x:
+            # Only the vendor's known bad-row answer is skipped: any other INVALID_ARGUMENT is a
+            # bad request of ours and must stop the run, not leave an empty day marked done.
+            if (bad is None or grpc_code(x) != grpc.StatusCode.INVALID_ARGUMENT
+                    or MALFORMED_ROW not in grpc_details(x)):
+                raise
+            bad.append(e)
     frames = [f for f in frames if f is not None and len(f)]
     return pd.concat(frames, ignore_index=True) if frames else None
 
@@ -239,7 +263,9 @@ class Backfill:
     lock: threading.Lock = field(default_factory=threading.Lock)
 
     def fetch(self, job: str, root: str, d: date) -> tuple[int, int, pd.DataFrame | None, str]:
-        """(rows fetched, rows kept, frame, status); status is 'unmatched' when the OI filter was skipped."""
+        """(rows fetched, rows kept, frame, status); status is 'unmatched' when the OI filter was skipped
+        and 'partial' when the vendor rejected some expirations as malformed ('partial' wins when both
+        hold: a missing expiration is the gap to audit, and rows == rows kept still shows the skip)."""
         if job == "oi":
             oi = fetch_oi(self.client, root, d)
             n = 0 if oi is None else len(oi)
@@ -253,18 +279,20 @@ class Backfill:
             live = live_contracts(oi)
             wanted = set(live["expiration"])
             exps = [e for e in exps if e.isoformat() in wanted]
-        iv = fetch_iv(self.client, root, d, exps)
+        bad: list[date] = []
+        iv = fetch_iv(self.client, root, d, exps, bad=bad)
+        status = "partial" if bad else "ok"
         if iv is None:
-            return 0, 0, None, "ok"
+            return 0, 0, None, status
         rows = len(iv)
         if live is not None:
             kept = keep_live(iv, live)
             if kept.empty:
                 # No contract matched at all: the keys disagree (e.g. strikes restated by a
                 # corporate action after the prior-close OI), so keep everything unfiltered.
-                return rows, rows, iv, "unmatched"
+                return rows, rows, iv, "partial" if bad else "unmatched"
             iv = kept
-        return rows, len(iv), iv, "ok"
+        return rows, len(iv), iv, status
 
     def guard(self) -> None:
         if self.used > self.max_bytes or shutil.disk_usage(OUT_ROOT).free < MIN_FREE_BYTES:
@@ -310,7 +338,7 @@ class Backfill:
             with self.lock:
                 self.used += nbytes
             self.log(**{**base, "rows": rows, "rows_kept": kept, "bytes": nbytes},
-                     seconds=round(time.monotonic() - t0, 2), status=(note if nbytes else "empty"))
+                     seconds=round(time.monotonic() - t0, 2), status=(note if nbytes or note != "ok" else "empty"))
 
 
 # ---- probe ----------------------------------------------------------------------
@@ -552,7 +580,7 @@ def main() -> int:
         ex.shutdown(wait=True, cancel_futures=True)
     wall = time.monotonic() - t0
 
-    fetched = [r for r in run.done if r["status"] in ("ok", "empty", "unmatched")]
+    fetched = [r for r in run.done if r["status"] not in ("denied", "no_oi")]
     print(f"\ndone: {len(fetched)} partitions, {sum(r['bytes'] for r in fetched) / 1e9:.2f} GB in {wall / 60:.1f} min")
     for job in jobs:
         mine = [r for r in fetched if r["job"] == job]
