@@ -1,0 +1,23 @@
+{
+  "id": "iv_wall_0dte",
+  "created": "2026-11-08",
+  "family": ["iv_wall_break"],
+  "status": "INFO ONLY: NQ val2 is spent for the IV-wall family. No gate, no adoption from this run; a forward journal is the only route to evidence.",
+  "origin": "User: 'run the 0dte IV comparison on 2023-26' — swap the VXN-implied move in the frozen IV-wall break (touch / fixed 2R / 0.4 sigma) for a QQQ 0DTE-implied move.",
+  "sigma_0dte": "QQQ same-day-expiry ATM straddle mid at the 09:35 ET 5m snapshot (data/thetadata/iv_5m), straddle mids of the two strikes bracketing underlying_price linearly interpolated to it (nearest strike if not bracketed; both legs need bid>0 and ask>bid). Expected remaining-session move sigma = straddle / sqrt(2/pi). Converted to NQ with ratio = NQ close of the 09:30-09:35 bar / QQQ underlying_price. Missing 09:35 snapshot -> the session has no 0DTE walls (no trade).",
+  "cells": {
+    "blend": "the exact VXN swap: sigma = 0.5 * (sigma_0dte + sigma_hv20), walls = prior RTH close +/- sigma; skip the session if its open is outside the band (frozen rule).",
+    "pure": "0DTE expected-move band: sigma = sigma_0dte, walls = NQ 09:35 price +/- sigma_0dte."
+  },
+  "controls": {
+    "vxn_late": "frozen VXN walls, but orders only from the same decision as the 0DTE cells (bar starting 09:35, orders rest from 09:40) and only on sessions that have a 0DTE snapshot.",
+    "ivwall": "the frozen IV-wall break unchanged (orders from 09:35)."
+  },
+  "trade": "identical to the frozen IV-wall break (IVGrid touch/fixed/0.4): 1-bar buy stop at U / sell stop at L at the nearer untouched wall, stop 0.4 sigma back inside, 2R target, flat 15:55 via engine, each wall once per session. 0DTE walls become usable at the decision of the bar starting 09:35; a wall the 09:35-09:40 bar trades through is used.",
+  "evaluator": "frozen research_loop_nq.eval (MNQ, base/stress costs, side-matched random-direction twin).",
+  "windows": {
+    "main": "2023-01-01..2026-08-14 (val2 sessions only; QQQ has a 0DTE expiry every session from 2023). Warmup = the 20 val2 sessions before.",
+    "fresh": "2026-08-17..2026-09-25 (last ThetaData day on disk): report only."
+  },
+  "reports": "per cell: n, net R, gross R, CI, stress R, twin p, by year, longs/shorts, exit mix; sigma_0dte vs VXN sigma (median ratio, correlation); same-day-side overlap with the frozen IV wall; paired daily P&L difference vs the IV wall."
+}

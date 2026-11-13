@@ -1,0 +1,19 @@
+{
+  "id": "gex0dte_wall_break",
+  "created": "2026-11-08",
+  "family": ["gex_0dte_levels", "wall_break", "iv_wall_break"],
+  "origin": "User: 'the IV wall touch continuation trade is working well for NQ recently, make me the same trade using 0DTE GEX walls'. The frozen IV-wall break (iv_wall_grid_prereg.json, touch/fixed/0.4) with only the walls swapped.",
+  "walls": "QQQ 0DTE call wall (upper, U) and put wall (lower, L) from data/thetadata_gex/qqq_gex_snapshots_0dte.parquet (same-day expiry only, OI = prior close), converted to NQ with ratio = NQ 5m close of the bar ending at the snapshot minute / snapshot QQQ spot. A snapshot computed at ET minute m is usable at the decision of the 5m bar starting at m (decided at m+5), so orders first rest from 09:40.",
+  "cells": {
+    "fixed": "walls from the session's first usable snapshot (09:35), converted once and held all session; the OCO is placed once like the IV walls.",
+    "live": "walls re-read at every decision from the latest snapshot no more than 20 minutes old (converted at that snapshot's ratio); the resting stop moves with the wall. A wall that jumps across price is not a touch."
+  },
+  "trade": "identical to the frozen IV-wall break: rest a 1-bar buy stop at U / sell stop at L at the nearer untouched wall, decisions slots 1..71 (orders 09:40..15:30); stop 0.4 sigma back inside (sigma = mean(VXN-implied daily move, 20-day HV), the IV-wall sigma); target 2R; engine flat 15:55; each wall side at most once a session (a wall traded through without a fill is used); one position at a time. A wall that is not strictly beyond the decision close when it first becomes usable is dead for the session (the IV rule's 'opened outside the band').",
+  "evaluator": "frozen research_loop_nq.eval (MNQ, base/stress costs, side-matched random-direction twin).",
+  "windows": {
+    "main": "val2 2022-01-01..2026-08-14 (the only window the 0DTE snapshots cover). Caveat fixed now: NQ val2 is spent for the IV-wall family, and QQQ 0DTE 2022-01..2025-03-26 was the discovery window of gex0dte_study (call-wall break in positive gamma looked best there, longs carried it). A pass here is therefore weaker evidence than the IV-wall val2 look.",
+    "fresh": "2026-08-17..2026-09-25 (Databento bars on disk, last ThetaData snapshot day): reported only, too short to judge."
+  },
+  "gate": "per cell on val2, frozen research_loop 'val' criteria: >= 100 trades, twin p < 0.05/2 = 0.025 (Bonferroni over 2 cells), net R > 0, session-bootstrap CI low > 0, stress R > 0, max year share <= 0.40, ex-top5 > 0, >= 2/3 folds positive.",
+  "reports_only": "longs vs shorts, by year, by 0DTE gamma sign at entry, wall distance from the 09:35 price in sigma, exit mix, the IV-wall break on the same val2 sessions for comparison, daily overlap of the two strategies' trades."
+}

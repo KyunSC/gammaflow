@@ -1,0 +1,17 @@
+{
+  "id": "vol_band_break",
+  "created": "2026-11-09",
+  "family": ["iv_wall_break", "vol_scaled_breakout"],
+  "status": "INFO ONLY: ES and NQ 2011-2026 are spent for the IV-wall family (and NQ for every breakout family tried). No gate, no adoption; the only clean test of this mechanism is a market it has not seen (GC/6E/ZN).",
+  "origin": "User: 'can you try it on NQ and ES anyways' — ATR / Keltner-channel versions of the frozen IV-wall break, after being told the IV wall is a volatility-scaled breakout.",
+  "cells": {
+    "hv": "sigma = prior RTH close x stdev(20 daily log returns of RTH closes); walls = prior close +/- sigma. The frozen IV wall with the vol-index half removed.",
+    "atr": "unit = ATR(20) of RTH sessions (true range against the session's prior RTH close; plain high-low when that is missing, e.g. roll days); walls = prior close +/- 1 ATR.",
+    "keltner": "daily Keltner channel: centre = EMA(20) of RTH closes (alpha 2/21, seeded with the first close), unit = ATR(10); walls = centre +/- 2 ATR(10). On a roll session the EMA is shifted by (roll-session open - last close of the old contract) before use."
+  },
+  "trade": "identical to the frozen IV-wall break (IVGrid touch / fixed 2R / 0.4): 1-bar buy stop at U / sell stop at L at the nearer untouched wall from 09:35, stop 0.4 x unit back inside (unit = sigma, ATR(20) or ATR(10)), target 2R, flat 15:55, each wall once a session, skip the session if it opens outside the band or has no prior close (roll day).",
+  "control": "ivwall: the frozen IV-wall break (VXN for NQ, VIX for ES) on the same sessions.",
+  "evaluator": "frozen research_loop.eval (ES, MES) and research_loop_nq.eval (NQ, MNQ): base/stress costs, side-matched random-direction twin.",
+  "windows": "dev 2011-2018, val1 2019-2021, val2 2022-2026-08-14 for each product, reported separately and pooled.",
+  "reports": "per cell x product x window: n, net R, gross R, CI, stress R, twin p, USD at 1 micro; by year; longs/shorts; same-day-side overlap with the IV wall; median band width in IV-wall sigma."
+}
