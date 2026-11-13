@@ -1,0 +1,31 @@
+{
+  "id": "k3_taker_flow",
+  "created": "2026-11-03T14:20Z",
+  "family": ["order_flow_imbalance_continuation", "taker_flow"],
+  "hypothesis": "An hour of extreme net taker buying (selling) on the Binance perp, when the perp premium has NOT already been pushed to an extreme in the same direction, is followed by a same-direction drift over the next 12h; trading it beats side-matched random twins on the same entries and brackets.",
+  "mechanism": "Large traders split orders, so aggressive imbalances are autocorrelated and lagged imbalance carries price pressure that is not yet complete (Chordia & Subrahmanyam 2004; order-flow imbalance drives price linearly, Cont, Kukanov & Stoikov 2014). Perp twist, fixed a priori: flow that comes with a stretched perp premium in the same direction is leveraged chasing (crowded, prone to exhaustion), so it is excluded. Flow with a normal or opposite premium is kept, since it is more likely hedged or informed and persistent.",
+  "direction_choice": "Continuation, chosen from Chordia & Subrahmanyam before any data. The contrary crypto evidence (15m reversal conditioned on flow, AUC ~0.54, arXiv 2608.21888) is at a shorter horizon and is noted as the main threat.",
+  "sources": [
+    {"url": "https://econpapers.repec.org/RePEc:cdl:anderf:qt34k8f3pv", "summary": "Chordia & Subrahmanyam (2004, JFE 72, 485-518): with order splitting, imbalances are autocorrelated; lagged imbalances relate positively to returns, reversing sign once the current imbalance is controlled for; imbalance strategies earn significant returns in 1988-98 NYSE daily data. Daily equities, older microstructure; a Taiwan replication finds no lagged predictability."},
+    {"url": "https://arxiv.org/pdf/2608.21888", "summary": "Short-horizon mean reversion in crypto (2026, arXiv): signs Binance bars with kline taker-buy volume and finds 15m reversal conditioned on flow, out-of-sample AUC ~0.54; lagged imbalance adds nothing out of sample. EVIDENCE AGAINST continuation at short horizons."},
+    {"url": "https://arxiv.org/pdf/2109.02776", "summary": "Net buying pressure in bitcoin options (2021, arXiv): hourly/daily order imbalance shows no clear predictive effect on spot in the excerpt read. Weak or no prior support."}
+  ],
+  "prior": "Weak to negative. Expect FAIL; run because taker flow is the free derivatives-native signal named in the plan, and the premium filter is new.",
+  "closed_ideas_check": "Not C3 (volume-spike cascade fade: a volume-magnitude trigger, a fade, no signed flow). Not C2 (no funding level). Not K2 (no OI; signed aggressor flow, 1h). Not the closed ES/NQ order-flow absorption zones (price-level zones from footprint prints). No crypto rows in data_spend_ledger for these families.",
+  "data_choice": "Taker flow from kline taker_buy_volume (the metrics taker ratio is empty Jan-May 2022). BTC and ETH train 2020-01 -> 2024-06 (premium index from 2020-01; residual gaps make hours skip). SOL report-only from 2022-05.",
+  "rules": {
+    "hours": "completed UTC hours [h, h+1h); decision at the close of the 1m bar opening h+59m (time h+1h). An hour counts only with 60 bars and 0 stale bars.",
+    "flow": "imb_h = (2 * sum taker_buy_volume - sum volume) / sum volume over the hour's 60 bars (in [-1, 1]).",
+    "premium": "prem_h = mean of the Binance premium-index 1m closes for bars opening in [h, h+1h); needs >= 50 of 60 rows, else the hour is invalid.",
+    "scale": "z_flow and z_prem = (x_h - mean) / std (ddof 1) over the previous `lookback` valid hours (720 = 30 days); need >= min_hist (480). The hour joins the history after it is used.",
+    "signal": "|z_flow| >= Z; side = sign(z_flow); skip if side * z_prem >= prem_cap (1.0), i.e. the premium is already stretched in the flow's direction.",
+    "bracket": "market entry at the next 1m open. Stop = max(1.0 * daily ATR(14) of the last completed UTC day, 1.5% of the decision close). No target. Time exit 12h after entry. Mirror-flat book.",
+    "warmup": "WARMUP_DAYS = 35."
+  },
+  "grid": {"base": {"lookback": 720, "min_hist": 480, "prem_cap": 1.0, "stop_atr": 1.0, "min_stop_pct": 1.5, "hold_h": 12}, "axes": {"Z": [2.0, 3.0]}},
+  "walk_forward": "fixed: no parameter selected. Both Z are judged by the frozen train gate (BTC and ETH both must pass). Passing configs go to validation; K counts candidates sent.",
+  "expected_trades": "|z| >= 2 on ~5% of hours (fat tails may add more), minus the premium filter, about 1 signal/day; with a 12h mirror-flat hold roughly 800-1,200 trades per asset over 4.5 years. Z = 3 roughly a fifth of that (~200-300). Unknown before running.",
+  "costs_note": "ATR(14) stops are 4-5% median (K1/K2): at a 12h hold, cost about 0.02R (7.6 bp RT plus 0.5 day of swap). At the 1.5% floor, about 0.06R.",
+  "report_not_gate": "net R long vs short (bull drift, see K1/K2), by year, and with the premium filter's skipped signals counted; share of time vs stop exits.",
+  "rejection_evidence": "Reject if the frozen train gate fails for both Z on BTC or ETH. Count against it (report): a pass from one side only, or a weaker result at Z = 3."
+}

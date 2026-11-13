@@ -1,0 +1,90 @@
+{
+ "id": "E1_tsmom_daily",
+ "created": "2026-11-05T00:57:00-0500",
+ "status": "FINAL 2026-11-05 00:59 ET after overlap review (VERDICT: DIFFERENT FAMILY - proceed; 4 required changes + 3 suggestions applied). Frozen from its first dev run (controller pins the sha).",
+ "product": "ES",
+ "dev_split": "dev",
+ "uses_opt": false,
+ "market": "ES (traded as MES). Signal from ES's own prior RTH daily closes via the frozen bar['hist'] (roll-adjusted same-contract returns). Extension proposal approved by the user in chat 2026-11-04 19:04 ET, recorded in data/research_loop_daily/state.json -> extension.approved and LOG.md (the plan file covers D1-D3 only). ES only. E1 brings the loop to 8 of the 10-configuration limit.",
+ "family": [
+  "time_series_momentum",
+  "trend_following_daily",
+  "index_serial_dependence"
+ ],
+ "hypothesis": "The sign of ES's past L-session (L = 20 or 40) close-to-close return predicts the sign of the next RTH session's 09:35 -> 15:55 move: trading in its direction with a 1:1 bracket of 0.5 x ATR20 beats side-matched random-timing twins on the same sessions with the same bracket.",
+ "mechanism": "Underreaction / slow diffusion and hedging-pressure persistence in index futures at 1-12 month lookbacks; the 1:1 ATR bracket is itself vol scaling in R terms only (the USD max-year-share gate is at 1 MES per trade).",
+ "sources": [
+  {
+   "url": "https://papers.ssrn.com/abstract=2089463",
+   "summary": "Moskowitz, Ooi & Pedersen (2012, JFE 104(2) 228-250): TSMOM returns positive for every one of the 58 instruments (equity index, bond, FX, commodity futures); significant at the asset-class and portfolio level; persistence over 1-12 months, partial reversal later. Monthly lookbacks and holding, not daily."
+  },
+  {
+   "url": "https://quantpedia.com/deconstructing-the-time-series-momentum-strategy/",
+   "primary": "Kim, Tse & Wald (2016), 'Time series momentum and volatility scaling', Journal of Financial Markets 30, 103-124",
+   "summary": "SECONDARY, UNVERIFIED against the primary paper: per the Quantpedia summary of Kim, Tse & Wald (2016, JFM 30, 103-124), much of TSMOM alpha comes from vol scaling (1.27% -> 0.41%/month without), and the unscaled edge vanishes post-crisis 2009-2013, inside our dev window."
+  }
+ ],
+ "prior": "Weak. TSMOM's documented payoff is monthly holding over 1-12 months; a one-session RTH hold captures 1/20-1/40 of a monthly hold and misses the overnight, so even the paper's full effect would be ~0.01-0.03R per trade here. Kim-Tse-Wald (secondary summary) find the unscaled edge gone 2009-13. Power: with ~1,950 trades, twin p < 0.005 needs ~+0.05-0.06R over the twins (twin sd ~0.019 at n ~1,985, from the sanity run). The binding gates are the CI low > 0 (net >~ +0.04R) and stress > 0 (gross >~ 0.14R, since stress about doubles the 0.069R cost). Side-matched twins (twins.py: a side-matched permutation over the same sessions): with long share ~0.68 (L20) / ~0.74 (L40) in dev the twins carry the same long share, so the test is timing (does the trend sign pick the better days?), not the S&P's long drift. Expect FAIL.",
+ "overlap_with_closed": {
+  "closest": "D1_daily_reversal (this loop; tags daily_close_to_close_reversal, index_serial_dependence, short_term_reversal; ES dev 2011-02..2018-12, discovery, FAIL all 3 configs -0.07..-0.09R, p 0.42-0.49)",
+  "mechanical_differences": [
+   "Direction: D1 FADES the prior return (side = -sign z); E1 FOLLOWS it (side = +sign).",
+   "Horizon: D1 uses 1 or 5 sessions; E1 uses 20 or 40 sessions (4-40x longer). The literatures differ: post-2000 negative daily serial dependence (Baltussen et al.) vs 1-12 month time-series momentum (Moskowitz-Ooi-Pedersen).",
+   "Threshold: D1 trades only |z| >= 1 or 1.5 (295-605 dev signals); E1 trades every eligible session (~1,950 dev), sign only, no scale.",
+   "Mechanism: D1 = liquidity provision / index-arbitrage reversal; E1 = underreaction / slow diffusion / hedging-pressure persistence.",
+   "D1's L5 failing says nothing about L20/L40 continuation: an L5 fade losing is mild evidence FOR short-horizon continuation, which is D1's report-only reverse rule, not E1."
+  ],
+  "shared": "Both read the same bar['hist'] close-to-close returns and the same 09:35 -> 15:55 1:1 trade shape on the same ES dev 2011-18 (D1's ledger row is discovery, and no one_look row carries E1's families, so no spend refusal; reuse disclosed for multiple testing). sign(S_L) IS a serial-dependence bet: positive cumulative autocorrelation over lags 1..L (variance ratio > 1 at 20/40 days), the opposite sign and a 4-40x longer horizon than D1; hence index_serial_dependence is in family (no spend effect). sign(S20) and sign(R5) share 5 of 20 terms: count-only sign agreement of E1's side with the sign of D1's R5 (i.e. with D1-L5's reverse rule, unthresholded) is 0.684 (L20, n 1,964) and 0.649 (L40, n 1,944) of dev sessions; D1's L5 fade had gross ~0, so E1 partly inherits that null. Also not intraday_momentum_into_close (same-day first 30m -> last 30m), nq_residual_momentum (NQ-vs-ES residual since the open), the ema_direction one_look (intraday, 2016-21), flybrain's fixed direction, or k2_oi_backed (crypto 4h moves)."
+ },
+ "timestamp_semantics": "bar['hist'] holds only sessions strictly before today (frozen eval, tests); 'ret' is the same-contract close-to-close return, roll-adjusted with the Globex switch gap measured before 09:30. Decision on slot 0's close (09:35); the slot 0 close is used only as the bracket centre.",
+ "features": [
+  "S_L = sum of ret over hist[-L:] (the last L hist entries); needs len(hist) >= L and every ret not None, else no signal. side = +1 if S_L > 0, -1 if S_L < 0, no trade if S_L == 0.",
+  "Entries with nyse_skipped > 0 COUNT as recorded: their ret spans the missing Databento sessions (c vs the previous listed close), so S_L still covers the whole price path; the window then spans L listed sessions, more than L NYSE days. Count-only: 59 (L20) / 119 (L40) dev trade sessions have such an entry in their window (2014 gaps).",
+  "Half-day sessions in hist count as recorded; only TODAY being a half day skips the trade.",
+  "On val1/val2 the loader keeps only 60 calendar days (~41 sessions) before the split: the first hist entry has ret None and L40 may have no signal on the first sessions. Those sessions are 'no signal' and are counted in the run report, as in the dev scan."
+ ],
+ "rules": {
+  "bars": "5m RTH bars; decision on slot 0's close (09:35), market fill at the next bar's open (09:35); the engine manages the bracket.",
+  "sessions": "skip NYSE half days; skip sessions where ATR20(tr) over the last 20 hist entries is not computable (controller rule).",
+  "entry": "side = sign(S_L), every eligible session. One trade per session at most.",
+  "risk": "stop = c0 - side * k * ATR20, target = c0 + side * k * ATR20, c0 = slot 0 close, ATR20 = mean of the last 20 hist 'tr', k = 0.5. Controller-enforced.",
+  "exit": "stop, target, or the engine's flat at the 15:55 open.",
+  "trades_per_session": "at most one (controller-enforced)."
+ },
+ "grid": {
+  "base": {
+   "k": 0.5,
+   "atr_def": "tr"
+  },
+  "axes": {
+   "L": [
+    20,
+    40
+   ]
+  }
+ },
+ "grid_note": "Two configs, each the other's neighbour (L20 - L40), exactly the approved grid.",
+ "walk_forward": "fixed: no selection; both judged by the frozen dev gate on 'dev' (ES 2011-02..2018-12). A pass goes to val1 (2019-21), then val2 (2022-01..2026-08-14).",
+ "count_only_scan": "ES dev via the frozen loader, 1,986 trade sessions: 18 half days skipped, 1 without a ret (first session in the list), 20 more for L40 without 40 hist entries, 0 without ATR20. Signals: L20 1,967 (long share 0.681), L40 1,947 (0.742); every year 211-252, max year share 0.129. Only prior close-to-close returns (the signal inputs) were read; no traded-session outcome was computed or linked to a signal.",
+ "expected_trades": "~1,967 / ~1,947.",
+ "costs_note": "MES base RT 2 ticks slip + $1 commission. Sanity random 1:1 at 0.5 x ATR20(tr) on ES dev: mean cost 0.069R. Stress roughly doubles it. With ~1,950 trades the SE of mean R is ~0.022R, so twin p < 0.005 needs ~+0.06R over the twins.",
+ "rejection_evidence": "Reject if the frozen dev gate fails for both configs. Report, not gate: long vs short mean R; per year; exit kinds; agreement of the L20 and L40 sides; share of days where E1's side equals D1-L5's reverse (daily momentum). The agreement share with D1-L5's sign is kept in the report.",
+ "deviation_from_plan": "None from the approved proposal (sum of last L ret, sign only, every session, L20 and L40). Rule precision added: ret None -> no signal; nyse_skipped entries count; half days in hist count.",
+ "report_only": "Everything under rejection_evidence plus: vol-scaled sizing, the reverse rule (fade the trend), long-only / short-only subsets, other L, and NQ. None can be promoted, gated or run on dev / val1 / val2 under this id; NQ dev will NOT be run for E1.",
+ "review": {
+  "by": "Opus overlap-review subagent, 2026-11-05 00:57-00:59 ET",
+  "verdict": "DIFFERENT FAMILY - proceed",
+  "summary": "Not D1's report-only reverse rule (that follows sign z at L1/L5 only when |z| >= 1/1.5, 295-605 days; E1 follows the 20/40-session sum every session, ~1,950). Different literature (MOP TSMOM vs Baltussen post-2000 negative index autocorrelation) and mechanism. No one_look row on ES 2011-18 / 2019-21 / 2022-26 carries time_series_momentum or trend_following_daily. Rules precise and lookahead-free; twins wording matches twins.py.",
+  "required_changes_applied": [
+   "serial-dependence wording fixed + index_serial_dependence tag added + R5 sign agreement (0.684 / 0.649) disclosed",
+   "power sentence rewritten (twin vs CI vs stress gates)",
+   "MOP 58-instrument wording corrected",
+   "Kim-Tse-Wald primary cited, figures labelled secondary/unverified"
+  ],
+  "suggestions_applied": [
+   "val1/val2 short load window -> no-signal sessions counted",
+   "approval pointer + 8/10 configs",
+   "vol scaling 'in R' only"
+  ]
+ }
+}

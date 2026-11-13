@@ -1,0 +1,46 @@
+{
+ "id": "V1_flow_divergence",
+ "created": "2026-11-03T01:48:00-0500",
+ "product": "NQ",
+ "dev_split": "dev_opt",
+ "uses_opt": true,
+ "market": "NQ (traded as MNQ); signal from QQQ options via bar['opt'] (nearest expiry with DTE >= 7, ATM call-minus-put IV spread)",
+ "family": ["options_iv_spread_flow", "put_call_parity_deviation", "implied_vol_innovation_direction"],
+ "hypothesis": "The morning change in QQQ's ATM call-minus-put implied-vol spread, beyond what NQ's own morning move implies (trailing 20-session regression), predicts the sign of NQ's 12:00 -> 15:55 return: trading NQ in the direction of the spread-change residual (|z| >= Z) beats random-direction trades at the same times with the same stop.",
+ "mechanism": "Informed or hedging demand that is directional reaches options first: buying calls (or selling puts) lifts call IV relative to put IV at the same strike, a deviation from put-call parity in the direction of the expected move. Arbitrage closes the gap only slowly, so the spread change carries the flow's sign before the underlying has fully moved. Regressing out NQ's morning return removes the mechanical part (spot-vol co-movement and any forward/carry mismeasurement that tracks spot), leaving the options-specific innovation.",
+ "sources": [
+  {"url": "https://papers.ssrn.com/abstract=2008902", "summary": "An, Ang, Bali & Cakici (2014, JF 69(5)), 'The Joint Cross Section of Stocks and Options': stocks whose call IV rose over the past month earn ~1%/month more; rising put IV predicts lower returns; interpreted as informed trading. Cross-section of single stocks, monthly horizon."},
+  {"url": "https://econpapers.repec.org/RePEc:cup:jfinqa:v:45:y:2010:i:02:p:335-367_00", "summary": "Cremers & Weinbaum (2010, JFQA 45(2)), 'Deviations from Put-Call Parity and Stock Return Predictability': stocks with relatively expensive calls (call-minus-put IV spread) beat those with expensive puts by ~50 bp/week (1996-2005); predictability decays over the sample; stronger with more information risk. Single stocks, weekly."},
+  {"url": "https://tdr.lib.ntu.edu.tw/handle/123456789/74752?locale=en", "summary": "NTU thesis (2019): intraday S&P 500 call-put IV spreads relate positively to contemporaneous index returns; predictive power for the next half hour strongest at the open and fading through the day. Thesis-level, not peer reviewed; sign agrees with this prereg."},
+  {"url": "https://www.cxoadvisory.com/volatility-effects/predicting-stock-market-returns-with-implied-index-volatilities", "summary": "Bali-Demirtas-Atilgan via CXO: OTM-put minus ATM-call IV spread relates NEGATIVELY to future S&P 500 returns over weeks (1996-2008). Same sign as this prereg (expensive puts -> lower returns); weekly horizon, not intraday."},
+  {"url": "https://researchrepository.wvu.edu/etd/13310", "summary": "WVU dissertation: the index IV spread does not generally predict index returns; only in rising-volatility / overreaction periods. Cited to set the prior."}
+ ],
+ "prior": "Weak. The peer-reviewed evidence is single-stock and weekly-to-monthly; the index-level intraday evidence is thesis-only and mixed. Index options are dominated by hedging rather than informed directional trading (a common view; not verified from a source here). Cremers-Weinbaum's effect decayed after 2005; dev is 2016-18. Every intraday direction rule tried in this repo so far did no better than random.",
+ "closed_ideas_check": "No closed family uses options-implied spreads as a direction signal. Nearest: (1) 'Intraday momentum into the close' keys on the market's own morning return; here the market return is regressed OUT and the signal is the options residual, which correlates -0.06 with the morning return (count-only scan). (2) GEX walls / implied-move band use option-derived LEVELS, not a signed flow innovation. (3) nq_residual_momentum (closed today) used NQ-vs-ES price residuals, no options. Families not in data_spend_ledger for NQ or ES.",
+ "timestamp_semantics": "iv_5m rows are snapshots at their timestamp (LOG iteration 1; review 3b: within ~2 s of T). bar['opt'] on 5m slot k is the snapshot at the bar's close (slot_end = start + 5 min). Slots 0..4 carry the 09:35..09:55 snapshots; slots 25..29 carry 11:40..12:00. The decision on slot 29's close (12:00) uses only snapshots stamped <= 12:00.",
+ "features": [
+  "r = ln(c[slot 29] / o[slot 0]) of NQ (09:30 -> 12:00)",
+  "dS = mean(iv_spread over slots 25..29) - mean(iv_spread over slots 0..4), each mean needing >= 3 non-None values (iv_spread = atm_call_iv - atm_put_iv, vol points as decimals)",
+  "(derived, not a separate feature) a, b, s = OLS intercept, slope and residual sd (n-2 dof) of dS on r over the prior 20 eligible sessions"
+ ],
+ "rules": {
+  "bars": "5m RTH bars; decision at bar close, fills from the next bar.",
+  "eligible_session": "full session (not half day); bar['opt'] present on slots 0 and 29; bar['opt']['exdiv'] is False on slot 29 (the expiry is fixed for the day, so the flag is constant within it); both dS window means available. Ineligible sessions neither trade nor enter the history.",
+  "exdiv": "excluded from trading AND from the trailing regression (ThetaData IVs ignore dividends: iv_spread -2..-8 vol pts on those days; review 3b).",
+  "z": "z = (dS - a - b * r) / s using the prior 20 eligible sessions (history stores (r, dS) of every eligible session, traded or not, including warmup sessions). Requires 20 stored sessions.",
+  "news_filter": "skip trading (but still store history) if any scheduled RTH high-impact release time m satisfies 12:00 <= m < 15:55 (FOMC 14:00 and other afternoon releases dominate the afternoon).",
+  "entry": "if |z| >= Z: market order at the next bar's open (12:00), side = sign(z) (+1 long when calls got relatively richer than the morning move implies).",
+  "risk": "stop = c[29] - side * 0.5 * ADR20, ADR20 = mean NQ RTH (high - low) of the prior 20 completed sessions (any session, half days excluded). Fixed, not selected.",
+  "target": "none.",
+  "exit": "the engine's flat at the 15:55 open, or the stop.",
+  "trades_per_session": "at most one."
+ },
+ "deviation_from_plan": "The plan's wording conditions on divergence (NQ up but options moved against it). The count-only scan (no returns) gave divergent sessions 242 / 193 / 152 at Z 0.25 / 0.5 / 0.75, so two of three configurations would miss the 200-trade minimum. Because the trailing spot-vol slope is ~0 (median b -0.017; corr(r, dS) -0.055), the residual is already 'beyond what the spot move implies' and divergence is a near-random halving. The rule therefore trades the residual's sign whether or not it disagrees with r; the divergent subset is reported, not gated.",
+ "count_only_scan": "functions/ml NQ dev_opt (734 trade sessions): 607 eligible with a z and no afternoon news; |z| >= 0.25 / 0.5 / 0.75 / 1.0 / 1.5 -> 476 / 374 / 284 / 211 / 93 sessions, long share 0.50-0.52. No price after 12:00 and no trade outcome was computed.",
+ "grid": {"base": {"n_hist": 20, "stop_adr": 0.5, "news_from": 720, "news_to": 955, "open_slots": [0, 4], "noon_slots": [25, 29], "decision_slot": 29}, "axes": {"z": [0.25, 0.5, 0.75]}},
+ "walk_forward": "fixed: no selection; all three Z judged by the frozen dev gate on dev_opt, each needing its grid neighbours positive.",
+ "expected_trades": "dev_opt ~476 / ~374 / ~284 (count-only scan).",
+ "costs_note": "Base RT here = market entry + flat exit = 2 ticks slip + $1 commission (2 MNQ ticks) = 4 ticks. Stop 0.5 x ADR20: 2016 (price ~4,600, median range 42 pts) ~21 pts = 84 ticks -> 0.047R; 2017 (~5,800, 38 pts) 76 ticks -> 0.053R; 2018 (~7,000, 95 pts) 190 ticks -> 0.021R.",
+ "rejection_evidence": "Reject if the frozen dev gate fails for every Z. Report, not gate: mean R for divergent (sign(z) != sign(r)) vs agreeing sessions; mean R long vs short; per-year mean R; share of stop exits; correlation of z with the 12:00 -> 15:55 return computed from the trades (information only).",
+ "option_fields_used": "bar['opt']['iv_spread'] on slots 0..4 and 25..29; bar['opt']['exdiv'] on slot 29."
+}

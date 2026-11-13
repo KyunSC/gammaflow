@@ -1,0 +1,103 @@
+{
+ "id": "D1_daily_reversal",
+ "created": "2026-11-04T01:58:00-0500",
+ "status": "FINAL 2026-11-04 01:52 ET after overlap review (VERDICT: DIFFERENT FAMILY - proceed; 6 required wording/rule-precision changes applied). Frozen from its first dev run (controller pins the sha).",
+ "product": "ES",
+ "dev_split": "dev",
+ "uses_opt": false,
+ "market": "ES (traded as MES). Signal from ES's own prior RTH daily closes via the frozen bar['hist'] (roll-adjusted same-contract returns). ES chosen because the index-level evidence is for the S&P 500 and its futures.",
+ "family": [
+  "daily_close_to_close_reversal",
+  "index_serial_dependence",
+  "short_term_reversal"
+ ],
+ "hypothesis": "A large prior L-day ES close-to-close return (L = 1 or 5 RTH sessions), scaled by 20-day daily return volatility, is partly reversed in the next RTH session: trading against it from 09:35 to 15:55 with a 1:1 bracket of 0.5 x ATR20 beats random-direction trades taken on the same sessions with the same bracket.",
+ "mechanism": "Since ~2000 US index returns show NEGATIVE daily serial dependence (Baltussen, van Bekkum & Da 2019), linked to index products (futures/ETFs) and index arbitrage; Jones, Pyun & Wang (2016) find daily reversal in S&P 500 futures, strongest when implied variance is high and mostly after negative days. Liquidity-provision reading (Nagel 2012): index-level price pressure from flows that dealers absorb overnight is paid back by a partial reversal.",
+ "sources": [
+  {
+   "url": "https://doi.org/10.1016/j.jfineco.2018.07.016",
+   "summary": "Baltussen, van Bekkum & Da (2019, JFE 132(1) 26-48), 'Indexing and stock market serial dependence around the world': across 20 indexes in 15 countries, daily AR(1) of index returns was positive until the 1990s and is negative since the 2000s (10-year average about -0.05 to -0.1 for MAC(5) by 2010-16). A strategy trading on MAC(5) after 1999 has an annual Sharpe of 0.63 (0.67 for the S&P 500 alone); futures and ETFs show similar negative dependence. Links it to index products and arbitrage. Gross of costs. Caveats: MAC(q) is a variance-ratio-style weighting of daily autocorrelations at lags 1..q-1, not a cumulative 5-day return, so L5 here is NOT their statistic; their strategy is close-to-close (includes the overnight, which this RTH trade misses); their sample ends 2016, so ES dev 2011-18 is mostly in-sample for the paper."
+  },
+  {
+   "url": "https://sjpyun.github.io/Rev.pdf",
+   "summary": "Jones, Pyun & Wang (2016 working paper, 'Implied Variance and Market Index Reversal'): the S&P 500 index, its futures and SPY show strong daily return reversal when implied variance (VIX) is high; mostly after NEGATIVE returns (positive returns weakly continue when IV is high); reversal is strongest for prices around the close and just after the open, and returns of the last 20-60 minutes reverse over the overnight + first 30 minutes. Similar in both halves of the sample. Their main evidence is variance-ratio / serial-covariance regressions, not a tradable rule, and they note the serial covariance 'generally takes longer than a day to resolve', i.e. a one-session hold captures only part of it."
+  },
+  {
+   "url": "https://www.nber.org/papers/w17653",
+   "summary": "Nagel (2012, RFS 25(7) 2005-2039), 'Evaporating Liquidity': short-term reversal returns proxy the return to liquidity provision; expected reversal returns rise strongly with VIX. Daily cross-sectional equities, not index futures."
+  }
+ ],
+ "prior": "Weak, and LOW POWER even if the effect is real. A daily AR of about -0.02 to -0.08 implies a gross edge of a few hundredths of R on an open-to-close leg, at or below the 0.069R MES cost. With 300-600 trades the SE of mean R is ~0.04-0.05R, so side-matched twin p < 0.005 needs roughly +0.1R net: the chance of passing is low. Further: much of Jones et al.'s reversal is overnight / first 30 minutes (partly missed by a 09:35 entry) and takes longer than a day; it is concentrated after down days in high-IV regimes, which this symmetric unconditional rule does not target (no VIX feature, to stay within 3 features and 3 configs). The closed overnight close-auction fade is mild evidence against the overnight leg, not against this RTH leg.",
+ "overlap_with_closed": {
+  "closed_family": "research_loop shock_fade (tags short_term_reversal, liquidity_provision, shock_fade; ES dev 2011-02..2018-12, discovery, FAIL all 3 K at -0.20R)",
+  "mechanical_differences": [
+   "Signal: shock_fade = one 5-minute bar's move mid-session (10:00-15:15) scaled by same-slot 5m volatility; D1 = the prior 1 or 5 full RTH sessions' close-to-close return scaled by 20-day DAILY return volatility. No intraday bar enters the D1 signal.",
+   "Timing: shock_fade enters intraday right after the shock bar, any time of day, possibly several times per session; D1 enters once per session at the 09:35 open, after the overnight session has passed.",
+   "Holding: shock_fade 30-minute time stop; D1 holds the full session to 15:55 or the bracket.",
+   "Bracket: shock_fade risk = the shock size (3+ pts, often tiny, cost 0.12-0.22R); D1 risk = 0.5 x ATR20 of daily true ranges (cost ~0.069R).",
+   "Horizon of the documented effect: shock_fade relied on intraday reversal at the open (Grant et al.) applied mid-session; D1 relies on daily-horizon index serial dependence (Baltussen et al.), a different anomaly in the literature."
+  ],
+  "shared": "Both are 'fade a large past move' reversal ideas and share the liquidity-provision story and the short_term_reversal tag; ES dev 2011-18 was already used by shock_fade as discovery (not one_look), so the multiple-testing disclosure counts it."
+ },
+ "timestamp_semantics": "bar['hist'] holds only sessions strictly before today (frozen eval, tests); 'ret' is the same-contract close-to-close return, roll-adjusted with the Globex switch gap measured before 09:30. The decision is taken on slot 0's close only because the engine acts on bar closes; the slot 0 close is used only as the bracket centre.",
+ "features": [
+  "R_L = product over the last L hist entries (hist[-L:]) of (1 + ret) - 1 (L = 1 or 5); if any of them has ret None or nyse_skipped > 0, no signal",
+  "sd20 = sample sd (n-1) of ret over the entries of hist[-20:] (the last 20 hist entries ONLY, never further back) that have ret not None and nyse_skipped == 0; needs >= 18 such entries, else no signal",
+  "z = R_L / (sd20 * sqrt(L))",
+  "Half-day sessions in hist COUNT in R_L and sd20 exactly as recorded (their close-to-close ret is a real prior-close quantity); only TODAY being a half day skips the trade"
+ ],
+ "rules": {
+  "bars": "5m RTH bars; decision on slot 0's close (09:35), market fill at the next bar's open (09:35); the engine then manages the bracket.",
+  "sessions": "skip NYSE half days; skip sessions where ATR20(tr) over the last 20 hist entries is not computable (controller rule).",
+  "entry": "if |z| >= Z: side = -sign(z) (prior up-move -> short; down-move -> long). One trade per session at most.",
+  "risk": "stop = c0 - side * k * ATR20, target = c0 + side * k * ATR20, c0 = slot 0 close, ATR20 = mean of the last 20 hist 'tr' (roll-adjusted true range), k = 0.5. Controller-enforced.",
+  "exit": "stop, target, or the engine's flat at the 15:55 open.",
+  "trades_per_session": "at most one (controller-enforced).",
+  "stale_prior_session": "Accepted explicitly, not filtered: if the DATA lacks a scheduled NYSE day between hist[-1] and today (Databento gaps), hist[-1] is not yesterday and R_1 is stale. The strategy cannot see today's own gap count (nyse_skipped is only on hist entries) and has no date arithmetic. In ES dev this hits 3 trade sessions: 2014-06-16 (after 06-12/13), 2014-09-26 (after 09-23..25), 2015-01-02 (after 12-31). The run report lists whether any of them traded."
+ },
+ "grid": {
+  "base": {
+   "k": 0.5,
+   "atr_def": "tr",
+   "n_sd": 20,
+   "min_sd": 18
+  },
+  "axes": {
+   "cfg": [
+    {
+     "L": 1,
+     "Z": 1.5
+    },
+    {
+     "L": 1,
+     "Z": 1.0
+    },
+    {
+     "L": 5,
+     "Z": 1.0
+    }
+   ]
+  }
+ },
+ "grid_note": "One compound axis so the plan's three configs are exactly the grid. Neighbour order: (L1, Z1.5) - (L1, Z1) - (L5, Z1); each step changes one parameter.",
+ "walk_forward": "fixed: no selection; all three judged by the frozen dev gate on 'dev' (ES 2011-02..2018-12), each needing its grid neighbours positive. A pass goes to val1 (2019-21), then val2 (2022-01..2026-08-14).",
+ "count_only_scan": "ES dev, 1,986 trade sessions (18 half days skipped, 1 without ATR20). Signals: (L1, Z1.5) 295, long share 0.48; (L1, Z1) 577, 0.44; (L5, Z1) 605, 0.38; every year 32-98 signals. NQ for reference: 293 / 597 / 666. The signal inputs are prior close-to-close returns of dev sessions (they are the signal), but no return AFTER a signal (the traded session's outcome) was computed or linked to a signal.",
+ "expected_trades": "~295 / ~577 / ~605.",
+ "costs_note": "MES base RT 2 ticks slip + $1 commission. Sanity random 1:1 at 0.5 x ATR20(tr) on ES dev: mean cost 0.069R (stops ~25-50 ticks). Stress roughly doubles it.",
+ "rejection_evidence": "Reject if the frozen dev gate fails for every config. Report, not gate: mean R long vs short (Jones et al. predict longs after down days carry it); by VIX tercile at the prior close (bar['daily']['VIX']) as a description only; per year; exit kinds.",
+ "deviation_from_plan": "None in rule shape. ES only (not ES and NQ) to keep D1 at 3 of the 9 configurations; NQ counts are reported above for reference only.",
+ "report_only": "Everything under rejection_evidence plus: the reverse rule (daily momentum), long-only / short-only subsets, high-VIX subsets and NQ. None of these can be promoted, gated, or run on dev / val1 / val2 under this id; any of them would need a new prereg on unspent data. NQ dev will NOT be run for D1.",
+ "review": {
+  "by": "Opus overlap-review subagent, 2026-11-04 01:50-01:52 ET",
+  "verdict": "DIFFERENT FAMILY - proceed",
+  "summary": "Signal/horizon differ >10x (5m mid-session bar, 30-min hold vs 1/5-day close-to-close, ~6.3h hold); different literature anomaly (post-2000 index daily serial dependence vs intraday post-shock reversal at the open); shock_fade's failure mode (0.15R cost at ~4-pt risk, mild 5m continuation) does not transfer. Not a variant of close_auction (last-30-min overnight fade), intraday momentum, or V3. shock_fade's ledger row is discovery, so no spend refusal; ES dev reuse disclosed.",
+  "required_changes_applied": [
+   "sd20 window pinned to hist[-20:]",
+   "half days in hist count",
+   "stale prior session accepted + counted (3 ES dev sessions)",
+   "report-only list incl. reverse / subsets / NQ not run",
+   "count-only wording",
+   "power statement + BvBD in-sample/MAC(q) + JPW longer-than-a-day caveats"
+  ]
+ }
+}

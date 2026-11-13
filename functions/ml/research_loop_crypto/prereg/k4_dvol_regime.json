@@ -1,0 +1,31 @@
+{
+  "id": "k4_dvol_regime",
+  "created": "2026-11-03T14:45Z",
+  "family": ["implied_vs_realized_regime", "regime_conditioned_breakout_fade"],
+  "hypothesis": "A daily close beyond the prior N-day range continues when implied vol (Deribit DVOL) is high relative to 30-day realized vol (options price an expansion), and reverses when DVOL is low relative to realized vol (options price calming). Following breaks in the first regime and fading them in the second beats side-matched random twins on the same entries and brackets.",
+  "mechanism": "DVOL is the market's 30-day expected vol. When it sits far above recent realized vol, option traders price a coming expansion: range breaks are more likely the start of a trend, with flow behind them. When DVOL sits below realized vol, the recent burst is priced to fade, so range extremes are exhaustion and revert. The variance risk premium is time-varying and its size carries information about expected moves (Alexander & Imeraj 2020 build the bitcoin VIX and its VRP; Almeida et al. 2024 find a large, time-varying BTC VRP). The direction of the conditioning is set here a priori, not tested by either source.",
+  "sources": [
+    {"url": "https://sro.sussex.ac.uk/id/eprint/91094/", "summary": "Alexander & Imeraj (2020, J. Alternative Investments): construct a bitcoin implied-vol index (VIX method) and its variance risk premium vs realized variance at several sampling frequencies; compare BTC VRP with equities, oil, gold, FX, Treasuries. Descriptive; no breakout/fade test."},
+    {"url": "https://arxiv.org/html/2410.15195v2", "summary": "Almeida, Grith, Miftachov & Wang (2024, arXiv 2410.15195): Deribit options 2017-2022; BTC is far more volatile than the S&P 500 and carries a higher, time-varying variance risk premium. Supports DVOL/RV as an informative state variable; no direct trading evidence."}
+  ],
+  "prior": "Weak. The conditioning direction is first-principles only. Expect FAIL.",
+  "closed_ideas_check": "The breakout arm overlaps C1 (daily Donchian trend, closed on crypto). K4 differs in three ways: (1) it trades only when the DVOL/RV regime is in its top tertile, never unconditionally; (2) it fades the same breaks in the bottom tertile; (3) short N (5/10 days) and a 48h hold, not a trend-following hold. If K4's pass came from the breakout arm alone, that would be C1 under a filter; this is reported, and a pass driven by one arm counts against it. Not C3/C5/C6 or K1-K3.",
+  "data_choice": "Deribit DVOL hourly (BTC, ETH) from 2021-03-24, joined asof the decision with max_age 7200 s (a row counts at its hour's end). Train signals from about 2021-08 (30 days of realized vol plus 120 days of ratio history) to 2024-06. SOL: no DVOL, so 0 trades (report only).",
+  "rules": {
+    "days": "UTC days d. The decision bar is the 1m bar opening 23:59 of day d (decided at 00:00 of d+1). Day d needs 1,440 bars and none stale; otherwise no signal and no history update.",
+    "daily_bars": "daily OHLC from the 1m bars of complete UTC days (engine.aggregate on m.t // 86400).",
+    "rv": "RV_d = std (ddof 1) of the last 30 daily log close-to-close returns ending at d (complete days only) * sqrt(365) * 100.",
+    "dvol": "DVOL_d = DVOL close asof 00:00 of d+1, max_age 7200 s.",
+    "ratio": "x_d = ln(DVOL_d / RV_d). lo / hi = the 1/3 and 2/3 quantiles of x over the previous 180 valid days (>= 120 needed). The day joins the history after use.",
+    "break": "up if close_d > max(high of the previous N complete days); down if close_d < min(low of the previous N complete days); else none.",
+    "signal": "x_d >= hi: follow (side = +1 on up, -1 on down). x_d <= lo: fade (side = -1 on up, +1 on down). Otherwise no trade.",
+    "bracket": "market entry at the next 1m open. Stop = max(1.0 * daily ATR(14) of the last completed UTC day, 1.5% of the decision close). No target. Time exit 48h after entry. Mirror-flat book.",
+    "warmup": "WARMUP_DAYS = 230."
+  },
+  "grid": {"base": {"rv_days": 30, "lookback": 180, "min_hist": 120, "stop_atr": 1.0, "min_stop_pct": 1.5, "hold_h": 48}, "axes": {"N": [5, 10]}},
+  "walk_forward": "fixed: no parameter selected. Both N are judged by the frozen train gate (BTC and ETH both must pass). Passing configs go to validation; K counts candidates sent.",
+  "expected_trades": "About 1,050 train days per asset from 2021-08. A close beyond the prior 5-day range on roughly 25-30% of days, two thirds of those in an active tertile, minus the 48h mirror-flat skip: about 150-220 trades at N = 5 and about 100-150 at N = 10. N = 10 will probably fail the 200-trade floor; N = 5 is borderline. Stated before running.",
+  "costs_note": "ATR(14) stops 4-5% median; a 48h hold adds about 2 days of swap: cost about 0.03R. At the 1.5% floor, about 0.09R.",
+  "report_not_gate": "net R by arm (follow vs fade) and by side; by year; DVOL/RV tertile thresholds over time.",
+  "rejection_evidence": "Reject if the frozen train gate fails for both N on BTC or ETH. Count against it (report): a pass carried by one arm only (the follow arm alone would be C1 under a filter)."
+}

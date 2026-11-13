@@ -1,0 +1,80 @@
+{
+ "id": "V2_skew_shock_fix",
+ "created": "2026-11-03T02:09:00-0500",
+ "product": "NQ",
+ "dev_split": "dev_opt",
+ "uses_opt": true,
+ "market": "NQ (traded as MNQ); signal from QQQ options via bar['opt'] (nearest expiry with DTE >= 7, 25-delta put IV minus 25-delta call IV). The plan's SPY -> MES leg is dropped (no ES dev_opt, LOG iteration 4).",
+ "family": [
+  "options_skew_shock",
+  "option_demand_pressure_reversal",
+  "dealer_hedging_pressure"
+ ],
+ "hypothesis": "A 30-minute change in QQQ 25-delta skew beyond what NQ's own 30-minute move implies (|z| >= K, same-slot scaled) is option-demand pressure, not information; the futures move it induces (dealer delta hedging of the options sold) partly reverses. Trading NQ AGAINST the pressure for 90 minutes (skew residual up -> long, down -> short) beats random-direction trades at the same times with the same stop.",
+ "mechanism": "Public net buying of index puts lifts put IV relative to calls (Bollen & Whaley 2004: index IV changes are driven by put buying pressure and partly reverse; evidence for limits to arbitrage, not learning). Dealers who sell those puts hedge by selling futures, adding temporary price pressure; when the demand stops, the hedge-driven part of the move should mean-revert. The informed-trading reading (Xing, Zhang & Zhao 2010: steep smirks predict LOWER returns) is documented for single stocks at weekly-monthly horizons; Bollen & Whaley explicitly find learning does not explain the index case, so the direction is fixed as a fade before any return is seen.",
+ "sources": [
+  {
+   "url": "https://econbiz.de/Record/does-net-buying-pressure-affect-the-shape-of-implied-volatility-functions-bollen-nicolas/10005302766",
+   "summary": "Bollen & Whaley (2004, JF 59, 711-753): changes in S&P 500 option IVs are driven mostly by net buying pressure for index puts; IV changes partly reverse; the option's own net buying pressure is the key variable, supporting limits to arbitrage over learning. Daily, index options. Abstract/secondary level."
+  },
+  {
+   "url": "https://econpapers.repec.org/RePEc:cup:jfinqa:v:45:y:2010:i:03:p:641-662_00",
+   "summary": "Xing, Zhang & Zhao (2010, JFQA 45(3), 641-662): steeper individual-stock smirks predict lower future returns for at least 6 months (informed traders with bad news buy OTM puts). Single stocks, weekly rebalancing. Cited for the OPPOSITE (continuation) reading, rejected for the index case on Bollen-Whaley's evidence."
+  },
+  {
+   "url": "https://repository.bilkent.edu.tr/items/a95d7142-af4a-48a8-a927-ca453f5e1e41",
+   "summary": "Bilkent thesis (2012): intraday S&P 500 smirk-slope measures predict up to ~20 minutes ahead. Thesis-level; sign and costs not confirmed from the abstract."
+  }
+ ],
+ "prior": "Weak. No peer-reviewed intraday test of skew-shock -> futures reversal was found. Bollen-Whaley's reversal is in option IVs, not necessarily in the underlying; the hedging-pressure channel's size on NQ futures (deep market) may be far below costs. V1 (call-put spread innovation, same data) showed no information in a related options residual.",
+ "closed_ideas_check": "Nearest closed: (1) 'Mid-session 5m shock fade (same-slot vol scaled)' on ES fades PRICE shocks. Here the trigger is the options-skew residual after regressing out the 30-min price move: count-only scan corr(z, 30-min price change) -0.04 / -0.16 / -0.23 at K 2.0 / 2.5 / 3.0, and the trade agrees with fading the price move in only ~42-47% of triggers. The RAW skew change was rejected as the signal precisely because it is the price move's mirror (corr -0.53, 74-80% skew-up & price-down): that version would be a renamed price-reversal. (2) V1_flow_divergence (closed today) used the ATM call-put spread over the morning with a fixed 12:00 entry; different option measure (wing skew), event timing and direction logic (fade vs follow). (3) GEX walls / implied-move band: option LEVELS, not flow. Families not in data_spend_ledger.",
+ "timestamp_semantics": "iv_5m rows are snapshots at their timestamp (LOG iteration 1; review 3b: within ~2 s). bar['opt'] on slot k is the snapshot at the bar's close. The decision on slot k's close uses skew25 at slots k and k-6 (snapshots at bar-close times k and k-6, 30 minutes apart) and NQ closes c[k], c[k-6]; nothing stamped after slot k's close.",
+ "features": [
+  "dK = skew25[k] - skew25[k-6] (30-minute change in 25-delta put minus call IV)",
+  "dP = ln(c[k] / c[k-6]) of NQ over the same 30 minutes",
+  "(derived) beta = pooled OLS slope (no intercept) of dK on dP over all (slot 6..58) pairs of the prior 20 eligible sessions; rms_k = RMS of the residual dK - beta*dP at the SAME slot k over those sessions (>= 15 of 20 present)"
+ ],
+ "rules": {
+  "bars": "5m RTH bars; decision at bar close, fills from the next bar.",
+  "eligible_session": "full session (not half day) whose bars carry opt with exdiv False on every opt row. Only eligible sessions trade or enter the history; the history stores (dK, dP) for every slot 6..58 where both skew25 values and both closes exist.",
+  "exdiv": "excluded from trading and from beta / rms (ThetaData IVs ignore dividends; skew25 ~2x on those days, review 3b).",
+  "z": "z_k = (dK - beta * dP) / rms_k with beta and rms_k from the prior 20 eligible sessions (today excluded). Requires 20 stored sessions.",
+  "decision_slots": "k = 6..58 (decisions 10:05 .. 14:25 ET bar closes); the first k with |z| >= K triggers; at most one trade per session.",
+  "news_filter": "a trigger is skipped (the scan continues to later slots) if any scheduled RTH high-impact release time m satisfies decision_minute - 30 <= m <= decision_minute + 90 (releases move skew and price together; the closed release-fade family is excluded).",
+  "entry": "market order at the next bar's open, side = +1 if z > 0 (puts bid beyond the spot move -> fade the pressure -> long), -1 if z < 0.",
+  "risk": "stop = c[k] - side * 0.5 * ADR20, ADR20 = mean NQ RTH (high - low) of the prior 20 completed full sessions. Fixed.",
+  "target": "none.",
+  "exit": "time exit: an 'exit' action on the close of the bar where bars_held == 17, filling at the next open = 90 minutes after entry; or the stop; or the engine's flat at 15:55 if earlier.",
+  "history_independence": "the (dK, dP) pair of every slot 6..58 is stored whatever the position; tested in tests/test_strategy_V2_fix.py"
+ },
+ "deviation_from_plan": "The plan describes the raw 30-min skew change. The count-only scan showed it is the mirror of the price move (corr -0.53; 74-80% of triggers are skew up with price down), so fading it would mostly re-test the closed price shock-fade family. The signal is the residual after regressing out the price move. Hold fixed at 90 min (middle of the plan's 60-120). SPY -> MES leg dropped (no ES dev_opt).",
+ "count_only_scan": "NQ dev_opt, 645 eligible trade sessions. Residual z: K 1.5 / 1.75 / 2.0 / 2.25 / 2.5 / 3.0 -> 612 / 579 / 507 / 421 / 356 / 210 sessions; long share 0.35-0.50; median trigger slot 12-24; pooled beta median -0.417 (skew rises 0.42 vol pts per 1% NQ drop). Raw z (rejected): K 2.0 / 2.5 / 3.0 -> 481 / 319 / 190. No price after the decision bar and no trade outcome was computed.",
+ "grid": {
+  "base": {
+   "n_hist": 20,
+   "lag": 6,
+   "first_slot": 6,
+   "last_slot": 58,
+   "hold_bars": 18,
+   "stop_adr": 0.5,
+   "news_before": 30,
+   "news_after": 90,
+   "min_slot_hist": 15
+  },
+  "axes": {
+   "k": [
+    2.5
+   ]
+  }
+ },
+ "walk_forward": "fixed: one configuration (the plan's spare). A 1-configuration grid has no neighbour check, so a dev PASS STOPS THE LOOP for Sunny's approval before val1; no criteria are changed.",
+ "expected_trades": "dev_opt 356 (count-only scan; equal to V2_skew_shock's preregistered K=2.5 count).",
+ "costs_note": "Base RT = market entry + market exit (or flat) = 2 ticks slip + $1 commission (2 MNQ ticks) = 4 ticks. Stop 0.5 x ADR20: 2016 ~84 ticks -> 0.047R; 2017 ~76 ticks -> 0.053R; 2018 ~190 ticks -> 0.021R (V1 measured 0.037R average with the same stop rule).",
+ "rejection_evidence": "Reject if the frozen dev gate fails for every K. Report, not gate: mean R long (skew up) vs short; mean R when the trade also fades the 30-min price move vs not; by trigger time (before / after 12:00); per-year mean R; exit mix.",
+ "option_fields_used": "bar['opt']['skew25'] and bar['opt']['exdiv'] on slots 0..58.",
+ "supersedes": {
+  "id": "V2_skew_shock",
+  "reason": "implementation bug: the strategy skipped storing (dK, dP) while a position was open, so beta / per-slot RMS depended on past trades, contrary to these rules. Its dev run (3 configurations, counted in the budget, ledger rows kept) traded a different rule: fixed-rule signals overlap its trades 53% / 71% / 78% at K 2.0 / 2.5 / 3.0. Its results (all FAIL: -0.039 / -0.058 / -0.065R, twin p 0.61 / 0.80 / 0.82) were seen before this prereg; K 2.5 is kept as the preregistered middle value, not chosen from them.",
+  "prior_sha16": "147f840eec1c0758"
+ }
+}

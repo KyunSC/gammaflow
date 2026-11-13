@@ -1,0 +1,45 @@
+{
+ "id": "D2_monthend_rebalance",
+ "created": "2026-11-04T02:06:00-0500",
+ "status": "FINAL. Frozen from its first dev run (controller pins the sha).",
+ "product": "ES",
+ "dev_split": "dev",
+ "uses_opt": false,
+ "market": "ES (traded as MES). Signal from the frozen bar['mtd'] (ES month-to-date same-contract return and 10y par-yield change, both as of the previous close) and bar['sessions_left_in_month'] (published NYSE holiday rule).",
+ "family": ["monthend_rebalancing_flow", "calendar_rebalancing", "balanced_fund_flow_pressure"],
+ "hypothesis": "Near month-end, balanced funds rebalance toward fixed equity/bond weights: when ES has outrun Treasuries month-to-date they sell equities, when it has lagged they buy. So on the last sessions of the month, trading ES AGAINST the month-to-date equity-minus-bond return, 09:35 -> 15:55 with a 1:1 bracket of 0.5 x ATR20, beats random-direction trades on the same sessions with the same bracket.",
+ "mechanism": "Calendar rebalancing by pensions/balanced funds is mechanical and predictable; the equity sale (purchase) needed is proportional to the drift of the equity weight, i.e. to equity minus bond return since the last rebalance (Harvey, Mazzoleni & Melone 2025). Their price pressure lowers (raises) equity returns over the days it is executed.",
+ "sources": [
+  {"url": "https://www.nber.org/papers/w33554", "summary": "Harvey, Mazzoleni & Melone (2025, NBER WP 33554), 'The Unintended Consequences of Rebalancing': when stocks are overweight, funds sell stocks/buy bonds, and equity returns fall ~17 bps over the next day (bonds +3 bps); not explained by momentum, reversal or macro controls; rebalancing costs ~$16bn/yr (~8 bps)."},
+  {"url": "https://www.edhec.edu/sites/default/files/2026-03/slides_EDHEC_Michele%20Mazzoleni%20%281%29.pdf", "summary": "Their EDHEC slides (read via pdftotext): signals from a simulated 60/40 portfolio of front E-mini S&P 500 and front 10y T-note futures; Distance_t = drift of the equity weight from 60%. Calendar signal = the drift since the last month-end reset; the regression Ret_{t+1} on Calendar_t x Dummy(last N days of month) uses 'week4': next-day S&P 500 coefficient -0.27 (s.e. 0.075), S&P minus 10y -0.30; Threshold signal -0.33. Daily futures data 1997-09-10 to 2023-03-17 (6,223 obs). Next-day return = close-to-close (includes the overnight)."},
+  {"url": "https://doi.org/10.1093/rfs/hhz054", "summary": "Etula, Rinne, Suominen & Vaittinen (2020, RFS 33(1) 75-111), 'Dash for Cash': month-end institutional cash needs produce systematic price patterns (temporary rises in the cost of capital around key month-end dates; equity selling up to ~4 business days before month-end given settlement). Supports a last-week window; their exact equity return pattern was not read (full text not opened)."}
+ ],
+ "prior": "Moderate for the existence of the effect, weak for this trade. HMM's sample covers 1997-2023, so ES dev 2011-18 AND val1/val2 up to 2023-03 are in-sample for them (no fresh-sample claim). Their effect is next-day close-to-close; this RTH 09:35 -> 15:55 leg misses the overnight. Their coefficient implies, for a typical 1% equity-weight drift (~4% equity-bond MTD gap), about -27 bps next day = ~0.25-0.35 of a 0.5 x ATR20 risk unit only for the large-drift months; typical months are a fraction of that. With ~280-460 trades the SE of mean R is ~0.045-0.06R, so twin p < 0.005 needs ~+0.13-0.17R net vs 0.069R cost: low power unless the effect is concentrated in large-drift months (config 2). Month-end ES drift (turn-of-month positive) is a known confound: side-matched twins handle direction mix, not a month-end-long drift interacting with a short-heavy signal (long share ~0.3).",
+ "overlap_with_closed": "No closed family uses month-end calendar flows, rebalancing or bond-relative returns. Distinct from D1 (prior L-day own return, all days) by signal (equity minus bond MTD, a portfolio-weight drift, not own-return reversal), calendar gating (last 3-5 sessions only) and source; from close_auction (overnight last-30-min fade) and intraday momentum (same-day). The D1 row (daily reversal FAILED) is mild evidence only: a month-end subset of 'fade the prior move' overlaps D1's L5 signal on some days; disclosed, and the report gives the corr of the D2 side with D1-L5's side on the traded days.",
+ "timestamp_semantics": "bar['mtd'] is as of the previous session's close (t-1): ret = c(t-1) / (c(base) moved onto t-1's contract) - 1, base = last listed session of the previous month; dy10 = UST10Y(t-1) - UST10Y(base), Treasury par yields fixed ~15:30 ET and published that evening. bar['sessions_left_in_month'] counts scheduled NYSE days after today by the published rule (ad hoc closures not anticipated). No data from today is used except the 09:30 bar close as the bracket centre.",
+ "features": [
+  "X = mtd.ret - (-8 x mtd.dy10 / 100) = mtd.ret + 0.08 x mtd.dy10 (equity MTD return minus a 10y duration-8 bond return proxy, as in the plan); mtd None or dy10 None -> no trade",
+  "eligible = sessions_left_in_month <= N - 1 (the last N scheduled sessions of the month), N = 3 or 5",
+  "(config 2 only) z = X / (sd20 x sqrt(n)), sd20 = sample sd (n-1) of ret over the usable entries of hist[-20:] (ret not None, nyse_skipped == 0; >= 18 needed), n = number of hist entries with day > mtd.base_day (sessions in the MTD window); trade only if |z| >= 0.4307 (= the normal 1/3-2/3 quantile, i.e. the top and bottom terciles of a normal signal)"
+ ],
+ "rules": {
+  "bars": "5m RTH bars; decision on slot 0's close, market fill at the 09:35 open.",
+  "sessions": "skip NYSE half days and sessions without ATR20 (controller rule). Each eligible session is traded independently with that day's X (MTD updates daily).",
+  "entry": "side = -1 if X > 0 (equities ahead of bonds -> funds sell equities -> short), +1 if X < 0; X == 0 -> no trade. Config 2 additionally needs |z| >= 0.4307.",
+  "risk": "stop = c0 - side x 0.5 x ATR20, target = c0 + side x 0.5 x ATR20 (ATR20 = mean of the last 20 hist 'tr'). Controller-enforced.",
+  "exit": "stop, target or the 15:55 flat.",
+  "trades_per_session": "at most one."
+ },
+ "grid": {
+  "base": {"k": 0.5, "atr_def": "tr", "bond_duration": 8.0, "n_sd": 20, "min_sd": 18},
+  "axes": {"cfg": [{"N": 3, "zmin": 0.0}, {"N": 5, "zmin": 0.0}, {"N": 5, "zmin": 0.4307}]}
+ },
+ "grid_note": "Neighbour chain (N3, any X) - (N5, any X) - (N5, |z| >= 0.43): each step changes one parameter.",
+ "deviation_from_plan": "The plan's configs were X = 0 or top/bottom tercile x last 3 or last 1 sessions. The count-only scan shows (a) 'last 1 session' gives 92 dev trades (46 with the tercile) and 'tercile x last 3' 144, all below the frozen dev gate's 200-trade minimum, so they would fail by construction; (b) a trailing-history tercile restarts at each split's 60-day load window, giving 96 val1 trades (< the val minimum 100) by construction. So: last 5 sessions added (= HMM's 'week4' and Etula's ~4-business-days settlement window), last 1 dropped, and the tercile is the scale-free normal-tercile z cut (no long history). Rule shape (entry, bracket, k) unchanged.",
+ "count_only_scan": "ES, signal counts only (no post-signal return computed or linked). Dev 2011-02..2018-12: (N3, any X) 279, long share 0.32; (N5, any X) 459, 0.34; (N5, |z| >= 0.43) 326, 0.30, every year 30-45. val1: 105 / 175 / 145. val2: 163 / 269 / 184. (The val counts were computed while checking the tercile design; they are counts of eligible signals, not outcomes.)",
+ "expected_trades": "dev ~279 / ~459 / ~326.",
+ "walk_forward": "fixed: no selection; all three judged by the frozen dev gate on 'dev' (ES 2011-02..2018-12), each needing its grid neighbours positive. A pass goes to val1 (2019-21), then val2 (2022-01..2026-08-14).",
+ "costs_note": "MES base RT 2 ticks + $1; random 1:1 at 0.5 x ATR20(tr) on ES dev costs 0.069R mean.",
+ "rejection_evidence": "Reject if the frozen dev gate fails for every config. Report only (never promoted under this id): long vs short; by |X| tercile; by quarter-end vs other months; by sessions_left (0..4); per year; exit kinds; correlation of the D2 side with D1-L5's side on traded days; NQ is NOT run.",
+ "report_only": "The reverse (follow the drift), long-only/short-only, quarter-end-only and NQ are report-only and cannot be run on dev/val1/val2 under this id."
+}

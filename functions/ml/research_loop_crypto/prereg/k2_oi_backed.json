@@ -1,0 +1,30 @@
+{
+  "id": "k2_oi_backed",
+  "created": "2026-11-03T13:50Z",
+  "family": ["oi_conditioned_momentum", "positioning_flow"],
+  "hypothesis": "A large 4h perp move made while open interest rises (new positions opened in the move's direction) continues over the next 24h; trading only those moves in their direction beats side-matched random twins on the same entries and brackets.",
+  "mechanism": "A price move with rising OI is new leveraged positioning, not covering or liquidation. If positioning demand is persistent and the futures market's risk-absorption capacity is limited, prices keep moving in the direction of the new flow (Hong & Yogo 2012 for OI growth and returns in commodity futures). A move with falling OI is closing (covering or liquidations) and has no persistent flow behind it, so it is excluded.",
+  "sources": [
+    {"url": "https://econpapers.repec.org/RePEc:eee:jfinec:v:105:y:2012:i:3:p:473-490", "summary": "Hong & Yogo (2012, JFE 105(3) 473-490): open-interest growth predicts higher commodity futures returns (weaker in currencies, bonds, stocks), explained by limited risk absorption plus hedging demand. Monthly, aggregate and UNSIGNED: not evidence for a 4h signed conditional effect."},
+    {"url": "https://econpapers.repec.org/RePEc:cup:jfinqa:v:28:y:1993:i:01:p:21-39_00", "summary": "Bessembinder & Seguin (1993, JFQA 28(1) 21-39): across eight futures markets, unexpected volume drives volatility; open interest acts as market depth and dampens volatility. Supports treating OI as a positioning/depth variable distinct from volume; says nothing about direction."},
+    {"url": "https://insights.glassnode.com/the-week-onchain-week-30-2024", "summary": "Glassnode (2024): sharp perp OI drops mark margin-call deleveraging and pivots in bull-market corrections; OI alone is not directional. Practitioner note, untested; supports separating OI-rising from OI-falling moves."}
+  ],
+  "prior": "Weak. No peer-reviewed test of signed OI-conditioned crypto momentum was found; 'rising OI confirms the move' is a practitioner heuristic. Expect FAIL.",
+  "closed_ideas_check": "Not C1 (daily Donchian trend: no OI, daily breakouts), not C3 (volume-spike cascade fade: no volume trigger, continuation not fade, conditioned on positioning), not C2 (no funding). CLOSED_IDEAS has ES/NQ shock fade/momentum (5m, intraday) and NQ residual momentum; K2 is a crypto 4h move conditioned on OI growth, with a 24h hold. No crypto rows in data_spend_ledger for these families.",
+  "data_choice": "Binance metrics sum_open_interest (coin units, so price changes do not inflate it), BTC from 2020-09-01, ETH from 2021-12-01 (first metrics day). Zero OI is missing (loader -> NaN). Top-trader and taker ratios unused. SOL is reported only (metrics from 2021-12; train window 2022-05+).",
+  "rules": {
+    "decision_times": "every UTC 4h boundary T in {00,04,08,12,16,20}:00; signal bar = the 1m bar opening T-60s (decided at its close, T).",
+    "move": "r = ln(close of the bar closing at T / close of the bar closing at T-4h). Needs all 240 1m bars of (T-4h, T] present and none stale; otherwise no signal and no history update.",
+    "oi": "OI_T = sum_open_interest asof(T, max_age=600) and OI_{T-4h} = asof(T-4h, max_age=600) (the metrics row stamped t is usable at t+300, so both are the snapshot about 5m before each boundary). dOI = ln(OI_T / OI_{T-4h}). Missing either -> no signal and no history update.",
+    "scale": "sd_r and sd_oi = sample std (ddof 1) of r and dOI over the previous 180 valid boundaries (30 days); need >= 120. The current boundary joins the history after it is used.",
+    "signal": "|r| >= k * sd_r AND dOI >= 0.5 * sd_oi (OI clearly rising). side = sign(r).",
+    "bracket": "market entry at the next 1m open. Stop = max(1.0 * daily ATR(14) of the last completed UTC day, 1.5% of the decision close). No target. Time exit 24h after entry. Mirror-flat book: signals while busy are skipped.",
+    "warmup": "WARMUP_DAYS = 40."
+  },
+  "grid": {"base": {"lookback": 180, "min_hist": 120, "oi_z": 0.5, "stop_atr": 1.0, "min_stop_pct": 1.5, "hold_h": 24}, "axes": {"k": [1.0, 1.5]}},
+  "walk_forward": "fixed: no parameter is selected. Both k are judged by the frozen train gate (BTC and ETH both must pass). Any passing config goes to validation; K counts candidates sent.",
+  "expected_trades": "BTC train about 1,390 days x 6 boundaries; |r| >= 1.0 sd on ~30% and rising OI on roughly a third of those -> ~0.6 signals/day, about 600 trades after the 24h mirror-flat skip; k = 1.5 roughly half that. ETH has ~900 days, so k = 1.5 may fall near the 200-trade floor. Unknown before running.",
+  "costs_note": "From K1, ATR(14) stops are 4-5% median for BTC/ETH: cost about 0.02-0.03R at a 24h hold. At the 1.5% floor, about 0.07R.",
+  "report_not_gate": "net R by year; long vs short; share of stop vs time exits; result with 2021 removed (the bull leverage year).",
+  "rejection_evidence": "Reject if the frozen train gate fails for both k on BTC or ETH. Count against it (report): a pass driven only by longs in 2020-21, or a weaker result at the larger k (the mechanism predicts stronger moves with new positioning continue more)."
+}

@@ -1,0 +1,135 @@
+{
+ "id": "hedged-straddle-confirm",
+ "written": "2026-11-03",
+ "status": "frozen at step 3 (26 tests pass); no window opened",
+ "plan": "research_loop_straddle/PLAN.md",
+ "spec": {
+  "trade": "delta_hedge.py: short 1 ATM straddle (x100) at 09:35 ET, strike nearest spot with both legs quoted, sold at the bid; same-day expiry only (dte 0); settle at intrinsic |S_16:00 - K|; hedge 100*Delta_straddle shares (BS delta, no smile, no charm) on a fixed clock; unwind at 16:00",
+  "primary_variant": "5m (rebalance every 5-minute bar)",
+  "secondary_variant": "30m (every 6 bars), reported only",
+  "symbols": [
+   "QQQ",
+   "SPY"
+  ],
+  "skips": "days without a same-day expiry or eligible strike (delta_hedge.load_day returns None); NYSE half days: delta_hedge.EARLY_CLOSE (2022+) plus confirm.EARLY_CLOSE_PRE2022",
+  "early_close_pre2022": [
+   "2016-11-25",
+   "2017-07-03",
+   "2017-11-24",
+   "2018-07-03",
+   "2018-11-23",
+   "2018-12-24",
+   "2019-07-03",
+   "2019-11-29",
+   "2019-12-24",
+   "2020-11-27",
+   "2020-12-24",
+   "2021-11-26"
+  ],
+  "no_search": "strike rule, entry time, hedge clock and expiry rule never change"
+ },
+ "costs": {
+  "base": {
+   "option_per_contract": 0.65,
+   "hedge_per_share": 0.005
+  },
+  "stress": {
+   "option_per_contract": 1.0,
+   "hedge_per_share": 0.01
+  },
+  "contracts_per_straddle": 2,
+  "notes": "option commission on entry only (0DTE settles); hedge cost per share on every share traded incl. entry and unwind; hedge_pnl run with hedge_cost_bps=0; entry at the bid; cash settlement at intrinsic approximates assignment (real ETF options are American, physically settled; pin risk not modelled)"
+ },
+ "windows": {
+  "A": {
+   "QQQ": [
+    "2016-01-04",
+    "2018-12-31"
+   ],
+   "SPY": [
+    "2017-01-03",
+    "2018-12-31"
+   ]
+  },
+  "B": {
+   "QQQ": [
+    "2019-01-02",
+    "2021-12-31"
+   ],
+   "SPY": [
+    "2019-01-02",
+    "2021-12-31"
+   ]
+  }
+ },
+ "window_order": [
+  "A",
+  "B"
+ ],
+ "window_rules": "each opened once, in order; B only after A has a PASS row in ledger.jsonl; if A fails, B is never opened and the thread closes",
+ "never_open": {
+  "forward_check": [
+   "2026-09-26",
+   "2026-10-23"
+  ],
+  "discovery": "2022-01-01 onward (already used)"
+ },
+ "eligible_days_from_listing": {
+  "A": {
+   "QQQ": 156,
+   "SPY": 248
+  },
+  "B": {
+   "QQQ": 230,
+   "SPY": 467
+  }
+ },
+ "gate": {
+  "per_cell_all_required": {
+   "mean_net_base_gt_0": true,
+   "bootstrap_ci95_low_gt_0": {
+    "method": "iid day bootstrap, percentile",
+    "n": 10000,
+    "seed": 0
+   },
+   "one_sided_t_p_lt": 0.0125,
+   "K": 4,
+   "mean_net_stress_gt_0": true,
+   "no_year_below": "-2 x mean annual gain (mean of per-calendar-year sums of net_base)",
+   "mean_with_worst5_doubled_gt_0": true
+  },
+  "window_pass": "5m cell passes on BOTH QQQ and SPY (user-approved 2026-11-03); 30m cells reported, not deciding",
+  "reported_tail": [
+   "worst day",
+   "CVaR 5% per straddle",
+   "max drawdown $ per straddle",
+   "days losing > 10x mean gain",
+   "mean with worst 5 removed",
+   "mean with worst 5 doubled (binding)"
+  ],
+  "capital": "CBOE naked short straddle margin per straddle: max over legs of (leg prem + max(20% S - OTM, 10% S|K)) + other leg prem, x100; return on margin = mean net / mean margin"
+ },
+ "approvals": [
+  {
+   "date": "2026-11-03",
+   "decision": "window pass = 5m on both symbols; worst-5-doubled > 0 binding"
+  }
+ ],
+ "frozen_sha256": {
+  "delta_hedge.py": "f11c9178b50c32ade2065bbeb35b82faebe0db9c962a9010b22faf00826a5f2c",
+  "greeks.py": "16a92d4581e5565076eeada452b233373063c417f1a63b90ad5ccf2c57e84474",
+  "../GEXCalculator/gex_calculator.py": "a5f0d6e6a840dfcbd82ac257d34cc8d5254a56f2fb7da9afd6632c905e9f8eff",
+  "research_loop_straddle/confirm.py": "49002a0914351f81c71b31f5a0db07ae43e6d5111de372cb570efc6d449acebd",
+  "research_loop_straddle/tests/test_confirm.py": "2f248c370b65144c29d178f5b0005a02beba0419e67b279973a35030eeb771ef"
+ },
+ "baseline_2022plus_repro": "data/research_loop_straddle/bootstrap.json",
+ "amendments": [
+  {
+   "date": "2026-11-03",
+   "before_any_look": true,
+   "file": "confirm.py",
+   "from": "23723b772328c854c48516985d3ad8eceb954734c88a9acdb1f413dac19cae15",
+   "change": "read_ledger resolves the ledger path at call time (default arg was bound at import; found by test_open_window_refuses_before_reading_data). No spec, cost or gate change."
+  }
+ ]
+}

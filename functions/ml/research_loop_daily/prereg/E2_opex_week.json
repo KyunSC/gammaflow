@@ -1,0 +1,74 @@
+{
+ "id": "E2_opex_week",
+ "created": "2026-11-05T01:09:00-0500",
+ "status": "FINAL 2026-11-05 01:09 ET (no overlap-review subagent: the plan requires one only for D1; overlap with D2 / V2 / gex0dte disclosed below). Frozen from its first dev run (controller pins the sha).",
+ "product": "ES",
+ "dev_split": "dev",
+ "uses_opt": false,
+ "market": "ES (traded as MES). Calendar-only signal from the published monthly equity-option expiration rule (third Friday) and the published NYSE holiday rule. Extension proposal approved by the user in chat 2026-11-04 19:04 ET (state.json -> extension.approved). E2 brings the loop to 10 of the 10-configuration limit.",
+ "family": [
+  "option_expiration_calendar",
+  "opex_week_drift",
+  "dealer_hedging_pressure"
+ ],
+ "hypothesis": "ES's RTH 09:35 -> 15:55 move is positive on sessions of the monthly option-expiration week and negative on sessions of the following week: long OpEx-week sessions and short the week after, 1:1 at 0.5 x ATR20, beats side-matched random-timing twins on the same sessions with the same bracket.",
+ "mechanism": "Dealer hedge rebalancing and the unwind of option-related positions around monthly expiration: option-active large caps rise in expiration week and give part of it back the week after (Stivers & Sun); for the index the post-OpEx weakness is practitioner-documented.",
+ "sources": [
+  {
+   "url": "https://econpapers.repec.org/RePEc:eee:jbfina:v:37:y:2013:i:11:p:4226-4240",
+   "summary": "Stivers & Sun (2013, JBF 37(11) 4226-4240), 'Returns and option activity over the option-expiration week for S&P 100 stocks': option activity induces reliable weekly return patterns in option-active large caps. Stock-level, not the index."
+  },
+  {
+   "url": "https://cxoadvisory.com/calendar-effects/option-expiration-week-stock-return-drill-down",
+   "summary": "CXO summary: 28 large caps, week after expiration -0.03% vs +0.18% in other non-expiration weeks, 1996-2008 (pre-dev)."
+  },
+  {
+   "url": "https://schaeffersresearch.com/content/analysis/2024/09/11/historic-market-performance-during-triple-witching-weeks",
+   "summary": "Practitioner: S&P 500 quarterly-expiration weeks averaged -0.23% since 2013, other expiration weeks ~breakeven - contradicts a long OpEx-week leg in-sample for our splits."
+  }
+ ],
+ "prior": "Weak. The evidence is stock-level (Stivers & Sun, S&P 100 option-active stocks) and pre-2009 (CXO 1996-2008); index-level support is practitioner data with a conflicting sign (Schaeffer's: quarterly-expiration weeks averaged -0.23% since 2013, against the long leg). The documented weekly effects (~0.2%/week) are ~0.04%/session vs a 0.5 x ATR20 risk of ~0.5%, i.e. ~0.08R per session if fully captured in RTH. Power: SE of mean R ~0.033R (905 trades) / ~0.042R (564), so twin p < 0.005 needs ~+0.085R / ~+0.11R over the twins; the binding gates are CI low > 0 and stress > 0 (gross >~ 0.14R, stress about doubles the 0.069R cost). Side-matched twins (long share ~0.5) remove drift. Expect FAIL.",
+ "overlap_with_closed": {
+  "closest": "D2_monthend_rebalance (this loop; ES dev 2011-18, discovery, FAIL); research_loop_volsig V2_skew_shock (tag dealer_hedging_pressure; NQ dev_opt 2016-18, discovery, FAIL); gex0dte_study (gex_levels / gamma walls; QQQ+SPY 2022-25 discovery)",
+  "mechanical_differences": [
+   "D2: side from the month-to-date equity-minus-bond gap (sign varies) on the last 3 or 5 sessions of the month; E2: a FIXED side by calendar position relative to the third Friday (long the OpEx week, short the week after), no price input.",
+   "V2: intraday QQQ skew-shock signal at 5m granularity on NQ; E2 has no options data, no intraday signal, ES only.",
+   "gex0dte: intraday gamma-wall price levels on QQQ/SPY; E2 uses no levels and no options positioning."
+  ],
+  "shared": "Count-only calendar overlap with D2: of the full_weeks short-leg (week-after) sessions, 173 of 437 fall in D2's last-5-session window and 63 of 437 in its last-3 window; for 3_sessions, 71 of 279 and 12 of 279; long-leg sessions essentially never (1). D2's side on those days was data-dependent, so E2's fixed short there is not D2's rule, but a month-end effect would leak into E2's short leg; reported by sessions_left_in_month (report only). Mechanism shares dealer_hedging_pressure with V2 (tag added; V2's ledger row is discovery on NQ dev_opt 2016-18, so no spend refusal). ES dev 2011-18 reuse (D1, D2, E1, research_loop shock_fade etc.) disclosed for multiple testing; no ledger row on ES 2011-18, 2019-21 or 2022-26 carries option_expiration_calendar or opex_week_drift."
+ },
+ "timestamp_semantics": "Uses only today's date (bar['day']) and the published calendar rules (known years in advance); no price input except the controller's ATR20 bracket from bar['hist'] (prior sessions) and the slot 0 close as the bracket centre. The sandbox has no datetime, so the strategy does integer day arithmetic and carries its own copy of the evaluator's NYSE holiday rule; a test checks it equals research_loop_daily.eval.data.nyse_holidays for 2010-2027.",
+ "features": [
+  "F = the third Friday of today's calendar month (day 15-21). OpEx week W0 = the calendar days F-4 .. F (Monday..Friday); following week W1 = F+3 .. F+7. Both always lie in today's month (F+7 <= 28).",
+  "Scheduled sessions of a window = its weekdays that are not NYSE rule holidays (published rule, identical to the evaluator's nyse_holidays; ad hoc closures are not anticipated: none falls in any window 2011-2026). If F itself is a holiday (Good Friday 2014-04-18, 2019-04-19, 2022-04-15, 2025-04-18; Juneteenth 2026-06-19) W0 is unchanged and its last scheduled session is the Thursday, the actual expiration day.",
+  "Position within a window counts scheduled sessions including half days (a half day takes a slot but is never traded)."
+ ],
+ "rules": {
+  "bars": "5m RTH bars; decision on slot 0's close (09:35), market fill at the next bar's open (09:35); the engine manages the bracket.",
+  "sessions": "skip NYSE half days (today); skip sessions where ATR20(tr) over the last 20 hist entries is not computable (controller rule). Sessions missing from the data (2014-09-23..25 inside a dev window) simply have no trade.",
+  "entry": "full_weeks: side = +1 on every session in W0, -1 on every session in W1. 3_sessions: side = +1 on the last 3 scheduled sessions of W0, -1 on the first 3 scheduled sessions of W1. Otherwise no trade. One trade per session at most.",
+  "risk": "stop = c0 - side * k * ATR20, target = c0 + side * k * ATR20, c0 = slot 0 close, ATR20 = mean of the last 20 hist 'tr', k = 0.5. Controller-enforced.",
+  "exit": "stop, target, or the engine's flat at the 15:55 open.",
+  "trades_per_session": "at most one (controller-enforced)."
+ },
+ "grid": {
+  "base": {
+   "k": 0.5,
+   "atr_def": "tr"
+  },
+  "axes": {
+   "window": [
+    "full_weeks",
+    "3_sessions"
+   ]
+  }
+ },
+ "grid_note": "Two configs, each the other's neighbour, exactly the approved grid.",
+ "walk_forward": "fixed: no selection; both judged by the frozen dev gate on 'dev' (ES 2011-02..2018-12). A pass goes to val1 (2019-21), then val2 (2022-01..2026-08-14).",
+ "count_only_scan": "ES dev via the frozen loader, 1,986 trade sessions: full_weeks 905 trades (468 long / 437 short, long share 0.517), 3_sessions 564 (285 / 279, 0.505); 12 half days in windows skipped, 0 without ATR20; max year share (count) 0.128; quarterly-expiration months 0.33-0.34 of trades. Rule-scheduled window days missing from the data: 2014-09-23..25. Only the calendar, the session list and ATR20 availability were read; no traded-session outcome was computed. Proposal-time calendar scan: val1 344 / 215, val2 523 / 328.",
+ "expected_trades": "~905 / ~564.",
+ "costs_note": "MES base RT 2 ticks slip + $1 commission. Sanity random 1:1 at 0.5 x ATR20(tr) on ES dev: mean cost 0.069R. Stress roughly doubles it.",
+ "rejection_evidence": "Reject if the frozen dev gate fails for both configs. Report, not gate: long-leg vs short-leg mean R; quarterly (Mar/Jun/Sep/Dec) vs other months (Schaeffer's sign); by session position within the window; short-leg sessions inside D2's last-5 window vs outside; per year; exit kinds.",
+ "deviation_from_plan": "None from the approved proposal. Rule precision added: windows are calendar Monday-Friday weeks of the third Friday; holiday handling by the published NYSE rule; half days take a slot but are not traded. The proposal's 'Thursday if a holiday' affects only which W0 session is last, not the window.",
+ "report_only": "Everything under rejection_evidence plus: long-only or short-only legs, quarterly-only, weekly expirations, other window lengths and NQ. None can be promoted, gated or run on dev / val1 / val2 under this id; NQ dev will NOT be run for E2."
+}

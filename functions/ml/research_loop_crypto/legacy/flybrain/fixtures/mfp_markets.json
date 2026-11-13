@@ -1,0 +1,78 @@
+{
+  "asof": "2026-10-18",
+  "plan": "elite",
+  "markets": {
+    "BTC": {
+      "id": "BTC",
+      "symbol": "BTC-USD",
+      "assetClass": "crypto",
+      "proxy": false,
+      "maxLeverage": 10,
+      "slippage": [
+        [
+          100000,
+          0.8
+        ],
+        [
+          500000,
+          1.2
+        ],
+        [
+          null,
+          2
+        ]
+      ],
+      "commissionBps": 3,
+      "swapDailyBps": 3,
+      "leverage": 10
+    },
+    "ETH": {
+      "id": "ETH",
+      "symbol": "ETH-USD",
+      "assetClass": "crypto",
+      "proxy": false,
+      "maxLeverage": 8,
+      "slippage": [
+        [
+          100000,
+          0.8
+        ],
+        [
+          500000,
+          1.2
+        ],
+        [
+          null,
+          2
+        ]
+      ],
+      "commissionBps": 3,
+      "swapDailyBps": 3,
+      "leverage": 8
+    },
+    "SOL": {
+      "id": "SOL",
+      "symbol": "SOL-USD",
+      "assetClass": "crypto",
+      "proxy": false,
+      "maxLeverage": 2,
+      "slippage": [
+        [
+          100000,
+          0.8
+        ],
+        [
+          500000,
+          1.2
+        ],
+        [
+          null,
+          2
+        ]
+      ],
+      "commissionBps": 3,
+      "swapDailyBps": 3,
+      "leverage": 2
+    }
+  }
+}

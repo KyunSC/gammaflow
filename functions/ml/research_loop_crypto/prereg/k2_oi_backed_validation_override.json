@@ -1,0 +1,17 @@
+{
+  "id": "k2_oi_backed",
+  "created": "2026-11-03",
+  "written_before_validation": true,
+  "approval": "User asked in chat on 2026-11-03 to run K2 on validation after being told it FAILED the train gate (best cell BTC k=1.5 p 0.028 vs 0.005) and that the plan only sends train-passers. One look; strategy and prereg unchanged (strategy 6b00e1fe90a38243, prereg 901c3a510f6ffd9b).",
+  "configs": "both preregistered k (1.0 and 1.5), in one validation open; no config is chosen from train results",
+  "K": 2,
+  "formal_gate": "frozen validation gate per asset, BTC and ETH both: trades >= 100, side-matched twin p < 0.05/K = 0.025, net R > 0, Elite 50K EV above the twins' mean EV",
+  "expected_before_running": "From train trade rates over ~0.98 years: k=1.0 about 105-110 trades per asset (near the 100 floor); k=1.5 about 60-65 per asset, so k=1.5 will very likely fail the trade-count rule whatever its R.",
+  "reading_rules": [
+    "A formal PASS here still does not unlock the test block on its own; the train failure stands and any test proposal goes to the user.",
+    "BTC rose about 90% over this window, so a long-heavy book can look good from drift. Read the result as supportive only if it beats the side-matched twins AND the short side's net R is > 0 on BTC (the train pattern was longs +0.27R, shorts -0.07R).",
+    "If shorts lose again on BTC while longs win, record it as confirming the 'long-side bull drift' explanation, whatever the formal gate says.",
+    "Report by asset and k: n, net R, twin R, p, excess CI, long vs short R, EV vs twins. SOL is report-only."
+  ],
+  "spend": "After the look: a one_look row in research_loop/data_spend_ledger.json for families oi_conditioned_momentum + positioning_flow on crypto validation 2024-07-08..2025-07-01."
+}
