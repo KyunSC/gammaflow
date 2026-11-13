@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "functions/ml/data/iv_wall/lucid-accounts.html"
+        ],
+        "createdAt": "2026-11-05T19:22:49.110Z",
+        "reason": "Claude triage: all 21 hits pair a dark-theme token with a light-theme surface (#6f97f2/#93a1af on #ffffff, unresolved #000 on #161d25); per-theme pairs pass (light accent #2f5fd0 and muted #5b6876 on #fff, dark ink #e3e9ef on #161d25)"
+      },
+      {
+        "rule": "all-caps-body",
+        "value": "*",
+        "files": [
+          "functions/ml/data/iv_wall/lucid-accounts.html"
+        ],
+        "createdAt": "2026-11-05T19:23:39.416Z",
+        "reason": "Claude triage: uppercase only on short labels (.eyebrow, control labels, pick keys, table headers of 1-5 words); predates this session"
+      }
+    ]
+  }
+}

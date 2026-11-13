@@ -2,6 +2,11 @@
   "permissions": {
     "additionalDirectories": [
       "/Users/sunnychen/Developper/PersonalProjects/azure-market-data/frontend/app/ticker"
+    ],
+    "ask": [
+      "Bash(*batch.submit_job*)",
+      "Bash(*databento_fetch.py*--download*)",
+      "Bash(*timeseries.get_range*)"
     ]
   }
 }

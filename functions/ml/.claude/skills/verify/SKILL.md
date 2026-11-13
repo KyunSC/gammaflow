@@ -10,7 +10,7 @@ The surface is the CLI scripts. They write to `HERE/data/<study>/` and `HERE/plo
 tracked PNGs. Run from a sandbox copy instead:
 
 ```bash
-S=<scratchpad>/sbx; ML=/Users/sunnychen/Developper/PersonalProjects/azure-market-data/functions/ml
+S=<scratchpad>/sbx; ML=$(git rev-parse --show-toplevel)/functions/ml
 mkdir -p $S/ml/data $S/GEXCalculator
 cp $ML/*.py $S/ml/; cp $ML/../GEXCalculator/*.py $S/GEXCalculator/   # gex_vol_study imports GEXCalculator
 for d in thetadata databento thetadata_gex; do ln -s $ML/data/$d $S/ml/data/$d; done   # inputs only
