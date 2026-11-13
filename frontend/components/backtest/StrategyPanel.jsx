@@ -4,7 +4,7 @@ import { useBacktest } from '../../lib/backtest/store'
 import { getStrategy, strategiesForPlane, FAMILIES, STRATEGIES } from '../../lib/backtest/strategies'
 import { LIVE_SYMBOLS, LIVE_PERIODS, LIVE_INTERVALS } from '../../lib/backtest/datasets'
 import { propSetup, newsRuleFor } from '../../lib/backtest/prop'
-import { FIRMS, FIRM_LIST, SIZES, PROP_ASOF, resolvePlan } from '../../lib/backtest/prop/firms'
+import { FIRMS, FIRM_LIST, PROP_ASOF, firmPreset, fundedMinis, priceLabel, resolvePlan, sizesFor } from '../../lib/backtest/prop/firms'
 import { FUTURES_LIVE_SYMBOLS, contractsForSymbol } from '../../lib/backtest/prop/contracts'
 import { fmtCompact } from '../../lib/backtest/format'
 import { IMPACT_OPTIONS, RETRIEVED as NEWS_RETRIEVED } from '../../lib/backtest/news'
@@ -479,8 +479,11 @@ function PropSection() {
 
   const symbol = dataset?.symbol ?? (plane === 'live' ? liveSymbol : researchSymbol)
   const info = prop.enabled ? propSetup({ prop, symbol, costs, risk }) : null
-  const firm = FIRMS[prop.firm] || FIRM_LIST[0]
+  // What resolvePlan settles on, so a plan or size the firm doesn't sell shows its real fallback.
+  const shown = resolvePlan(prop)
+  const firm = FIRMS[shown.firm]
   const plans = Object.values(firm.plans)
+  const startMinis = fundedMinis(shown, 0)
 
   return (
     <Section title="account" right={info?.plan?.overridden?.length ? <span className="text-[10px] text-amber">edited</span> : null}>
@@ -503,29 +506,29 @@ function PropSection() {
       ) : (
         <div className="flex flex-col gap-1.5">
           {FIRM_LIST.length > 1 && (
-            <Select value={prop.firm} onChange={(v) => setProp({ firm: v })} options={FIRM_LIST.map((f) => ({ value: f.id, label: f.label }))} />
+            <Select value={prop.firm} onChange={(v) => setProp(firmPreset(v))} options={FIRM_LIST.map((f) => ({ value: f.id, label: f.label }))} />
           )}
           <div className="grid grid-cols-4 gap-1">
             {plans.map((p) => (
-              <button key={p.id} onClick={() => setProp({ plan: p.id })} className={`btn !px-1 text-[10px] ${prop.plan === p.id ? 'btn-active' : ''}`} title={p.blurb}>
+              <button key={p.id} onClick={() => setProp({ plan: p.id, size: resolvePlan({ ...prop, plan: p.id }).size })} className={`btn !px-1 text-[10px] ${shown.plan === p.id ? 'btn-active' : ''}`} title={p.blurb}>
                 {p.label.replace(/^Lucid/, '')}
               </button>
             ))}
           </div>
-          <p className="text-[10px] leading-snug text-dim">{firm.plans[prop.plan]?.blurb}</p>
+          <p className="text-[10px] leading-snug text-dim">{firm.plans[shown.plan].blurb}</p>
           <span className="text-[11px] text-muted">Account size</span>
           <div className="grid grid-cols-4 gap-1">
-            {SIZES.map((sz) => {
+            {sizesFor(firm, firm.plans[shown.plan]).map((sz) => {
               const p = resolvePlan({ ...prop, size: sz.id })
               return (
                 <button
                   key={sz.id}
                   onClick={() => setProp({ size: sz.id })}
-                  className={`btn flex flex-col items-center !px-1 !py-1 ${prop.size === sz.id ? 'btn-active' : ''}`}
+                  className={`btn flex flex-col items-center !px-1 !py-1 ${shown.size === sz.id ? 'btn-active' : ''}`}
                   title={`${p.planLabel} ${sz.label}: max loss $${p.maxLoss.toLocaleString()}, up to ${p.maxMinis} minis / ${p.maxMinis * 10} micros`}
                 >
                   <span className="text-[11px]">{sz.label}</span>
-                  <span className="num text-[9px] text-dim">${(p.price + p.activationFee).toLocaleString()}</span>
+                  <span className="num text-[9px] text-dim">{priceLabel(p)}</span>
                 </button>
               )
             })}
@@ -535,6 +538,9 @@ function PropSection() {
             Max loss <span className="num text-muted">${info.plan.maxLoss.toLocaleString()}</span> ·
             Daily <span className="num text-muted">{info.plan.dailyLossLimit ? `$${info.plan.dailyLossLimit.toLocaleString()}` : 'none'}</span> ·
             Up to <span className="num text-muted">{info.plan.maxMinis}</span> minis / <span className="num text-muted">{info.plan.maxMinis * 10}</span> micros
+            {startMinis != null && startMinis < info.plan.maxMinis && (
+              <> · funded scales up from <span className="num text-muted">{startMinis}</span> minis</>
+            )}
           </p>
           <div className="flex items-center gap-2">
             <span className="w-[104px] shrink-0 text-[11px] text-muted">Daily limit</span>
@@ -544,7 +550,7 @@ function PropSection() {
           </div>
           <div className="flex items-baseline justify-between font-mono text-[11px]">
             <span className="text-muted">Account price</span>
-            <span className="num text-ink">${(info.plan.price + info.plan.activationFee).toLocaleString()}</span>
+            <span className="num text-ink">{priceLabel(info.plan, true)}</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -604,7 +610,7 @@ function PropSection() {
               })}
               <div className="flex items-center justify-between text-[10px] text-dim">
                 <span>
-                  Preset as of {PROP_ASOF}. Verify on{' '}
+                  Preset as of {firm.asof || PROP_ASOF}. Verify on{' '}
                   <a href={firm.url} target="_blank" rel="noreferrer" className="text-muted underline">
                     {firm.url.replace('https://', '')}
                   </a>

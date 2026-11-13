@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react'
 import { scaleLinear } from '@visx/scale'
 import { useBacktest } from '../../lib/backtest/store'
 import { fmtMoney, fmtMoneySigned, fmtPctAbs, fmtDate, signClass } from '../../lib/backtest/format'
+import { attemptCost } from '../../lib/backtest/prop/stats'
+import { priceLabel } from '../../lib/backtest/prop/firms'
 import { EmptyState } from './Panel'
 import useSize from './useSize'
 
@@ -53,7 +55,7 @@ export default function PropPanel() {
     <div className="flex h-full flex-col">
       <div className="hair-b flex flex-wrap items-center gap-3 bg-panel-2 px-2 py-1.5 font-mono text-[10px] text-dim">
         <span className="text-muted">
-          {plan.planLabel} {plan.sizeLabel} · {fmtMoney(s.cost)}
+          {plan.planLabel} {plan.sizeLabel} · {priceLabel(plan, true)}
           {inst && <> · {inst.contracts} × {inst.contract}</>}
         </span>
         <span className="flex-1" />
@@ -68,10 +70,10 @@ export default function PropPanel() {
 
       <div className="min-h-0 flex-1 overflow-auto">
         <div className="grid grid-cols-2 gap-px bg-hair sm:grid-cols-4">
-          <Tile label="EV / purchase" value={fmtMoneySigned(s.ev)} tone={signClass(s.ev)} title={`Mean trader take ${fmtMoney(s.meanTake)} − ${fmtMoney(s.cost)} fee. 5–95%: ${fmtMoneySigned(s.evP05)} to ${fmtMoneySigned(s.evP95)}`} />
+          <Tile label="EV / purchase" value={fmtMoneySigned(s.ev)} tone={signClass(s.ev)} title={`Mean trader take ${fmtMoney(s.meanTake)} − ${fmtMoney(s.cost)} average cost. 5–95%: ${fmtMoneySigned(s.evP05)} to ${fmtMoneySigned(s.evP95)}`} />
           <Tile label={plan.hasEval ? 'Pass rate' : 'Evaluation'} value={plan.hasEval ? fmtPctAbs(s.passRate) : 'none'} sub={plan.hasEval && Number.isFinite(s.medianDaysToPass) ? `median ${s.medianDaysToPass.toFixed(0)} days` : null} />
           <Tile label="P(any payout)" value={fmtPctAbs(s.pPayout)} sub={`${s.meanPayouts?.toFixed(2) ?? '—'} payouts avg`} />
-          <Tile label="Cost / funded acct" value={Number.isFinite(s.costPerFunded) ? fmtMoney(s.costPerFunded) : '∞'} sub={plan.hasEval ? 'fee ÷ pass rate' : 'fee'} />
+          <Tile label="Cost / funded acct" value={Number.isFinite(s.costPerFunded) ? fmtMoney(s.costPerFunded) : '∞'} sub={plan.hasEval ? 'avg cost ÷ pass rate' : 'fee'} title="Everything paid across all purchases (fees, monthly rebills, activations) per account that got funded" />
         </div>
 
         <div className="hair-t grid grid-cols-1 gap-px bg-hair sm:grid-cols-2">
@@ -123,7 +125,7 @@ export default function PropPanel() {
           </p>
         </div>
 
-        {pr.historical.list && <AttemptTable list={pr.historical.list} cost={s.cost} />}
+        {pr.historical.list && <AttemptTable list={pr.historical.list} plan={plan} />}
       </div>
     </div>
   )
@@ -171,7 +173,7 @@ function NetHistogram({ nets, cost }) {
 
   return (
     <div className="hair-t px-2 py-1.5">
-      <p className="font-mono text-[9px] tracking-[0.14em] text-dim uppercase">net $ per purchase (take − {fmtMoney(cost)} fee)</p>
+      <p className="font-mono text-[9px] tracking-[0.14em] text-dim uppercase">net $ per purchase (take − what it cost, avg {fmtMoney(cost)})</p>
       <div ref={ref} className="relative" style={{ height }}>
         {geom && (
           <svg width={width} height={height} onMouseLeave={() => setHover(null)}>
@@ -218,7 +220,7 @@ function NetHistogram({ nets, cost }) {
   )
 }
 
-function AttemptTable({ list, cost }) {
+function AttemptTable({ list, plan }) {
   return (
     <div className="hair-t">
       <p className="px-2 pt-1.5 font-mono text-[9px] tracking-[0.14em] text-dim uppercase">historical purchases</p>
@@ -237,7 +239,7 @@ function AttemptTable({ list, cost }) {
         <tbody>
           {list.map((a) => {
             const o = OUTCOMES.find((x) => x.id === a.outcome)
-            const net = a.take - cost
+            const net = a.take - attemptCost(a, plan)
             return (
               <tr key={a.startDay} className="border-t border-hair text-muted">
                 <td className="px-2 py-0.5">{fmtDate(a.startTime)}</td>

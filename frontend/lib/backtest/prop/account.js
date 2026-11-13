@@ -15,7 +15,7 @@
  */
 
 import { tradingDay } from '../series'
-import { nth } from './firms'
+import { nth, fundedMinis } from './firms'
 
 const EPS = 1e-9
 
@@ -74,9 +74,14 @@ export function buildDayTable({ equity, barLo, barHi, barOpen, windowStart = 0, 
 /** One stage — an evaluation or a funded account — from day `k0` of the attempt. */
 function runStage(days, next, k0, plan, stage) {
   const start = plan.startBalance
-  const lockAt = start + plan.lockOffset
-  const intraday = stage === 'funded' && plan.fundedDrawdown === 'intraday'
-  const dll = plan.dailyLossLimit > 0 ? plan.dailyLossLimit : 0
+  // An evaluation may trail and stop differently from the funded account; null
+  // means it never stops trailing.
+  const lockOffset = stage === 'eval' && plan.evalLockOffset !== undefined ? plan.evalLockOffset : plan.lockOffset
+  const lockAt = lockOffset === null ? Infinity : start + lockOffset
+  const intraday = (stage === 'eval' ? plan.evalDrawdown : plan.fundedDrawdown) === 'intraday'
+  const dll = plan.dailyLossLimit > 0 && !(plan.dllFundedOnly && stage === 'eval') ? plan.dailyLossLimit : 0
+  // `tradedMinis` is the size the engine ran at (propSetup); without it the replay is unscaled.
+  const scaled = stage === 'funded' && plan.fundedScaling && plan.tradedMinis > 0
   let bal = start
   let peak = start
   let locked = false
@@ -99,17 +104,21 @@ function runStage(days, next, k0, plan, stage) {
     const dayBase = bal
     const dllLevel = dll ? dayBase - dll : -Infinity
     let pnl = null
+    // Scaling plan: the session's size cap follows the profit it opened with.
+    // P&L is linear in a fixed contract count, so a smaller size is the same
+    // day scaled down.
+    const scale = scaled ? Math.min(1, fundedMinis(plan, dayBase - start) / plan.tradedMinis) : 1
 
     for (let i = s; i <= e; i++) {
       // Intraday trailing: credit the bar's high before its low. The order
       // inside a bar is unknown, and this is the order that breaches soonest.
       if (intraday && !locked) {
-        peak = Math.max(peak, dayBase + days.hi[i])
+        peak = Math.max(peak, dayBase + scale * days.hi[i])
         threshold = Math.min(peak - plan.maxLoss, lockAt)
       }
-      const worst = dayBase + days.lo[i]
+      const worst = dayBase + scale * days.lo[i]
       if (dll && worst <= dllLevel && dllLevel > threshold) {
-        const frozen = Math.min(dllLevel, dayBase + days.open[i])
+        const frozen = Math.min(dllLevel, dayBase + scale * days.open[i])
         dllHits++
         if (frozen <= threshold) {
           bal = frozen
@@ -119,11 +128,11 @@ function runStage(days, next, k0, plan, stage) {
         break
       }
       if (worst <= threshold) {
-        bal = Math.min(threshold, dayBase + days.open[i])
+        bal = Math.min(threshold, dayBase + scale * days.open[i])
         return done('breached', 'max-loss', k + 1)
       }
     }
-    if (pnl === null) pnl = days.close[e]
+    if (pnl === null) pnl = scale * days.close[e]
     bal = dayBase + pnl
     const act = days.active[d] === 1
     if (act) activeDays++
@@ -151,12 +160,14 @@ function runStage(days, next, k0, plan, stage) {
     const cycleProfit = bal - cycleStart
     const idx = payouts.length
     const goal = nth(plan.profitGoal, idx) || 0
+    const bestLimit = plan.fundedConsistency * cycleProfit
+    const consistent = !plan.fundedConsistency || (plan.fundedConsistencyStrict ? cycleBest < bestLimit - EPS : cycleBest <= bestLimit + EPS)
     const eligible =
       cycleActive >= plan.fundedMinDays &&
       cycleProfitDays >= plan.minProfitDays &&
       cycleProfit > 0 &&
       cycleProfit >= goal &&
-      (!plan.fundedConsistency || cycleBest <= plan.fundedConsistency * cycleProfit + EPS) &&
+      consistent &&
       (!plan.buffer || bal > plan.buffer)
     if (!eligible) continue
 
@@ -170,8 +181,10 @@ function runStage(days, next, k0, plan, stage) {
 
     payouts.push(amount)
     bal -= amount
-    locked = true
-    threshold = lockAt
+    if (!plan.payoutKeepsMll) {
+      locked = true
+      threshold = lockAt
+    }
     cycleStart = bal
     cycleActive = 0
     cycleProfitDays = 0

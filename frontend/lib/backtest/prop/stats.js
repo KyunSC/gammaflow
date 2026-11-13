@@ -22,16 +22,24 @@ import { buildDayTable, simulateAccount } from './account'
 
 const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : Number.NaN)
 
+/** What one attempt paid the firm: billing cycles used, plus activation if owed. */
+export function attemptCost(attempt, plan) {
+  const cycles = plan.rebillDays ? Math.max(1, Math.ceil(attempt.evalDays / plan.rebillDays)) : 1
+  const activation = plan.activationOnPass && attempt.outcome === 'failed' ? 0 : plan.activationFee || 0
+  return plan.price * cycles + activation
+}
+
 export function summarizeAttempts(attempts, plan) {
-  const cost = plan.price + (plan.activationFee || 0)
   const resolved = attempts.filter((a) => a.outcome !== 'eval-open')
   const passed = resolved.filter((a) => a.outcome !== 'failed')
+  const costs = resolved.map((a) => attemptCost(a, plan))
+  const cost = resolved.length ? mean(costs) : attemptCost({ evalDays: 0, outcome: 'graduated' }, plan)
   const outcomes = {}
   for (const a of attempts) outcomes[a.outcome] = (outcomes[a.outcome] || 0) + 1
   const daysToPass = passed.map((a) => a.evalDays).sort((a, b) => a - b)
   const passRate = resolved.length ? passed.length / resolved.length : Number.NaN
   const meanTake = mean(resolved.map((a) => a.take))
-  const nets = resolved.map((a) => a.take - cost).sort((a, b) => a - b)
+  const nets = resolved.map((a, i) => a.take - costs[i]).sort((a, b) => a - b)
   const withCash = resolved.filter((a) => Number.isFinite(a.cashPnl))
   return {
     attempts: attempts.length,

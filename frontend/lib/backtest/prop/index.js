@@ -54,9 +54,11 @@ export function ratioFor(prop, symbol) {
 export function propSetup({ prop, symbol, costs, risk }) {
   const contract = contractFor(prop, symbol)
   if (!contract) return { error: `${symbol} has no futures mapping — prop mode trades NQ/ES only` }
-  const plan = resolvePlan(prop)
-  const limit = maxContracts(contract, plan.maxMinis)
+  const rules = resolvePlan(prop)
+  const limit = maxContracts(contract, rules.maxMinis)
   const contracts = Math.max(1, Math.min(limit, Math.round(prop.contracts) || 1))
+  // The replay needs the traded size to apply a funded scaling plan.
+  const plan = { ...rules, tradedMinis: contract.micro ? contracts / 10 : contracts }
   const priceScale = ratioFor(prop, symbol)
   return {
     plan,
