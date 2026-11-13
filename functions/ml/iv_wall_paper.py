@@ -9,6 +9,9 @@ Sources, per session:
   * yahoo: NQ=F 5m bars from yfinance (last 60 days), calendar roll rule (as the chart).
   VXN closes come from yfinance ^VXN, filled from the Cboe file on disk for dates Yahoo lacks.
 
+From 2026-11-12 the orders are live from 09:30 (ivWalls.js FIRST_ORDER; the frozen backtest pick was 09:35, the change
+follows iv_wall_open930). Sessions logged before that date keep their 09:35 rows.
+
 Only finished sessions (ET date before today, or today after 16:10 ET) are logged, from 2026-08-17 (the first
 session after the last bar any IV-wall study read). Rows are append-only: a logged date is never rewritten. To rebuild
 from scratch, delete data/iv_wall/paper/.
@@ -18,6 +21,10 @@ $0.50 per side. MNQ count = floor(--risk / (risk_pts x $2)); 0 means the trade i
 
     cd functions/ml && ../../.venv/bin/python -B iv_wall_paper.py [--risk 500] [--source auto|databento|yahoo]
     cd functions/ml && ../../.venv/bin/python -B iv_wall_paper.py --today [--risk 500]   # this morning's orders
+    cd functions/ml && ../../.venv/bin/python -B iv_wall_paper.py --today --export       # ... and write them for MotiveWave
+
+--export writes ~/.iv_wall/orders.properties (or the path given), the file the MotiveWave strategy in motivewave/ reads.
+It is marked not tradable on a skip day and whenever the VXN or prior close looks stale.
 """
 from __future__ import annotations
 
@@ -33,6 +40,8 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
+
+from publish_backtest_data import atomic_write
 
 ML = Path(__file__).resolve().parent
 ROOT = ML.parent.parent
@@ -253,7 +262,27 @@ def target_session(now: datetime) -> date:
     return d
 
 
-def today(risk_usd: float) -> None:
+ORDERS_FILE = Path.home() / ".iv_wall" / "orders.properties"
+
+
+def write_orders(path: Path, key: str, half_day: bool, reason: str = "", levels: dict | None = None, mnq: int = 0) -> None:
+    """The day's orders for the MotiveWave strategy (motivewave/src/ivwall/IvWallPlan.java reads this format).
+    Written whole and swapped in, so the strategy never sees half a file."""
+    tradable = bool(levels) and not reason
+    rows = {"version": 1, "date": key, "symbol": "NQ", "tradable": str(tradable).lower(),
+            "reason": reason, "rth_open": "09:30", "first_order": "09:30",
+            "order_end": "12:55" if half_day else "15:35", "flat": "12:55" if half_day else "15:55",
+            "rth_close": "13:00" if half_day else "16:00"}
+    if tradable:
+        rows.update({f"{side}_{k}": f"{v:.2f}" for side, lv in levels.items() for k, v in lv.items()})
+        rows["qty"] = mnq
+    rows["generated_at"] = datetime.now(ET).strftime("%Y-%m-%d %H:%M:%S ET")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(path, "".join(f"{k}={v}\n" for k, v in rows.items()).encode("utf-8"))
+    print(f"  wrote {path} ({'TRADABLE' if tradable else 'NOT tradable: ' + reason})")
+
+
+def today(risk_usd: float, export: Path | None = None) -> None:
     """Walls and orders for the current (or next) session from Yahoo bars, plus its status if RTH has started."""
     now = datetime.now(ET)
     key = target_session(now).isoformat()
@@ -267,6 +296,8 @@ def today(risk_usd: float) -> None:
     print(f"NQ IV-wall break for {key} (Yahoo bars to {last:%Y-%m-%d %H:%M} ET)")
     if w.get("skip"):
         print(f"  NO TRADE: {w['skip']}")
+        if export:
+            write_orders(export, key, bool(t.get("halfDay")), reason=w["skip"])
         return
     rp = 0.4 * w["sigma"]
     mnq = int(risk_usd // (rp * POINT_VALUE))
@@ -279,20 +310,25 @@ def today(risk_usd: float) -> None:
                     "it yet. Rerun later, or check the Cboe VXN close and recompute.")
     if (date.fromisoformat(key) - date.fromisoformat(w["pcDate"])).days > 4:
         warn.append(f"prior close is from {w['pcDate']}: is Yahoo missing a session?")
+    block = "; ".join(warn)   # stale inputs: the walls may be wrong, so the export is not tradable
     if key > max(NYSE_CLOSED):
         warn.append("NYSE_CLOSED in iv_wall_paper.py has no holidays this far out: extend it")
     o = t["orders"]
     lg = {"entry": snap(o["long"]["entry"], True), "stop": snap(o["long"]["stop"], False), "target": snap(o["long"]["target"], True)}
     sh = {"entry": snap(o["short"]["entry"], False), "stop": snap(o["short"]["stop"], True), "target": snap(o["short"]["target"], False)}
     risk_mnq = (lg["entry"] - lg["stop"]) * POINT_VALUE
-    print(f"  BUY  STOP {lg['entry']:.2f}   stop loss {lg['stop']:.2f}   target {lg['target']:.2f}")
-    print(f"  SELL STOP {sh['entry']:.2f}   stop loss {sh['stop']:.2f}   target {sh['target']:.2f}")
+    print(f"  BUY  STOP {lg['entry']:.2f}   stop loss {lg['stop']:.2f} (-{lg['entry'] - lg['stop']:.2f} pts)"
+          f"   target {lg['target']:.2f} (+{lg['target'] - lg['entry']:.2f} pts)")
+    print(f"  SELL STOP {sh['entry']:.2f}   stop loss {sh['stop']:.2f} (-{sh['stop'] - sh['entry']:.2f} pts)"
+          f"   target {sh['target']:.2f} (+{sh['entry'] - sh['target']:.2f} pts)")
     print(f"  risk {rp:.1f} pts = ${risk_mnq:.0f} per MNQ (+ ~$1.50 costs)   size at ${risk_usd:.0f} budget: {mnq} MNQ"
           + ("   (0 = skip: stop too wide for the budget)" if mnq == 0 else ""))
     flat = "12:55" if t["halfDay"] else "15:55"
-    print(f"  orders live 09:35-15:30 ET as an OCO pair, one trade per wall, flat at {flat} ET"
+    print(f"  orders live 09:30-15:30 ET as an OCO pair, one trade per wall, flat at {flat} ET"
           + ("  (HALF DAY: RTH ends 13:00)" if t["halfDay"] else ""))
-    print("  a wall touched before your order is live (09:30-09:35, or while in a trade) is dead for the day")
+    print("  a wall touched while you are in a trade is dead for the day")
+    if export:
+        write_orders(export, key, bool(t["halfDay"]), reason=block, levels={"long": lg, "short": sh}, mnq=mnq)
     # Status of a session already under way.
     sess = next((x for x in res["sessions"] if x["date"] == key), None)
     et = pd.to_datetime(bars.index, unit="s", utc=True).tz_convert(ET)
@@ -339,5 +375,9 @@ if __name__ == "__main__":
     ap.add_argument("--risk", type=float, default=500.0, help="$ risk budget per trade (MNQ = floor(risk / stop $))")
     ap.add_argument("--source", choices=["auto", "databento", "yahoo"], default="auto")
     ap.add_argument("--today", action="store_true", help="print the current/next session's walls and orders; log nothing")
+    ap.add_argument("--export", nargs="?", const=str(ORDERS_FILE), default=None, metavar="PATH",
+                    help=f"with --today: write the orders file for the MotiveWave strategy (default {ORDERS_FILE})")
     a = ap.parse_args()
-    today(a.risk) if a.today else main(a.risk, a.source)
+    if a.export and not a.today:
+        ap.error("--export needs --today")
+    today(a.risk, Path(a.export).expanduser() if a.export else None) if a.today else main(a.risk, a.source)
