@@ -1,0 +1,43 @@
+{
+  "id": "H2_crypto_hour_periodicity",
+  "loop": "research_loop_free batch 3 (prereg/batch3.md sha ed5fc92d...)",
+  "created": "2026-11-05T02:50:19-0500",
+  "family": [
+    "same_slot_return_periodicity",
+    "intraday_seasonality_continuation"
+  ],
+  "hypothesis": "Same-time-of-day return continuation (Heston, Korajczyk & Sadka 2010): the return of a UTC hour on recent days predicts the same hour today on BTC and ETH, from periodic institutional trading and liquidity cycles; following it beats side-matched random twins on both assets.",
+  "closed_ideas_check": "Not on CLOSED_IDEAS or in batches 1-2 (no same-slot periodicity family). Previous-hour momentum is used only as a report-only control (K3 taker-flow continuation is a 1h flow signal, not a price-periodicity one).",
+  "data_choice": "binance um klines-1m only; train block 2020-01 -> 2024-06.",
+  "rules": {
+    "decision": "every 1m bar s whose close is a UTC hour boundary ((t+60) % 3600 == 0); the coming hour starts at H = t[s] + 60; entry at s+1.",
+    "mu": "for d = 1..N: the past same hour's return = ln(c[bar t == t[s] - d*86400 + 3600] / c[bar t == t[s] - d*86400]); valid only if both bars exist and are not stale; mu = mean of valid values, needing >= ceil(0.8 N) valid.",
+    "signal": "side = sign(mu); no trade if mu == 0 or s stale. series='prev_hour' (report-only control): side = sign(ln c[s] / c[bar t == t[s] - 3600]) on the same hours.",
+    "bracket": "stop = target = stop_pct (1.5) % of c[s]; time exit hold_s = 3540 s after entry (through the hh:58 bar); one trade at a time (engine)."
+  },
+  "grid": {
+    "base": {
+      "series": "periodicity",
+      "stop_pct": 1.5,
+      "hold_s": 3540,
+      "valid_frac": 0.8
+    },
+    "axes": {
+      "N": [
+        1,
+        7,
+        30
+      ]
+    }
+  },
+  "count_check": "signals only, count-only train look; configs under 200 non-overlapping on BTC or ETH dropped, not replaced.",
+  "expected_sign": "positive mean net R on BTC and ETH; N = 30 not weaker than N = 1.",
+  "against_the_mechanism": [
+    "Report only (not gated, not in the budget): previous-hour control (series='prev_hour'), same bracket and exit. If it does as well (mean net R within 0.02R or better), this is plain 1h momentum, not periodicity.",
+    "Report per-UTC-hour mean net R from the gated run's trade files; if the effect sits only in the hours starting 00/08/16 UTC (funding prints), it is a funding-flow effect.",
+    "BTC-only or ETH-only.",
+    "The inherited train gate failing for all N."
+  ],
+  "known_artifact": "Decisions on bars closing exactly at a truncation cut have no entry bar in the truncated data (seen in H3), so the truncation-invariance check will report one mismatch per cut. Reported as is; if it were ever the only failing gate check, it goes to Waiting for Sunny, never overridden here.",
+  "costs_note": "inherited MFP perp costs; 1.5% -> ~0.05R; most trades will be time exits (hourly sd ~0.5-0.8%)."
+}

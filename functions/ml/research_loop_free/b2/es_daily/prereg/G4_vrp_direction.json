@@ -1,0 +1,30 @@
+{
+  "id": "G4_vrp_direction",
+  "loop": "research_loop_free batch 2 (prereg/batch2.md sha f3b00a1c...)",
+  "created": "2026-11-05T01:55:14-0500",
+  "product": "ES",
+  "dev_split": "dev",
+  "uses_opt": false,
+  "market": ["ES"],
+  "family": ["variance_risk_premium_level", "vol_targeting_flow", "implied_vs_realized_vol"],
+  "hypothesis": "A high variance risk premium (VIX well above 20-day realized vol) means investors are over-insured and hedging flows support ES the next session; a low or negative VRP (realized above implied) means vol-targeting deleveraging continues. Long ES 09:35->15:55 in the top VRP tail, short in the bottom tail, beats side-matched random twins.",
+  "overlap_with_closed": "V3 (VIX/VIX3M slope change) and K4 (crypto DVOL/RV regime choosing follow/fade of range breaks) are closed; this is the ES index VRP level as a direct next-day direction signal, a different input and use. G1 (this batch) used VIX9D/VIX.",
+  "timestamp_semantics": "VIX = bar['daily']['VIX'] (Cboe close dated the previous ES session); RV20 from bar['hist'] (prior sessions only).",
+  "rules": {
+    "rv20": "sample sd of the last 20 bar['hist'] 'ret' values that are not None and have nyse_skipped == 0 (fewer than 20 -> no signal), x sqrt(252) x 100 (vol points).",
+    "vrp": "VRP = VIX - RV20.",
+    "history": "strategy-kept history of VRP over prior sessions (warmup included), up to 250, needs >= 120; today's value joins after the decision.",
+    "signal": "VRP >= quantile(history, q) -> long; VRP <= quantile(history, 1 - q) -> short.",
+    "entry_exit": "evaluator shape: market at 09:35, 1:1 k x ATR20(tr) about the 09:30 close, flat 15:55."
+  },
+  "grid": {"base": {"k": 0.5, "atr_def": "tr", "max_hist": 250, "min_hist": 120, "rv_n": 20}, "axes": {"q": [0.67, 0.80, 0.90]}},
+  "count_check": "before the run, from bar['daily'] and bar['hist'] only; drop configs under 200, replace nothing.",
+  "expected_sign": "positive mean net R; q = 0.90 not weaker than q = 0.67.",
+  "against_the_mechanism": [
+    "Report: long leg vs short leg.",
+    "Report only: VIX-level control (series='vix_level': x = VIX). If it does as well, VRP adds nothing beyond VIX.",
+    "Report only: realized-vol control (series='neg_rv': x = -RV20, so low realized vol -> long). If it does as well, this is realized-vol timing, not a premium.",
+    "The frozen dev gate failing for all q."
+  ],
+  "costs_note": "inherited 0.5 x ATR20 bracket, ~0.069R."
+}

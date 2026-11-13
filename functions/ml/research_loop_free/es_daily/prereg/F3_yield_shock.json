@@ -1,0 +1,30 @@
+{
+  "id": "F3_yield_shock",
+  "loop": "research_loop_free (free-data ideas loop, batch 1)",
+  "created": "2026-11-05T01:23:34-0500",
+  "product": "ES",
+  "dev_split": "dev",
+  "uses_opt": false,
+  "market": ["ES"],
+  "family": ["rates_shock_spillover", "bond_equity_lead_lag", "yield_change_signal"],
+  "hypothesis": "A large daily move in the 10y Treasury yield at the prior close reprices equities with a lag, so the next ES RTH session moves against the yield change (yields up -> ES down); trading 09:35 -> 15:55 on -sign(z) beats side-matched random twins.",
+  "mechanism": "Discount-rate shocks are absorbed slowly by equity investors (cross-asset information diffusion, slow-moving capital): the equity response to a rate shock is spread over the following session.",
+  "overlap_with_closed": "Not on research_loop/CLOSED_IDEAS.md. D2 used Δ10y only inside a month-end equity-minus-bond composite on the last 3-5 sessions of a month; V3 used the VIX term structure. This conditions on the prior day's yield change alone, every session.",
+  "timestamp_semantics": "hist[-1].ust10y is the Treasury par yield dated the previous ES session (published after the bond close that day), known at today's 09:30. Δ10y(prev) = hist[-1].ust10y - hist[-2].ust10y; None if either is None (bond-market holiday) -> no trade.",
+  "rules": {
+    "z": "z = Δ10y(prev) / sd, sd = sample sd of the consecutive-session Δ10y values inside bar['hist'] (up to 60 sessions -> up to 59 deltas, pairs with a None yield skipped), requiring >= 40 valid deltas and sd > 0.",
+    "signal": "|z| >= Z -> side = -sign(z).",
+    "entry_exit": "evaluator trade shape: decided on the 09:30 bar, market at the 09:35 open, 1:1 bracket of k x ATR20(tr) around the 09:30 close, flat 15:55 (12:55 half days). One trade per session."
+  },
+  "grid": {"base": {"k": 0.5, "atr_def": "tr", "min_deltas": 40}, "axes": {"Z": [1.0, 1.5, 2.0]}},
+  "expected_sign": "positive mean net R; Z = 2 at least as strong as Z = 1.",
+  "against_the_mechanism": [
+    "The sign flips by era: report net R per dev year. Dev 2011-18 lies entirely in the negative stock-bond return correlation era; if the effect is mixed in sign across years (fewer than 6 of 8 years with the expected sign at Z=1), the mechanism is not stable.",
+    "Z = 2 weaker (lower mean net R) than Z = 1: larger shocks should matter more.",
+    "Report only: the same-direction split (yields up days vs yields down days); a one-sided effect is a long/short drift artefact (side-matched twins already control the average side).",
+    "The frozen dev gate failing for all Z."
+  ],
+  "expected_trades": "|z| >= 1 ~ 30% of ~1,980 dev sessions (~600); |z| >= 2 ~ 5% (~100, likely under the 200-trade floor). No config is dropped or replaced.",
+  "walk_forward": "none; inherited dev gate incl. neighbour positivity; a pass freezes that config for one val1 look.",
+  "costs_note": "inherited: 0.5 x ATR20 bracket, cost ~0.069R (daily-loop sanity)."
+}

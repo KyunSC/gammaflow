@@ -1,0 +1,28 @@
+{
+  "id": "F6_funding_print",
+  "loop": "research_loop_free (free-data ideas loop, batch 1)",
+  "created": "2026-11-05T01:32:45-0500",
+  "family": ["funding_print_positioning", "funding_settlement_flow", "perp_funding_intraday"],
+  "hypothesis": "When funding is unusually large, traders on the crowded side close before the 00/08/16 UTC print to avoid paying it and reopen after, so price reverses toward the crowded side after the print: entering at print + 1 min in the crowded side's direction (long if funding > 0) beats side-matched random twins over the next 4 hours.",
+  "mechanism": "Funding-avoidance round trip around the settlement timestamp: pre-print selling by longs (or buying by shorts) depresses (lifts) price into the print; re-entry after the print restores it. Distinct from C2 (multi-day funding fade) and K-series (OI, taker flow, DVOL).",
+  "closed_ideas_check": "Not on research_loop/CLOSED_IDEAS.md (crypto rows: K1 Coinbase premium, K2 OI momentum, K3 taker flow, K4 DVOL regime). C2 multi-day funding fade lives in the MFP study (train only, not closed as a family on this horizon). Spend ledger: no one_look on crypto for these families.",
+  "data_choice": "Binance UM realized funding prints (time, funding_rate) via Features.funding (avail = print time). Predicted funding is not on disk; the rate fixed AT the print is known at the print and used as the 'last' rate the plan allows.",
+  "rules": {
+    "print": "each funding print time T (floored to the minute, P); the 1m bar starting at P must exist and not be stale.",
+    "threshold": "Q = q-quantile of |rate| over the prints in [P - 30 days, P) (prior prints only), needing >= 80 of them. Signal when |rate(P)| > Q STRICTLY (many prints sit at the 0.0001 default; with ties a '>=' rule would fire on most prints whenever Q equals the default).",
+    "side": "+1 if rate(P) > 0 (crowded longs) else -1.",
+    "entry": "Signal on the 1m bar starting at P (decided at P + 60 s, when the rate is known); entry at the next bar's open = print + 1 min.",
+    "bracket": "stop = target = 1.5% of the decision bar's close (1R).",
+    "exit": "time exit at print + 4h (end = last 1m bar starting before P + 4h)."
+  },
+  "grid": {"base": {"lookback_days": 30, "min_prints": 80, "stop_pct": 1.5, "hold_s": 14340}, "axes": {"q": [0.80, 0.90, 0.95]}},
+  "count_check": "Before the run, count signals per asset from the strategy's signals() on train (no outcomes, logged as a count-only train look); a config under 200 on BTC or ETH is dropped and not replaced (F4/F5 precedent).",
+  "expected_sign": "positive mean net R on BTC and ETH; not weaker at q=0.95 than at q=0.80.",
+  "against_the_mechanism": [
+    "Mechanism check (measured, not traded, report only): on the qualifying prints, the 60-minute return into the print (bar P-60 open to bar P-1 close) signed by -side must be positive on average (price drifts AGAINST the crowded side into the print). If it is <= 0 on both assets, the pre-print avoidance flow is absent and any post-print effect is not this mechanism.",
+    "BTC-only or ETH-only effect.",
+    "The inherited train gate failing for all q."
+  ],
+  "walk_forward": "none; inherited train gate per asset (BTC and ETH both): >=200 trades, twin p < 0.005, net R > 0, session CI low > 0, stress R > 0, year share <= 0.40, ex-top5 > 0, median stop >= 1.5%, EV > twins, truncation invariance. A pass is recorded as 'awaiting crypto val approval'.",
+  "costs_note": "inherited MFP perp costs; 1.5% stop -> cost ~0.045R (controller sanity)."
+}

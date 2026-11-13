@@ -1,0 +1,30 @@
+{
+  "id": "F2_friday_squaring",
+  "loop": "research_loop_free (free-data ideas loop, batch 1)",
+  "created": "2026-11-05T01:19:36-0500",
+  "family": ["weekend_risk_squaring", "weekly_reversal", "friday_afternoon_flow"],
+  "hypothesis": "On Friday afternoons traders cut positions that won during the week to avoid weekend risk, so a large week-to-date ES move partly reverses after 14:00; fading it at 14:00 beats side-matched random twins with the same brackets.",
+  "mechanism": "Weekend gap risk cannot be hedged until Sunday 18:00 ET; inventory holders reduce winning (crowded) exposure before the close, a flow against the week's direction concentrated in the Friday afternoon.",
+  "closed_ideas_check": "Not on research_loop/CLOSED_IDEAS.md or the spend ledger. Nearest: D1 daily close-to-close reversal (daily horizon, every day, 09:35 entry), E2 OpEx-week drift (calendar sign, not the week's own move), shock_fade (5m shocks). This conditions on the week-to-date move and the Friday 14:00 clock only.",
+  "rules": {
+    "week": "A week = sessions sharing the Monday-start week index floor((days since 1970-01-01 + 3) / 7) of bar['day']. Week open = open of the 09:30 5m bar (slot 0) of the week's FIRST session (Monday, or Tuesday after a Monday holiday).",
+    "same_contract": "If any session after the week's first session has bar['roll'] True (front contract changed mid-week), the week is skipped.",
+    "day": "Friday (bar['dow'] == 4) only; not a half day (bar['half_day']), not a roll day. No Friday session (holiday) -> no trade that week.",
+    "wtd": "WTD = close of the 13:55-14:00 5m bar (mod 835) - week open. Decided on that bar's close.",
+    "atr": "ATR20 = mean of the last 20 completed sessions' RTH true range (as F1: max(H, prev_close) - min(L, prev_close), H - L when prev_close is None). No trade until 20 TRs exist.",
+    "signal": "|WTD| >= w * ATR20 -> side = -sign(WTD).",
+    "entry": "market, fills at the 14:00 open. One trade per session.",
+    "bracket": "stop = c - side * 0.5 * ATR20, target = c + side * 0.5 * ATR20 (1R about the decision close c).",
+    "exit": "stop, target, or the engine flat at 15:55."
+  },
+  "grid": {"base": {"day_filter": "friday", "atr_n": 20, "stop_atr": 0.5, "decide_mod": 835}, "axes": {"w": [0.5, 1.0, 1.5]}},
+  "expected_sign": "positive mean net R (reversal); not weaker at larger w.",
+  "against_the_mechanism": [
+    "Report only (not gated, not in budget): the same rule on Mon-Thu afternoons (day_filter='mon_thu', WTD measured to that day's 14:00). If Mon-Thu does as well (mean net R >= Friday's), the effect is a generic afternoon reversal, not weekend squaring.",
+    "Report only: split traded Fridays by the prior session's Cboe VIX close (research_loop_volsig cboe/VIX_History.csv, frozen) at the dev median of those values. If the high-VIX half carries >= 75% of a positive net R total, the effect is a volatility-regime artefact.",
+    "The frozen dev gate failing for all w."
+  ],
+  "trade_count_note": "~400 Fridays in dev; w=1.0 and w=1.5 may fall below 200 trades and fail on count. No config is dropped or replaced.",
+  "walk_forward": "none; inherited dev gate incl. neighbour positivity. A pass freezes that config for one val1 look.",
+  "costs_note": "risk = 0.5*ATR20 (~6-12 ES pts in dev); MES base cost ~$3.25 RT ~ 0.06-0.1R. Inherited unchanged."
+}

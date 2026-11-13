@@ -1,0 +1,52 @@
+{
+  "id": "G3_us_open_fade",
+  "loop": "research_loop_free batch 2 (prereg/batch2.md sha f3b00a1c...)",
+  "created": "2026-11-05T02:33:29-0500",
+  "family": [
+    "us_open_overnight_reversal",
+    "thin_book_move_reversion",
+    "session_handoff_crypto"
+  ],
+  "hypothesis": "BTC/ETH moves made in the 12 non-US hours before the US equity open happen in thinner books; US-hours liquidity providers partly revert large ones during the US session, so fading them from 09:30 to 16:00 ET beats side-matched random twins on BTC and ETH.",
+  "closed_ideas_check": "Not on CLOSED_IDEAS. F5 (weekend fade, dropped on count) faded the Fri->Mon weekend move; this fades the weekday 12h overnight move at the US open. K-family crypto rows are premium/OI/flow/vol signals, not price-time-of-day.",
+  "data_choice": "binance um klines-1m only (Market.c, Market.t, Market.ny_min, Market.ny_dow); no features. Train block 2020-01 -> 2024-06.",
+  "rules": {
+    "decision": "the 1m bar with ny_min == anchor_min (569 = the 09:29 ET bar, closing at 09:30 ET) on ny_dow in dows (Mon-Fri); entry at the next bar's open (09:30 ET).",
+    "move": "move = c[s] - c[a], a = the bar whose t == t[s] - lookback_s (43200 s, the 21:29 ET bar the previous evening); no trade if that bar is missing, or s or a is stale.",
+    "sd": "daily UTC closes = close of the 23:59 UTC 1m bar; log returns between consecutive UTC days; sd (ddof 1) of the last sd_days (30) returns among complete UTC days strictly before the decision's UTC day, all 31 closes present and consecutive; scale = sd * c[s].",
+    "signal": "|move| >= m * scale -> side = -sign(move).",
+    "bracket": "stop = target = stop_pct (1.5) % of c[s]; time exit hold_s (23400 s = 6.5h) after entry, i.e. through the 15:59 ET bar (16:00 ET)."
+  },
+  "grid": {
+    "base": {
+      "session": "us",
+      "anchor_min": 569,
+      "dows": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "lookback_s": 43200,
+      "sd_days": 30,
+      "stop_pct": 1.5,
+      "hold_s": 23400
+    },
+    "axes": {
+      "m": [
+        0.25,
+        0.5,
+        0.75
+      ]
+    }
+  },
+  "count_check": "signals only, count-only train look (one trade per day, no overlap possible); configs under 200 on BTC or ETH dropped, not replaced.",
+  "expected_sign": "positive mean net R on BTC and ETH; m = 0.75 not weaker than m = 0.25.",
+  "against_the_mechanism": [
+    "Report only (not gated, not in the budget): Asia-open control, session = 'asia': anchor_min 1229 (20:29 ET bar, closing at 20:30 ET = 09:30 Tokyo), dows [6, 0, 1, 2, 3] (Sun-Thu ET evenings = Tokyo weekdays), same 12h lookback, sd, m, bracket and 6.5h exit (03:00 ET). If it does as well (mean net R within 0.02R or better), this is a generic 12h reversal, not about US liquidity.",
+    "BTC-only or ETH-only.",
+    "The inherited train gate failing for all m."
+  ],
+  "costs_note": "inherited MFP perp costs; 1.5% -> ~0.05R."
+}

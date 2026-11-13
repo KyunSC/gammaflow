@@ -1,0 +1,25 @@
+{
+  "id": "G2_toptrader_fade",
+  "loop": "research_loop_free batch 2 (prereg/batch2.md sha f3b00a1c...)",
+  "created": "2026-11-05T02:00:10-0500",
+  "family": ["top_trader_positioning_contrarian", "crowded_positioning_unwind", "perp_sentiment_ratio"],
+  "hypothesis": "When Binance top traders (by account count) lean unusually long relative to the last 30 days, positioning is crowded and the unwind moves price against them over the next 8 hours (and vice versa); fading the lean beats side-matched random twins on BTC and ETH.",
+  "closed_ideas_check": "Not on CLOSED_IDEAS (crypto rows: K1 premium, K2 OI momentum, K3 taker flow, K4 DVOL regime, F6 funding print, F7 liquidation fade). This uses the account-ratio positioning series, not OI, flow, funding or vol.",
+  "data_choice": "Binance UM metrics 5m (Features.metrics, avail = stamp + 300): count_toptrader_long_short_ratio. BTC from 2020-09, ETH from 2021-12 inside the 2020-01 -> 2024-06 train block.",
+  "rules": {
+    "grid_times": "decision on each 1m bar whose close is a UTC 4h boundary (00/04/08/12/16/20:00); t_dec = bar close.",
+    "sample": "ratio = latest count_toptrader_long_short_ratio with avail <= t_dec and age <= 900 s; x = ln(ratio); NaN if missing or ratio <= 0 (NaN still occupies its slot in the window).",
+    "z": "z = (x - mean) / sd (ddof 1) over the previous 180 grid samples (30 days), needing >= 150 valid; current sample excluded.",
+    "signal": "z >= Z -> short (fade a crowded long lean); z <= -Z -> long.",
+    "bracket": "stop = target = 1.5% of the decision close; time exit 8h after entry; one trade at a time (engine)."
+  },
+  "grid": {"base": {"step_s": 14400, "max_age": 900, "win": 180, "min_valid": 150, "stop_pct": 1.5, "hold_s": 28800, "col": "count_toptrader_long_short_ratio"}, "axes": {"Z": [1.0, 1.5, 2.0]}},
+  "count_check": "signals only, count-only train look; configs under 200 on BTC or ETH dropped, not replaced.",
+  "expected_sign": "positive mean net R on BTC and ETH; Z = 2.0 not weaker than Z = 1.0.",
+  "against_the_mechanism": [
+    "Report only: split trades by whether the prior 24h return (decision close vs close 24h earlier) has the same sign as the crowd's lean (sign(z)). If the effect exists only when it agrees, the ratio is a proxy for past price (a price reversal), not crowding.",
+    "BTC-only or ETH-only.",
+    "The inherited train gate failing for all Z."
+  ],
+  "costs_note": "inherited MFP perp costs; 1.5% -> ~0.05R."
+}

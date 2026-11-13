@@ -1,0 +1,42 @@
+{
+  "id": "H3_crypto_tsmom",
+  "loop": "research_loop_free batch 3 (prereg/batch3.md sha ed5fc92d...)",
+  "created": "2026-11-05T02:46:15-0500",
+  "family": [
+    "crypto_time_series_momentum",
+    "investor_attention_momentum"
+  ],
+  "hypothesis": "BTC and ETH show time-series momentum at 1-4 week horizons (Liu & Tsyvinski 2021): following the sign of the trailing L-day return for the next UTC day beats side-matched random twins on both assets.",
+  "closed_ideas_check": "CLOSED_IDEAS holds ES daily TSMOM (E1, research_loop_daily); judged distinct (different market, investor base); listed under Waiting for Sunny. No crypto momentum row: K2 is OI-backed 4h momentum, K3 1h taker-flow continuation, CHoCH swing breaks, K4 DVOL-regime range breaks. Not G2 (24h reversal post-hoc, never run) or G3 (12h overnight move).",
+  "data_choice": "binance um klines-1m only; train block 2020-01 -> 2024-06.",
+  "rules": {
+    "decision": "the 23:59 UTC 1m bar s ((t+60) % 86400 == 0), UTC day D = t[s] // 86400; entry at the 00:00 open (s+1).",
+    "signal": "r_L = c[s] / c[a] - 1, a = the bar with t[a] == t[s] - L*86400 (the 23:59 bar L days earlier); no trade if a missing, s or a stale, or r_L == 0. side = sign(r_L). series='always_long' (report-only control): side = +1 on the same days.",
+    "sd": "sd (ddof 1) of the 30 daily log returns between consecutive 23:59-UTC closes of days D-30 .. D (31 closes, all present and > 0); known at the decision.",
+    "bracket": "stop = target = max(sd, floor_pct/100) * c[s]; time exit hold_s = 86280 s after entry (through the 23:57 bar), one trade at a time (engine)."
+  },
+  "grid": {
+    "base": {
+      "series": "tsmom",
+      "sd_days": 30,
+      "floor_pct": 1.5,
+      "hold_s": 86280
+    },
+    "axes": {
+      "L": [
+        7,
+        14,
+        28
+      ]
+    }
+  },
+  "count_check": "signals only, count-only train look; configs under 200 non-overlapping on BTC or ETH dropped, not replaced.",
+  "expected_sign": "positive mean net R on BTC and ETH; both legs positive or the short leg not negative.",
+  "against_the_mechanism": [
+    "Report the long and short legs separately (from the gated run's trade files). If the long leg alone carries it, that is drift, not momentum.",
+    "Report only (not gated, not in the budget): always-long control with the same days, bracket and exit.",
+    "BTC-only or ETH-only.",
+    "The inherited train gate failing for all L."
+  ],
+  "costs_note": "inherited MFP perp costs; bracket ~3-4% (daily sd) -> ~0.02-0.03R."
+}

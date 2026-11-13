@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free-Data Ideas Loop Results</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* Layout: one lab-notebook column; summary tiles, then the p-value chart, then detail tables. */
+:root {
+  color-scheme: light;
+  --bg: #f1f3f5;
+  --surface: #fcfcfb;
+  --ink: #0f1419;
+  --ink-2: #4a525c;
+  --ink-3: #6f7782;
+  --rule: #dfe3e8;
+  --accent: #2a5fa8;
+  --wash: rgba(42, 120, 214, .07);
+  --s-crypto: #2a78d6;
+  --s-esi: #eb6834;
+  --s-esd: #1baf7a;
+  --critical: #d03b3b;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111315;
+    --surface: #1a1a19;
+    --ink: #eceeef;
+    --ink-2: #b9bfc6;
+    --ink-3: #8d949c;
+    --rule: #2f3236;
+    --accent: #7fb0f0;
+    --wash: rgba(57, 135, 229, .10);
+    --s-crypto: #3987e5;
+    --s-esi: #d95926;
+    --s-esd: #199e70;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111315;
+  --surface: #1a1a19;
+  --ink: #eceeef;
+  --ink-2: #b9bfc6;
+  --ink-3: #8d949c;
+  --rule: #2f3236;
+  --accent: #7fb0f0;
+  --wash: rgba(57, 135, 229, .10);
+  --s-crypto: #3987e5;
+  --s-esi: #d95926;
+  --s-esd: #199e70;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 400 15px/1.55 var(--font-body);
+}
+main { max-width: 980px; margin: 0 auto; padding: 40px 20px 64px; display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: .005em; }
+h1 { font-size: 34px; line-height: 1.15; }
+h2 { font-size: 21px; line-height: 1.25; }
+h3 { font-size: 16px; line-height: 1.3; }
+p { margin: 0; max-width: 68ch; }
+code, .mono { font-family: var(--font-mono); font-size: .9em; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--ink-3); }
+
+header { display: grid; gap: 10px; }
+.kicker { font: 500 12px/1 var(--font-mono); color: var(--ink-3); text-transform: uppercase; letter-spacing: .08em; }
+.lede { font-size: 17px; color: var(--ink-2); }
+.lede strong { color: var(--ink); }
+
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 22px 24px; display: grid; gap: 14px; min-width: 0; }
+.card > .sub { color: var(--ink-2); font-size: 14px; }
+
+.tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; }
+.tile .label { font-size: 13px; color: var(--ink-2); }
+.tile .value { font: 600 28px/1.1 var(--font-body); font-variant-numeric: tabular-nums; }
+.tile .note { font-size: 12px; color: var(--ink-3); }
+.tile.zero { border-left: 3px solid var(--critical); }
+
+/* chart */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); align-items: center; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg { display: block; }
+.chart-wrap { overflow-x: auto; position: relative; }
+#chart { display: block; width: 100%; min-width: 600px; height: auto; font-family: var(--font-body); }
+#chart text { fill: var(--ink-2); font-size: 12.5px; }
+#chart .rowlab { fill: var(--ink); font-size: 13px; }
+#chart .rowid { fill: var(--ink-3); font-family: var(--font-mono); font-size: 12px; }
+#chart .tick { fill: var(--ink-3); font-family: var(--font-mono); font-size: 11.5px; }
+#chart .grid { stroke: var(--rule); stroke-width: 1; }
+#chart .stem { stroke: var(--rule); stroke-width: 2; stroke-linecap: round; }
+#chart .bar { stroke: var(--ink-2); stroke-width: 1.5; }
+#chart .barlab { fill: var(--ink); font-size: 12px; font-weight: 500; }
+#chart .wash { fill: var(--wash); }
+#chart .vlab { fill: var(--ink); font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
+#chart .row:hover .stem, #chart .row:focus .stem { stroke: var(--ink-3); }
+#chart .row:focus { outline: none; }
+#chart .row:focus .hit { stroke: var(--accent); stroke-width: 2; }
+#chart .hit { fill: transparent; }
+.tip {
+  position: absolute; pointer-events: none; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.45;
+  box-shadow: 0 6px 20px rgba(0,0,0,.14); max-width: 300px; display: none; z-index: 2;
+}
+.tip b { font-weight: 600; }
+.tip .k { color: var(--ink-3); }
+
+/* near misses */
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.miss { border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; display: grid; gap: 8px; align-content: start; }
+.miss .head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.miss .p { font: 500 13px var(--font-mono); color: var(--ink-2); }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13.5px; }
+.checks li { display: grid; grid-template-columns: 18px 1fr; gap: 4px; }
+.ok::before { content: "✓"; color: var(--ink-2); }
+.no::before { content: "✕"; color: var(--critical); font-weight: 600; }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 500; color: var(--ink-3); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.p { font-family: var(--font-mono); font-size: 12.5px; }
+tr.batch-start td { border-top: 1px solid var(--ink-3); }
+.ev { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 5px; font: 600 11px/1 var(--font-mono); letter-spacing: .04em; padding: 4px 7px; border-radius: 4px; white-space: nowrap; }
+.pill.fail { color: var(--critical); background: color-mix(in srgb, var(--critical) 11%, transparent); }
+.pill.drop { color: var(--ink-2); background: color-mix(in srgb, var(--ink-3) 16%, transparent); }
+.why { color: var(--ink-2); }
+
+.cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; }
+ul.plain { margin: 0; padding-left: 18px; display: grid; gap: 6px; max-width: 70ch; }
+ol.wait { margin: 0; padding-left: 22px; display: grid; gap: 10px; max-width: 72ch; }
+ol.wait li::marker { font-family: var(--font-mono); color: var(--ink-3); }
+.small { font-size: 13px; color: var(--ink-2); }
+footer { font-size: 13px; color: var(--ink-3); display: grid; gap: 4px; }
+
+@media (max-width: 760px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pair, .cols { grid-template-columns: 1fr; }
+  h1 { font-size: 28px; }
+  .card { padding: 18px 16px; }
+}
+@media (prefers-reduced-motion: no-preference) { .row .stem { transition: stroke .12s; } }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="kicker">functions/ml · research_loop_free · 2026-11-05, 01:00–02:59 ET</div>
+  <h1>Free-data ideas loop results</h1>
+  <p class="lede"><strong>No idea passed.</strong> 15 ideas were proposed over 3 batches and 13 were tested across 38 configs; all 13 failed their frozen discovery gate. The other 2 were dropped before running because they could never reach 200 trades. No validation, val1, val2 or holdout data was opened, and no data was bought.</p>
+</header>
+
+<section class="tiles" aria-label="Summary">
+  <div class="tile"><span class="label">Ideas proposed</span><span class="value">15</span><span class="note">3 batches (F, G, H)</span></div>
+  <div class="tile"><span class="label">Ideas tested</span><span class="value">13</span><span class="note">2 dropped on count</span></div>
+  <div class="tile"><span class="label">Configs run</span><span class="value">38</span><span class="note">each evaluator copy capped at 10</span></div>
+  <div class="tile"><span class="label">Loop-wide bar</span><span class="value">0.0013</span><span class="note">p &lt; 0.05 / 38</span></div>
+  <div class="tile zero"><span class="label">Passed</span><span class="value">0</span><span class="note">nothing goes to validation</span></div>
+</section>
+
+<section class="card" aria-labelledby="chart-h">
+  <h2 id="chart-h">Best twin p per idea</h2>
+  <p class="sub">The lowest side-matched twin p across each idea's configs and gated assets, on a log scale. Further right means stronger evidence. Clearing a line on p alone is not a pass: the evaluator also checks CI, stress, year share, folds and neighbours.</p>
+  <div class="legend" aria-hidden="true">
+    <span><svg width="14" height="14"><circle cx="7" cy="7" r="5" fill="var(--s-crypto)"/></svg>Crypto train (BTC, ETH)</span>
+    <span><svg width="14" height="14"><rect x="2" y="2" width="10" height="10" rx="1.5" fill="var(--s-esi)"/></svg>ES intraday dev</span>
+    <span><svg width="14" height="14"><path d="M7 1 L13 7 L7 13 L1 7 Z" fill="var(--s-esd)"/></svg>ES daily dev</span>
+  </div>
+  <div class="chart-wrap" id="chart-wrap">
+    <svg id="chart" role="img" aria-labelledby="chart-h" viewBox="0 0 920 470"></svg>
+    <div class="tip" id="tip" role="status"></div>
+  </div>
+  <p class="small">The same numbers are in the results table below. Hover or tab to a row for detail.</p>
+</section>
+
+<section class="card" aria-labelledby="miss-h">
+  <h2 id="miss-h">The two near-misses</h2>
+  <p class="sub">Both are BTC-only. Both cleared the p gate and failed on robustness.</p>
+  <div class="pair">
+    <div class="miss">
+      <div class="head"><h3>G2 · Top-trader fade</h3><span class="p">BTC p 0.0005 · ETH p 0.11</span></div>
+      <ul class="checks">
+        <li class="ok">Twin p below 0.005 and below 0.0013 (BTC)</li>
+        <li class="no">Session CI low below 0</li>
+        <li class="no">Stress result below 0</li>
+        <li class="no">61–68% of R came from a single year (limit 40%)</li>
+        <li class="no">ETH did not replicate</li>
+      </ul>
+      <p class="small">The edge sat only in trades where the prior 24h move agreed with the crowd's lean. That makes it a 24h price-reversal proxy, not a positioning effect.</p>
+    </div>
+    <div class="miss">
+      <div class="head"><h3>G5 · Smart vs retail</h3><span class="p">BTC p 0.0045 · ETH negative</span></div>
+      <ul class="checks">
+        <li class="ok">Twin p below 0.005 (BTC)</li>
+        <li class="no">Above the loop-wide bar of 0.0013</li>
+        <li class="no">Gross R about equal to cost</li>
+        <li class="no">CI, stress and year-share checks fail</li>
+        <li class="no">ETH negative</li>
+      </ul>
+      <p class="small">Top-trader vs retail positioning divergence. It beat random entries on BTC but left nothing after costs.</p>
+    </div>
+  </div>
+</section>
+
+<section class="card" aria-labelledby="tbl-h">
+  <h2 id="tbl-h">All 15 ideas</h2>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Batch</th><th>Idea</th><th>Evaluator</th><th class="n">Configs</th><th class="n">Best p</th><th>Verdict</th><th>Why</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  </div>
+</section>
+
+<section class="cols">
+  <div class="card" aria-labelledby="obs-h">
+    <h2 id="obs-h">Report-only observations</h2>
+    <p class="sub">Controls run alongside the ideas. Not traded and never run as candidates.</p>
+    <ul class="plain">
+      <li><b>ES 1-hour intraday momentum</b> (H1's previous-hour control). It is real: twin p 2e-5 over 11,255 trades. But it earns +0.019R gross against 0.117R cost for a one-hour 1:1 bracket, so net −0.098R. The signal is about a sixth of the cost.</li>
+      <li><b>Crypto momentum beyond drift</b> (H3). At 14–28 day lookbacks, gross is +0.035 to +0.041R vs +0.014 to +0.020R for always-long. The long leg carries it and p is 0.018–0.04.</li>
+    </ul>
+    <h3>Post-hoc reversals, logged and not run</h3>
+    <p class="small">Each would need a fresh, unspent window: F2 follow week-to-date on Friday · F3 ES follows the 10y yield move · F6 BTC fades the crowd after a funding print · G4 low VRP goes long · G2 BTC 24h reversal when accounts lean with it · G3 follow the overnight move at the US open · H1 ES 1h momentum.</p>
+  </div>
+  <div class="card" aria-labelledby="cfg-h">
+    <h2 id="cfg-h">Configs per evaluator copy</h2>
+    <p class="sub">Each frozen copy is capped at 10.</p>
+    <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Batch</th><th class="n">ES intraday</th><th class="n">ES daily</th><th class="n">Crypto</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td class="n">6</td><td class="n">3</td><td class="n">6</td></tr>
+        <tr><td>2</td><td class="n muted">—</td><td class="n">6</td><td class="n">8</td></tr>
+        <tr><td>3</td><td class="n">3</td><td class="n muted">—</td><td class="n">6</td></tr>
+        <tr><td><b>Total</b></td><td class="n"><b>9</b></td><td class="n"><b>9</b></td><td class="n"><b>20</b></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <h3>Data spent</h3>
+    <ul class="plain small">
+      <li>ES dev 2011-02 → 2018-12, read by F1–F4, G1, G4, H1</li>
+      <li>Crypto train 2020-01 → 2024-06, every open logged in <code>looks.jsonl</code></li>
+      <li>Validation, val1, val2, test, holdout: never opened</li>
+    </ul>
+  </div>
+</section>
+
+<section class="card" aria-labelledby="wait-h">
+  <h2 id="wait-h">Waiting for Sunny</h2>
+  <ol class="wait">
+    <li><b>F4 and F5, dropped untested.</b> Neither can reach 200 trades. Testing them needs a looser F4 rule (a new prereg) or a pooled or longer crypto window (an evaluator change).</li>
+    <li><b>Two "distinct from a closed idea" calls.</b> G1 (VIX9D/VIX level) vs the closed V3 (VIX/VIX3M change), and H3 (crypto TSMOM) vs the closed E1 (ES daily TSMOM). Both were judged distinct and both failed, so this only affects the bookkeeping.</li>
+    <li><b>Approvals.</b> val2 and crypto validation are both still PENDING. Nothing passed, so neither is needed yet.</li>
+    <li><b>Crypto evaluator truncation check.</b> It falsely flags a decision on a bar that closes exactly at a cut (H3, H2). The fix is to compare only signals with an entry bar before the cut. That is an evaluator change, outside this loop's rules.</li>
+    <li><b>Nothing is committed.</b> New files under <code>research_loop_free/</code> and <code>data/research_loop_free/</code>, plus the shared ledger appends, are all uncommitted.</li>
+  </ol>
+</section>
+
+<footer>
+  <span>Source: <code>functions/ml/research_loop_free/REPORT.md</code> and <code>data/research_loop_free/LOG.md</code> (firings 1–20).</span>
+  <span>Loop stopped at 02:59 ET because batch 3's queue was empty, about 10.5 hours before the 13:30 ET deadline.</span>
+</footer>
+
+</main>
+<script>
+const EV = {
+  crypto: { name: "Crypto train", color: "var(--s-crypto)", shape: "circle" },
+  esi:    { name: "ES intraday dev", color: "var(--s-esi)", shape: "square" },
+  esd:    { name: "ES daily dev", color: "var(--s-esd)", shape: "diamond" }
+};
+const IDEAS = [
+  { b: 1, id: "F1", name: "Pre-open news gap", ev: "esi", cfg: 3, p: 0.32, pl: "0.32", why: "Gross ≈ 0 vs 0.19R cost" },
+  { b: 1, id: "F2", name: "Friday squaring", ev: "esi", cfg: 3, p: 0.91, pl: "0.91", why: "Wrong sign" },
+  { b: 1, id: "F3", name: "Yield shock", ev: "esd", cfg: 3, p: 0.67, pl: "0.67", why: "Wrong sign" },
+  { b: 1, id: "F4", name: "Wide-range continuation", ev: "esd", cfg: 0, p: null, pl: "—", why: "Counts 170 / 77 / 34, under the 200-trade floor", drop: true },
+  { b: 1, id: "F5", name: "Weekend fade", ev: "crypto", cfg: 0, p: null, pl: "—", why: "BTC 107 / 46 / 26, ETH 125 / 67 / 38", drop: true },
+  { b: 1, id: "F6", name: "Funding print", ev: "crypto", cfg: 3, p: 0.37, pl: "0.37 (ETH)", why: "No edge" },
+  { b: 1, id: "F7", name: "Liquidation fade", ev: "crypto", cfg: 3, p: 0.25, pl: "0.25 (BTC)", why: "Volume filter inert" },
+  { b: 2, id: "G1", name: "VIX9D/VIX inversion", ev: "esd", cfg: 3, p: 0.43, pl: "0.43", why: "Gross ≈ 0" },
+  { b: 2, id: "G4", name: "VRP direction", ev: "esd", cfg: 3, p: 0.88, pl: "0.88", why: "Wrong sign" },
+  { b: 2, id: "G2", name: "Top-trader fade", ev: "crypto", cfg: 2, p: 0.0005, pl: "0.0005 (BTC)", why: "BTC fails CI, stress, year share; ETH p 0.11; 24h-reversal proxy" },
+  { b: 2, id: "G5", name: "Smart vs retail", ev: "crypto", cfg: 3, p: 0.0045, pl: "0.0045 (BTC)", why: "Above 0.0013; gross ≈ cost; ETH negative" },
+  { b: 2, id: "G3", name: "US-open crypto fade", ev: "crypto", cfg: 3, p: 0.63, pl: "0.63", why: "Wrong sign" },
+  { b: 3, id: "H3", name: "Crypto TSMOM", ev: "crypto", cfg: 3, p: 0.018, pl: "0.018 (BTC)", why: "Long leg carries it" },
+  { b: 3, id: "H2", name: "Crypto same-hour periodicity", ev: "crypto", cfg: 3, p: 0.11, pl: "0.11 (ETH)", why: "Gross ≈ 0 vs 0.051R cost" },
+  { b: 3, id: "H1", name: "ES same-hour periodicity", ev: "esi", cfg: 3, p: 0.55, pl: "0.55", why: "Gross ≈ 0 vs 0.118R cost" }
+];
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function marker(g, shape, cx, cy, color) {
+  const ring = "var(--surface)";
+  if (shape === "circle") return el("circle", { cx, cy, r: 6.5, fill: color, stroke: ring, "stroke-width": 2 }, g);
+  if (shape === "square") return el("rect", { x: cx - 6, y: cy - 6, width: 12, height: 12, rx: 2, fill: color, stroke: ring, "stroke-width": 2 }, g);
+  return el("path", { d: `M${cx} ${cy - 8} L${cx + 8} ${cy} L${cx} ${cy + 8} L${cx - 8} ${cy} Z`, fill: color, stroke: ring, "stroke-width": 2 }, g);
+}
+
+// chart
+(function () {
+  const svg = document.getElementById("chart");
+  const W = 920, L = 250, R = 890, top = 46, rowH = 30;
+  const rows = IDEAS.filter(d => d.p != null).sort((a, b) => a.p - b.p);
+  const H = top + rows.length * rowH + 34;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const X = p => L + (-Math.log10(p) / 4) * (R - L);  // p = 1 -> L, p = 1e-4 -> R
+  const yEnd = top + rows.length * rowH;
+
+  // pass region beyond the loop-wide bar
+  el("rect", { class: "wash", x: X(0.0013), y: top - 6, width: R - X(0.0013), height: yEnd - top + 6 }, svg);
+
+  // grid + ticks
+  [1, 0.1, 0.01, 0.001, 0.0001].forEach(p => {
+    el("line", { class: "grid", x1: X(p), x2: X(p), y1: top - 6, y2: yEnd }, svg);
+    const t = el("text", { class: "tick", x: X(p), y: yEnd + 18, "text-anchor": "middle" }, svg);
+    t.textContent = p === 1 ? "1" : String(p);
+  });
+  const ax = el("text", { class: "tick", x: L, y: yEnd + 18, "text-anchor": "end", dx: -14 }, svg);
+  ax.textContent = "twin p";
+
+  // threshold lines
+  [[0.005, "evaluator bar 0.005", "end"], [0.0013, "loop-wide bar 0.0013", "start"]].forEach(([p, lab, anchor]) => {
+    el("line", { class: "bar", x1: X(p), x2: X(p), y1: top - 14, y2: yEnd }, svg);
+    const t = el("text", { class: "barlab", x: X(p), y: top - 20, "text-anchor": anchor, dx: anchor === "end" ? -4 : 4 }, svg);
+    t.textContent = lab;
+  });
+
+  const wrap = document.getElementById("chart-wrap"), tip = document.getElementById("tip");
+  function show(d, evt, g) {
+    const e = EV[d.ev];
+    tip.innerHTML = `<b>${d.id} · ${d.name}</b><br><span class="k">Evaluator</span> ${e.name}<br><span class="k">Configs</span> ${d.cfg} · <span class="k">best p</span> ${d.pl}<br><span class="k">Verdict</span> FAIL. ${d.why}`;
+    tip.style.display = "block";
+    const wr = wrap.getBoundingClientRect();
+    const gr = g.querySelector(".dot").getBoundingClientRect();
+    let x = gr.left - wr.left + wrap.scrollLeft + 16, y = gr.top - wr.top - 8;
+    const tw = tip.offsetWidth;
+    if (x + tw > wrap.clientWidth + wrap.scrollLeft - 4) x = gr.left - wr.left + wrap.scrollLeft - tw - 12;
+    tip.style.left = Math.max(4, x) + "px";
+    tip.style.top = Math.max(0, y) + "px";
+  }
+  function hide() { tip.style.display = "none"; }
+
+  rows.forEach((d, i) => {
+    const cy = top + i * rowH + rowH / 2;
+    const g = el("g", { class: "row", tabindex: 0, role: "listitem", "aria-label": `${d.id} ${d.name}, ${EV[d.ev].name}, best p ${d.pl}, failed` }, svg);
+    el("rect", { class: "hit", x: 4, y: cy - rowH / 2 + 1, width: W - 8, height: rowH - 2, rx: 4 }, g);
+    const id = el("text", { class: "rowid", x: 14, y: cy + 4 }, g); id.textContent = d.id;
+    const nm = el("text", { class: "rowlab", x: 46, y: cy + 4 }, g); nm.textContent = d.name;
+    el("line", { class: "stem", x1: L, x2: X(d.p), y1: cy, y2: cy }, g);
+    const m = marker(g, EV[d.ev].shape, X(d.p), cy, EV[d.ev].color); m.classList.add("dot");
+    if (d.id === "G2" || d.id === "G5" || d.id === "H3") {
+      const v = el("text", { class: "vlab", x: X(d.p) + 13, y: cy + 4 }, g);
+      v.textContent = d.pl.replace(" (BTC)", " BTC");
+      if (d.id === "G5") { v.setAttribute("x", X(d.p) - 13); v.setAttribute("text-anchor", "end"); }
+    }
+    g.addEventListener("mouseenter", ev => show(d, ev, g));
+    g.addEventListener("mouseleave", hide);
+    g.addEventListener("focus", ev => show(d, ev, g));
+    g.addEventListener("blur", hide);
+  });
+  svg.setAttribute("role", "list");
+})();
+
+// table
+(function () {
+  const tb = document.getElementById("tbody");
+  let lastB = 0;
+  IDEAS.forEach(d => {
+    const tr = document.createElement("tr");
+    if (d.b !== lastB && lastB !== 0) tr.className = "batch-start";
+    lastB = d.b;
+    const e = EV[d.ev];
+    const sw = document.createElementNS(NS, "svg");
+    sw.setAttribute("width", "12"); sw.setAttribute("height", "12"); sw.setAttribute("aria-hidden", "true");
+    marker(sw, e.shape, 6, 6, e.color).setAttribute("transform", "translate(0 0) scale(1)");
+    sw.firstChild.setAttribute("stroke-width", "0");
+    if (e.shape === "circle") sw.firstChild.setAttribute("r", "5");
+    if (e.shape === "square") { sw.firstChild.setAttribute("x", "1"); sw.firstChild.setAttribute("y", "1"); sw.firstChild.setAttribute("width", "10"); sw.firstChild.setAttribute("height", "10"); }
+    if (e.shape === "diamond") sw.firstChild.setAttribute("d", "M6 0 L12 6 L6 12 L0 6 Z");
+    const pill = d.drop ? '<span class="pill drop">– DROPPED</span>' : '<span class="pill fail">✕ FAIL</span>';
+    tr.innerHTML = `<td class="num">${d.b}</td><td><span class="mono muted">${d.id}</span> ${d.name}</td><td><span class="ev"></span></td><td class="n">${d.cfg}</td><td class="n p">${d.pl}</td><td>${pill}</td><td class="why">${d.why}</td>`;
+    const evc = tr.querySelector(".ev"); evc.appendChild(sw); evc.appendChild(document.createTextNode(e.name));
+    tb.appendChild(tr);
+  });
+})();
+</script>
+</body>
+</html>

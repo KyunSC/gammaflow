@@ -1,0 +1,48 @@
+{
+  "id": "G5_smart_vs_retail",
+  "loop": "research_loop_free batch 2 (prereg/batch2.md sha f3b00a1c...)",
+  "created": "2026-11-05T02:28:18-0500",
+  "family": [
+    "top_trader_vs_retail_divergence",
+    "smart_money_positioning_follow",
+    "perp_sentiment_ratio"
+  ],
+  "hypothesis": "When Binance top traders' POSITION ratio leans away from the all-accounts ratio (relative to the last 30 days), the large accounts are informed; following the divergence over the next 8 hours beats side-matched random twins on BTC and ETH.",
+  "closed_ideas_check": "Not on CLOSED_IDEAS. G2 (closed, FAIL) faded the top-trader ACCOUNT ratio alone; this follows the difference between the top-trader POSITION ratio and the all-accounts ratio, the opposite stance on a different series pair (both count against the Bonferroni budget, batch2.md). K3 used taker volume flow, not positioning.",
+  "data_choice": "Binance UM metrics 5m (Features.metrics, avail = stamp + 300): sum_toptrader_long_short_ratio and count_long_short_ratio. Same rows as G2, inside the 2020-01 -> 2024-06 train block.",
+  "rules": {
+    "grid_times": "decision on each 1m bar whose close is a UTC 4h boundary; t_dec = bar close (as G2).",
+    "sample": "for each column: latest value with avail <= t_dec and age <= 900 s; x = ln(value); NaN if missing or <= 0 (NaN occupies its window slot).",
+    "z": "each column z-scored separately against its previous 180 grid samples (30 days), >= 150 valid, ddof 1, current excluded.",
+    "signal": "d = z_top_position - z_all_accounts; |d| >= D -> side = sign(d) (follow the large accounts). Either z NaN -> no trade.",
+    "bracket": "stop = target = 1.5% of the decision close; time exit 8h after entry; one trade at a time (engine)."
+  },
+  "grid": {
+    "base": {
+      "step_s": 14400,
+      "max_age": 900,
+      "win": 180,
+      "min_valid": 150,
+      "stop_pct": 1.5,
+      "hold_s": 28800,
+      "top_col": "sum_toptrader_long_short_ratio",
+      "all_col": "count_long_short_ratio",
+      "series": "divergence"
+    },
+    "axes": {
+      "D": [
+        1.0,
+        1.5,
+        2.0
+      ]
+    }
+  },
+  "count_check": "signals only, count-only train look, non-overlapping count at the 8h time exit (as F7/G2); configs under 200 on BTC or ETH dropped, not replaced.",
+  "expected_sign": "positive mean net R on BTC and ETH; D = 2.0 not weaker than D = 1.0.",
+  "against_the_mechanism": [
+    "Report only (not gated, not in the budget): top-trader-only control, series = 'top_only', side = sign(z_top_position) when |z_top_position| >= D, same bracket, on the configs that ran. If it does as well as the divergence (mean net R within 0.02R or better), the retail leg adds nothing.",
+    "BTC-only or ETH-only.",
+    "The inherited train gate failing for all D."
+  ],
+  "costs_note": "inherited MFP perp costs; 1.5% -> ~0.05R."
+}

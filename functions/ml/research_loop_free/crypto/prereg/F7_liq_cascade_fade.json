@@ -1,0 +1,27 @@
+{
+  "id": "F7_liq_cascade_fade",
+  "loop": "research_loop_free (free-data ideas loop, batch 1)",
+  "created": "2026-11-05T01:37:30-0500",
+  "family": ["liquidation_cascade_fade", "forced_flow_overshoot", "crypto_1m_shock_fade"],
+  "hypothesis": "A 1m perp bar with an extreme return AND a volume spike marks forced liquidations, which overshoot; fading it at the next bar's open beats side-matched random twins over the following 6 hours.",
+  "mechanism": "Liquidation engines market-sell (buy) leveraged positions regardless of price; the forced flow exhausts the book and price mean-reverts once it stops (liquidity-provision premium after forced selling).",
+  "closed_ideas_check": "Nearest closed: research_loop shock_fade (ES 5m same-slot-scaled shocks, news-filtered) and its reverse, FAIL. F7 differs in market (crypto perps, 24/7, liquidation engines), bar (1m) and conditioning (volume spike >= 5x trailing median as the liquidation marker); the no-spike control below separates it from a generic shock fade. K-series crypto ideas (premium, OI, taker flow, DVOL) are different signals.",
+  "rules": {
+    "ret": "r_i = ln(c_i / c_{i-1}) on 1m closes; NaN when bar i-1 is not exactly 60 s earlier or either bar is stale.",
+    "scale": "sd_i = sample sd of r over the 1,440 bars BEFORE i (all 1,440 valid, else no signal); medv_i = median volume over the same 1,440 bars (> 0).",
+    "signal": "|r_i| >= k * sd_i AND v_i >= 5 * medv_i -> side = -sign(r_i), decided at bar i's close.",
+    "entry": "next bar's open (engine: sig + 1).",
+    "bracket": "stop = target = 1.5% of c_i (1R).",
+    "exit": "time exit 6h after entry; one open trade per symbol (engine run_book skips signals while a trade is open)."
+  },
+  "grid": {"base": {"win": 1440, "vol_mult": 5.0, "stop_pct": 1.5, "hold_s": 21600, "vol_mode": "spike"}, "axes": {"k": [6, 8, 10]}},
+  "count_check": "Before the run, count signals per asset (signals only, count-only train look); a config under 200 on BTC or ETH is dropped, not replaced (F4/F5/F6 precedent). Signals, not taken trades, are counted: overlapping signals inside an open trade reduce trades further, so a config with < 200 taken trades still fails on count in the run.",
+  "expected_sign": "positive mean net R on BTC and ETH; not weaker at k = 10 than at k = 6.",
+  "against_the_mechanism": [
+    "Report only (not gated, not in budget): the same rule with vol_mode='no_spike' (|r| >= k*sd but v < 5*medv). If no-spike fades do as well (mean net R >= the spike version on both assets), the volume spike (liquidation marker) adds nothing.",
+    "BTC-only or ETH-only effect.",
+    "The inherited train gate failing for all k."
+  ],
+  "walk_forward": "none; inherited train gate per asset (BTC and ETH both). A pass is recorded as 'awaiting crypto val approval'.",
+  "costs_note": "inherited MFP perp costs; 1.5% stop -> ~0.05R."
+}

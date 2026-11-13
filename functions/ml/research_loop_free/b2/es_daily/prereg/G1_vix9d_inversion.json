@@ -1,0 +1,28 @@
+{
+  "id": "G1_vix9d_inversion",
+  "loop": "research_loop_free batch 2 (prereg/batch2.md sha f3b00a1c...)",
+  "created": "2026-11-05T01:51:17-0500",
+  "product": "ES",
+  "dev_split": "dev",
+  "uses_opt": false,
+  "market": ["ES"],
+  "family": ["vix9d_vix_term_inversion_level", "short_term_fear_capitulation", "vol_term_structure_level"],
+  "hypothesis": "An ultra-short-term fear spike (VIX9D far above VIX at the prior close) marks capitulation hedging that unwinds next session (ES up); extreme complacency (VIX9D far below VIX) precedes a mild reversal down. Trading ES 09:35->15:55 in that direction beats side-matched random twins.",
+  "overlap_with_closed": "V3 (closed) traded the 1-day CHANGE of VIX/VIX3M; this trades the LEVEL percentile of VIX9D/VIX (different tenor pair, level not change). Judged distinct; flagged in batch2.md.",
+  "timestamp_semantics": "bar['daily'] VIX and VIX9D are Cboe closes dated the previous ES session, known at today's 09:30.",
+  "rules": {
+    "x": "x = ln(VIX9D / VIX) from bar['daily'] at slot 0; None if either is None or <= 0 -> no trade and no history update.",
+    "history": "the strategy keeps x of prior sessions (warmup included), up to 250; needs >= 120. Today's x joins the history after the decision.",
+    "signal": "x >= quantile(history, q) -> long; x <= quantile(history, 1 - q) -> short.",
+    "entry_exit": "evaluator shape: market at 09:35, 1:1 bracket k x ATR20(tr) about the 09:30 close, flat 15:55."
+  },
+  "grid": {"base": {"k": 0.5, "atr_def": "tr", "max_hist": 250, "min_hist": 120}, "axes": {"q": [0.75, 0.80, 0.90]}},
+  "count_check": "before the run, count signal days from bar['daily'] only (no outcomes); drop configs under 200, replace nothing.",
+  "expected_sign": "positive mean net R; q = 0.90 not weaker than q = 0.75.",
+  "against_the_mechanism": [
+    "Report: long leg vs short leg; if only the long leg is positive, it is long drift on high-vol days (twins already side-match, but report).",
+    "Report only: VIX-level control - same rule on x = ln(VIX) (top fraction long, bottom short). If it does as well, the inversion adds nothing.",
+    "The frozen dev gate failing for all q."
+  ],
+  "costs_note": "inherited 0.5 x ATR20 bracket, ~0.069R."
+}

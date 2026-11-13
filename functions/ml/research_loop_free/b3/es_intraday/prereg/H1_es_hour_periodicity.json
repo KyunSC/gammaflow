@@ -1,0 +1,44 @@
+{
+  "id": "H1_es_hour_periodicity",
+  "loop": "research_loop_free batch 3 (prereg/batch3.md sha ed5fc92d...)",
+  "created": "2026-11-05T02:55:46-0500",
+  "family": [
+    "same_slot_return_periodicity",
+    "intraday_seasonality_continuation"
+  ],
+  "hypothesis": "Same-clock-hour return continuation (Heston, Korajczyk & Sadka 2010) on ES: the return of an RTH hour on recent sessions predicts the same hour today, from periodic institutional execution (VWAP/TWAP schedules); following it beats side-matched random twins.",
+  "mechanism": "Execution algorithms and rebalancing desks trade on clock schedules that recur day to day, leaving the same hour with persistent order imbalance for several sessions.",
+  "closed_ideas_check": "Not on CLOSED_IDEAS or in batches 1-2. Nearest closed: intraday momentum into the close (first 30m / day return -> last 30m) and close-auction fade; this uses the SAME hour on PRIOR sessions, not today's earlier return. H2 (crypto, same family) FAILED the previous firing; H1 was fixed in batch3.md before H2 ran and is run unchanged.",
+  "rules": {
+    "hours": "RTH hours starting H = 10:00, 11:00, 12:00, 13:00, 14:00, 15:00 ET (mod 600, 660, 720, 780, 840, 900; 5m bars, bar mod = bar start).",
+    "history": "for each completed full session (not half_day) and each H: hour return = ln(close of the bar with mod H+55 / close of the bar with mod H-5) (both bars present), and hour range = max(h) - min(l) over the bars mod H .. H+55 (all 12 present). Warmup sessions count. Roll days count as history.",
+    "decision": "on the bar with mod H-5 (closing at H), no position: mu = mean of hour H's returns over the previous N sessions that have one (needing >= ceil(0.8 N) of the last N full sessions valid); side = sign(mu); no trade if mu == 0.",
+    "bracket": "stop = c - side*R, target = c + side*R, R = mean of hour H's range over the previous 20 valid sessions (>= 16 of the last 20 full sessions).",
+    "exit": "{op: exit} on the bar with mod H+50 (closing at H+55) -> flatten at the next open (55-min hold); stop/target first if hit; hour 15:00 ends at the engine flat (15:55).",
+    "days": "no trades on half_day or roll sessions; warmup ignored by the engine.",
+    "control": "series='prev_hour' (report only): side = sign(ln close at H / close at H-60), the hour just ended; for H = 10:00 the 09:30-10:00 half hour (ln close of mod 595 / open of mod 570). Same bracket and exit."
+  },
+  "grid": {
+    "base": {
+      "series": "periodicity",
+      "range_n": 20,
+      "valid_frac": 0.8
+    },
+    "axes": {
+      "N": [
+        1,
+        5,
+        20
+      ]
+    }
+  },
+  "count_check": "count-only: on_bar fed the dev sessions without the engine (no fills, no outcomes), counting enter actions; configs under 200 dropped, not replaced.",
+  "expected_sign": "positive mean net R; N = 20 not weaker than N = 1.",
+  "against_the_mechanism": [
+    "Report only (not gated, not in budget): previous-hour control (series='prev_hour'). If it does as well (mean net R within 0.02R or better), this is intraday momentum, not periodicity.",
+    "Report per-hour mean net R from the gated run's trades; if only the 15:00 hour carries it, it is the closed into-the-close momentum family.",
+    "The frozen dev gate failing for all N."
+  ],
+  "walk_forward": "none; inherited dev gate incl. neighbour positivity. A pass freezes that config for one val1 look (val2 approval PENDING).",
+  "costs_note": "R ~ one hour's mean range (~5-10 ES pts in dev); MES base cost ~$3.25 RT ~ 0.07-0.13R. Inherited unchanged."
+}

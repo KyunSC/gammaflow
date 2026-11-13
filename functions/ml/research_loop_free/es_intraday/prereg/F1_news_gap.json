@@ -1,0 +1,29 @@
+{
+  "id": "F1_news_gap",
+  "loop": "research_loop_free (free-data ideas loop, batch 1)",
+  "created": "2026-11-05T01:15:23-0500",
+  "family": ["news_gap_continuation", "overnight_gap", "post_announcement_continuation", "macro_release_reaction"],
+  "hypothesis": "On a session whose only high-impact release came before the RTH open (08:30 ET CPI/NFP/PPI/retail sales/PCE/GDP advance), the overnight gap is information and continues: entering at 09:35 in the gap's direction beats side-matched random twins with the same brackets.",
+  "mechanism": "A pre-RTH release reprices fundamentals; the gap at 09:30 is the market's first full-liquidity response, and incomplete incorporation (slow-moving capital, cash-desk orders that arrive with the open) carries it further in the same direction during RTH. Liquidity gaps on quiet days are a different, already-closed family (gap fill).",
+  "closed_ideas_check": "Not on research_loop/CLOSED_IDEAS.md. Gap fill appears only inside prop_survey (QQQ/SPY 2022-25, discovery, fades gaps on all days). release_fade traded IN-session releases (FOMC/ISM) and faded the post-release move; this trades pre-open releases, follows, and enters at a fixed clock time. No one_look spend on ES 2011-18 for these families.",
+  "day_filter_definition": "pre-RTH release day := bar['news_day'] is True AND bar['news'] == [] (no RTH release at all). Reason (calendar structure only, read before any price result): news.json news_days is a superset of the RTH-release days (all 269 dev RTH-release days are also news_days), and every RTH entry is FOMC decision/minutes (14:00) or ISM (10:00), none of which is an 08:30 release. The plan's literal 'no RTH news before 10:30' would admit FOMC-only days (no 08:30 release), which is off-mechanism; the stricter filter also satisfies the plan's condition. news_day is None before 2012-01-01, so 2011 sessions never trade: effective dev = 2012-01 -> 2018-12 (~350 qualifying days before the gap threshold).",
+  "rules": {
+    "atr": "ATR20 = mean of the last 20 completed sessions' RTH true range, built by the strategy from warmup onward: TR = max(H, prev_close) - min(L, prev_close) with H/L the session's RTH 5m high/low and prev_close = bar['prev_close']; TR = H - L when prev_close is None (roll or first session). No trade until 20 TRs exist.",
+    "gap": "gap = open of the 09:30 5m bar (slot 0) - bar['prev_close']; prev_close None (roll day) -> no trade.",
+    "signal": "on the close of slot 0 (09:30-09:35): if the day filter holds and |gap| >= g * ATR20, side = sign(gap).",
+    "entry": "market, fills at the 09:35 open (slot 1). At most one trade per session.",
+    "stop": "slot-0 low - 0.1*ATR20 for longs; slot-0 high + 0.1*ATR20 for shorts.",
+    "target": "1R about the decision close c: target = c + side*|c - stop|.",
+    "exit": "stop, target, or the engine's flat at the session's last 5m bar (15:55 / 12:55)."
+  },
+  "grid": {"base": {"day_filter": "pre_rth_news", "atr_n": 20, "stop_pad_atr": 0.1}, "axes": {"g": [0.15, 0.30, 0.50]}},
+  "expected_sign": "positive mean net R (continuation); larger g should not be weaker than smaller g if the gap is information.",
+  "against_the_mechanism": [
+    "Report only (not gated, not in the budget): the same rule with day_filter='quiet' (news_day False, no RTH release) at each g. If quiet days show an equal or larger mean net R, the effect is not about releases.",
+    "Report only: per-year net R. If 2012-2013 alone carry >= 60% of the positive total, the effect is an era artefact.",
+    "The frozen dev gate failing for all g."
+  ],
+  "trade_count_note": "Qualifying days ~350 in dev before the threshold; g=0.50 may fall under the 200-trade floor and fail on count. No config is dropped or replaced for that (plan rule 2).",
+  "walk_forward": "none: three fixed configs, judged by the inherited dev gate (twin p < 0.005, min 200 trades, CI, stress, year share, top-5, folds, neighbour positivity). A pass freezes that config for one val1 (2019-2021) look; val2 needs Sunny.",
+  "costs_note": "risk = |c - stop| (slot-0 range plus 0.1 ATR, roughly 3-8 pts); MES base cost ~$3.25 RT ~ 0.1-0.2R. Inherited unchanged."
+}
