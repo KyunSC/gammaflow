@@ -18,10 +18,10 @@ import java.util.List;
  *
  * Schedule mirrors the Python Azure timers:
  * <ul>
- *   <li>{@link #runRth()} — every 5 min, 13:00–20:55 UTC, Mon–Fri. Replaces
+ *   <li>{@link #runRth()} — every 5 min, 09:00–16:55 ET, Mon–Fri. Replaces
  *       {@code ScheduledDataIngestion} for the tickers in
  *       {@code app.ingestion.tickers}.</li>
- *   <li>{@link #runGlobex()} — every 5 min, 22:00–23:55 UTC, Sun. Replaces
+ *   <li>{@link #runGlobex()} — every 5 min, 18:00–19:55 ET, Sun. Replaces
  *       {@code ScheduledDataIngestionGlobex}. Only futures get fetched since
  *       equity markets are closed.</li>
  * </ul>
@@ -55,7 +55,10 @@ public class MarketDataIngestionScheduler {
         this.enabled = enabled;
     }
 
-    @Scheduled(cron = "0 */5 13-20 * * MON-FRI", zone = "UTC")
+    // Scheduled in New York time, so it follows daylight saving on its own:
+    // 09:00–16:55 ET all year. A fixed UTC range stopped at 15:55 ET in winter
+    // and missed the close bars and the 16:25–16:40 ET daily refresh.
+    @Scheduled(cron = "0 */5 9-16 * * MON-FRI", zone = "America/New_York")
     public void runRth() {
         if (!enabled || tickers.isEmpty()) return;
         boolean isMarketHours = isEquitySession();
@@ -71,7 +74,8 @@ public class MarketDataIngestionScheduler {
         logger.info("Ingestion (RTH) completed");
     }
 
-    @Scheduled(cron = "0 */5 22,23 * * SUN", zone = "UTC")
+    // 18:00–19:55 ET: the first two hours after the Sunday Globex open.
+    @Scheduled(cron = "0 */5 18,19 * * SUN", zone = "America/New_York")
     public void runGlobex() {
         if (!enabled || tickers.isEmpty()) return;
         // Futures-only on Sunday Globex: ingestPrices/Intraday skip non-=F
@@ -96,8 +100,8 @@ public class MarketDataIngestionScheduler {
 
     /**
      * Returns true during the 16:25–16:40 ET window. Mirrors Python's
-     * {@code should_fetch_historical()} — the cron tick at 20:25 or 20:30 UTC
-     * (during EDT) lands inside this window.
+     * {@code should_fetch_historical()} — the ET-zoned cron ticks at 16:25–16:40
+     * in both EDT and EST.
      */
     private static boolean shouldFetchDaily() {
         ZonedDateTime nowEt = ZonedDateTime.now(ET);

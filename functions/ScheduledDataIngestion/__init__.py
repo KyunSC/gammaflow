@@ -86,6 +86,16 @@ def should_fetch_historical():
     now_et = datetime.now(et_tz)
     return now_et.hour == 16 and 25 <= now_et.minute <= 40
 
+def outside_weekday_window():
+    """True on a weekday tick outside 09:00–16:55 ET.
+
+    The timer is a fixed UTC range (13:00–21:55) wide enough for both EDT and
+    EST, so one end is always an hour too early or too late; this trims it to
+    the same New York hours all year. Sunday (Globex) ticks are not affected.
+    """
+    now_et = datetime.now(pytz.timezone('US/Eastern'))
+    return now_et.weekday() < 5 and not 9 <= now_et.hour <= 16
+
 def should_fetch_intraday():
     """Check if we should fetch intraday data (during market hours, weekdays)."""
     et_tz = pytz.timezone('US/Eastern')
@@ -199,6 +209,10 @@ def main(mytimer: func.TimerRequest) -> None:
 
     if mytimer.past_due:
         logging.warning('Timer trigger is past due!')
+
+    if outside_weekday_window():
+        logging.info('Outside 09:00-16:55 ET — skipping.')
+        return
 
     logging.info(f'ScheduledDataIngestion started at {utc_timestamp}')
 

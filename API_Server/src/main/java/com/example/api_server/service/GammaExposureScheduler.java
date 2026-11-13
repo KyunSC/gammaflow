@@ -19,7 +19,7 @@ import java.util.List;
 /**
  * Replaces the Python ScheduledGammaExposure Azure Function.
  *
- * Runs every 5 minutes during RTH (13:00–20:59 UTC, weekdays). The Python
+ * Runs every 5 minutes during RTH (09:00–16:55 ET, weekdays). The Python
  * function used the same cron expression — the only change is *where* it
  * runs (Render free tier vs Azure paid execution).
  *
@@ -46,7 +46,8 @@ public class GammaExposureScheduler {
         this.enabled = enabled;
     }
 
-    @Scheduled(cron = "0 */5 13-20 * * MON-FRI", zone = "UTC")
+    // New York time so the window follows daylight saving; isMarketOpen() gates the rest.
+    @Scheduled(cron = "0 */5 9-16 * * MON-FRI", zone = "America/New_York")
     public void run() {
         if (!enabled) {
             return;
