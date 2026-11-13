@@ -27,6 +27,28 @@ class FetchTests(unittest.TestCase):
         q = fetch.request(job, c)
         self.assertEqual((q['dataset'], q['symbols'], q['stype_in']), ('XNAS.ITCH', ['QQQ'], 'raw_symbol'))
 
+    def test_continuous_ohlcv_job(self):
+        job = fetch.JOBS['fut-ohlcv-1m-cont']
+        self.assertTrue(job.whole_window_only)  # explicit dates only
+        c = fetch.Chunk('fut-ohlcv-1m-cont', 'NQ', '2016-01-01', '2016-02-01', fetch.candidate_symbols(job, 'NQ'))
+        q = fetch.request(job, c)
+        self.assertEqual((q['dataset'], q['schema'], q['symbols'], q['stype_in']),
+                         ('GLBX.MDP3', 'ohlcv-1m', ['NQ.v.0'], 'continuous'))
+        self.assertEqual((q['start'].isoformat(), q['end'].isoformat()),
+                         ('2016-01-01T00:00:00+00:00', '2016-02-01T00:00:00+00:00'))
+        self.assertEqual(len(fetch.chunk_dates(job, '2016-01-01', '2022-01-01')), 72)
+
+    def test_macro_continuous_products(self):
+        job = fetch.JOBS['fut-ohlcv-1m-cont']
+        for product in ('ZN', 'GC', '6E'):
+            self.assertIn(product, job.opt_in)
+            self.assertEqual(fetch.candidate_symbols(job, product), [f'{product}.v.0'])
+        # Macro products are billed only when named: the default run stays ES/NQ.
+        self.assertEqual(fetch.selected_products(job, None), ['ES', 'NQ'])
+        self.assertEqual(fetch.selected_products(job, 'zn,gc'), ['ZN', 'GC'])
+        self.assertEqual(fetch.selected_products(job, 'NQ'), ['NQ'])
+        self.assertEqual(fetch.JOBS['fut-ohlcv-1m'].products, ('ES', 'NQ'))  # outrights job unchanged
+
     def test_dst(self):
         job = fetch.JOBS['fut-bbo-1s']
         self.assertEqual(fetch.request_span(job, '2026-03-06', '2026-03-07')[0].hour, 14)

@@ -53,6 +53,7 @@ class Job:
     stype_in: str
     symbols: str  # "outrights" | "continuous" | "raw"
     products: tuple[str, ...] = ("ES", "NQ")
+    opt_in: tuple[str, ...] = ()  # fetched only when named in --products, never by default
     whole_window_only: bool = False  # refuse the default window (pilots must name dates)
     every: str = "month"  # "month" | "day" (weekdays)
     et_window: tuple[str, str] | None = None  # daily [start, end) in America/New_York
@@ -61,6 +62,12 @@ class Job:
 
 JOBS = {
     "fut-ohlcv-1m": Job("ohlcv-1m", "parent", "outrights"),  # every contract: roll-aware basis vs. index GEX levels
+    # Front-month (volume roll) 1m bars for pre-2022 confirmation studies (open_ema_trail_study --confirm).
+    # instrument_id changes at each roll; explicit dates only.
+    # ZN/GC/6E: macro futures research loop (research_loop_macro: auctions, gold auction, WMR fix).
+    # Opt-in, so re-running an ES/NQ fetch without --products never bills them.
+    "fut-ohlcv-1m-cont": Job("ohlcv-1m", "continuous", "continuous", whole_window_only=True,
+                             opt_in=("ZN", "GC", "6E")),
     "fut-bbo-1s": Job("bbo-1s", "continuous", "continuous", every="day", et_window=("09:25", "16:00")),
     "nq-mbo": Job("mbo", "continuous", "continuous", products=("NQ",), whole_window_only=True),
     # Aggressor-side prints for delta bubbles / exact volume profile (orderflow_backtest.py).
@@ -72,6 +79,14 @@ JOBS = {
     # Single venue (Nasdaq), but one consistent source from 2022 on; volume features are relative.
     "eq-ohlcv-1m": Job("ohlcv-1m", "raw_symbol", "raw", products=("QQQ", "SPY"), dataset="XNAS.ITCH"),
 }
+
+
+def selected_products(job: Job, arg: str | None) -> list[str]:
+    """The job's default products, or the --products subset (which may also name opt-in ones)."""
+    if arg is None:
+        return list(job.products)
+    named = arg.upper().split(",")
+    return [p for p in job.products + job.opt_in if p in named]
 
 
 def chunk_dates(job: Job, start: str, end: str) -> list[tuple[str, str]]:
@@ -188,7 +203,7 @@ def main() -> int:
     args.jobs = list(dict.fromkeys(args.jobs))
     if args.products is not None:
         selected = set(args.products.upper().split(","))
-        supported = set().union(*(set(JOBS[n].products) for n in args.jobs))
+        supported = set().union(*(set(JOBS[n].products + JOBS[n].opt_in) for n in args.jobs))
         if not selected or not selected <= supported:
             ap.error(f"--products must be a supported subset of {','.join(sorted(supported))}")
     load_dotenv(REPO_ROOT / ".env")
@@ -207,8 +222,7 @@ def main() -> int:
             print(f"{name}: pass --start and --end explicitly (pilot job)")
             return 2
         start, end = args.start or DEFAULT_START, args.end or DEFAULT_END
-        products = [p for p in job.products
-                    if args.products is None or p in args.products.upper().split(",")]
+        products = selected_products(job, args.products)
         for product in products:
             for s, e in chunk_dates(job, start, end):
                 chunk = Chunk(name, product, s, e, [])
