@@ -1,0 +1,102 @@
+{
+ "frozen": "2026-11-03",
+ "study_sha256": "cbc0df5b730b1f64326da06f421cc9ecab3909ad471cf57dd49d22863343046b",
+ "params": {
+  "arm_adr": 0.25,
+  "stop_adr": 0.5,
+  "rr": 1.0,
+  "adr_n": 20,
+  "min_stop_ticks": 4,
+  "entry_start": 1110,
+  "entry_end": 495,
+  "flat_open": 565,
+  "flat_close": 955,
+  "flat_close_half": 775,
+  "n_rnd_seeds": 10,
+  "min_week_days": 2,
+  "min_month_days": 10
+ },
+ "cells": [
+  "d_full/poc/fade/open",
+  "d_full/poc/fade/close",
+  "d_full/poc/break/open",
+  "d_full/poc/break/close",
+  "d_full/hvn/fade/open",
+  "d_full/hvn/fade/close",
+  "d_full/hvn/break/open",
+  "d_full/hvn/break/close",
+  "d_full/lvn/fade/open",
+  "d_full/lvn/fade/close",
+  "d_full/lvn/break/open",
+  "d_full/lvn/break/close",
+  "d_rth/poc/fade/open",
+  "d_rth/poc/fade/close",
+  "d_rth/poc/break/open",
+  "d_rth/poc/break/close",
+  "d_rth/hvn/fade/open",
+  "d_rth/hvn/fade/close",
+  "d_rth/hvn/break/open",
+  "d_rth/hvn/break/close",
+  "d_rth/lvn/fade/open",
+  "d_rth/lvn/fade/close",
+  "d_rth/lvn/break/open",
+  "d_rth/lvn/break/close",
+  "week/poc/fade/open",
+  "week/poc/fade/close",
+  "week/poc/break/open",
+  "week/poc/break/close",
+  "week/hvn/fade/open",
+  "week/hvn/fade/close",
+  "week/hvn/break/open",
+  "week/hvn/break/close",
+  "week/lvn/fade/open",
+  "week/lvn/fade/close",
+  "week/lvn/break/open",
+  "week/lvn/break/close",
+  "month/poc/fade/open",
+  "month/poc/fade/close",
+  "month/poc/break/open",
+  "month/poc/break/close",
+  "month/hvn/fade/open",
+  "month/hvn/fade/close",
+  "month/hvn/break/open",
+  "month/hvn/break/close",
+  "month/lvn/fade/open",
+  "month/lvn/fade/close",
+  "month/lvn/break/open",
+  "month/lvn/break/close"
+ ],
+ "splits": {
+  "dev": [
+   "2011-01-01",
+   "2019-01-01"
+  ],
+  "val1": [
+   "2019-01-01",
+   "2022-01-01"
+  ],
+  "val2": [
+   "2022-01-01",
+   "2026-08-15"
+  ]
+ },
+ "criteria": {
+  "dev": {
+   "min_trades": 200,
+   "alpha": 0.0010416666666666667,
+   "max_year_share": 0.4,
+   "min_folds_positive": 2
+  },
+  "val": {
+   "min_trades": 100,
+   "alpha": 0.05,
+   "max_year_share": 0.4,
+   "min_folds_positive": 2
+  }
+ },
+ "rules": [
+  "dev: a cell passes only if it passes every dev criterion on BOTH ES and NQ, with dir-twin p and random-level p < 0.05/48, and the neighbour stops (0.4, 0.6 x ADR20) have mean net R > 0 on both",
+  "val1 and val2 are run only for cells that passed dev; a shortlist needs every val criterion on both products in both windows (p < 0.05)",
+  "no parameter is changed after the first dev run; the holdout (after 2026-08-14) is not on disk"
+ ]
+}
