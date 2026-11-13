@@ -1,0 +1,35 @@
+{
+ "id": "nq_residual_momentum",
+ "created": "2026-11-02T22:16:00-0500",
+ "market": "NQ (traded as MNQ); ES used as information only via bar['es']",
+ "family": ["residual_momentum", "relative_strength_intraday", "order_flow_persistence"],
+ "hypothesis": "NQ's beta-adjusted residual return versus ES from the RTH open to 12:00 ET predicts the sign of NQ's 12:00 -> 15:55 return: when the residual is large (|z| >= Z), trading NQ in the residual's direction beats random-direction trades at the same times with the same stop.",
+ "mechanism": "NQ = beta * ES + residual. The residual isolates flow specific to the Nasdaq-100 basket (sector rotation into or out of mega-cap tech) from the common market move. Institutions execute rotation by splitting orders across the day, and order imbalances are persistent at intraday horizons (Chordia & Subrahmanyam 2004; splitting dominates persistence at sub-day horizons), so a large morning residual should keep drifting in the afternoon. Because the signal is orthogonal to ES's move by construction, it is not the closed market-level 'intraday momentum into the close' (Gao et al.; Baltussen et al. gamma hedging), which keys on the market's own return.",
+ "sources": [
+  {"url": "https://econpapers.repec.org/RePEc:cdl:anderf:qt34k8f3pv", "summary": "Chordia & Subrahmanyam (2004, JFE 72, 485-518), 'Order imbalance and individual stock returns': imbalances are autocorrelated because large traders split orders; lagged imbalance positively predicts returns. Daily horizon, individual stocks; abstract/secondary level only."},
+  {"url": "https://www.fmg.ac.uk/sites/default/files/publications/DP744.pdf", "summary": "Lou, Polk & Skouras ('A Tug of War', LSE FMG DP744; JFE 2019): price and industry momentum profits accrue overnight, not intraday. Evidence AGAINST an intraday residual-momentum effect; cited to set the prior."},
+  {"url": "https://econpapers.repec.org/RePEc:bla:jfinan:v:65:y:2010:i:4:p:1369-1407", "summary": "Heston, Korajczyk & Sadka (2010, JF 65(4)): half-hour returns continue at lags that are multiples of a day (same slot across days) and reverse at short intraday lags; not a within-day continuation result."},
+  {"url": "https://www3.nd.edu/~zda/intramom.pdf", "summary": "Baltussen, Da, Lammers & Martens (2021, JFE): market-level intraday momentum from short-gamma hedging. Cited to show the distinction: that family keys on the market's own move and is closed in CLOSED_IDEAS.md."}
+ ],
+ "prior": "Weak, leaning negative: no direct intraday evidence for relative-strength continuation between equity indices; Lou-Polk-Skouras find industry momentum is an overnight effect. ES-loop and repo history: every intraday direction rule so far did worse than random.",
+ "closed_ideas_check": "Nearest closed: 'Intraday momentum into the close (first 30m / day return -> last 30m), short-gamma version' (intraday_momentum_*). Mechanically different: (1) the signal is the beta-adjusted NQ-minus-ES residual, uncorrelated with the market move that family uses; (2) decision at 12:00, held 12:00-15:55, not the last 30 minutes. smt_divergence (closed today) used session extremes, not returns. Families not in data_spend_ledger for NQ or ES.",
+ "rules": {
+  "bars": "5m RTH bars; decision at bar close, fills from the next bar.",
+  "sessions": "full sessions only (skip half days: the flat is at 12:55). Skip a session if any bar of slots 0..29 has bar['es'] None.",
+  "beta": "OLS slope (no intercept) of NQ 5m log returns on ES 5m log returns, using consecutive-slot pairs within each of the prior 20 completed full sessions (both bars present, same session). Requires >= 20 prior sessions.",
+  "residual": "decision bar = slot 29 (11:55-12:00 ET). r_NQ = ln(c_NQ[29] / o_NQ[0]); r_ES = ln(c_ES[29] / o_ES[0]); resid = r_NQ - beta * r_ES, with today's beta.",
+  "z": "z = resid / RMS(resid of the prior 20 completed full sessions, each computed with the beta in effect on its own day). Requires 20 stored values.",
+  "news_filter": "skip the session if any scheduled RTH high-impact release time m satisfies 12:00 <= m < 15:55 (FOMC 14:00 decisions/minutes and other afternoon releases dominate the afternoon move and are unrelated to the residual).",
+  "entry": "if |z| >= Z: market order at the next bar's open (12:00), side = sign(resid).",
+  "risk": "stop = c[29] - side * 0.5 * ADR20, ADR20 = mean NQ RTH (high - low) of the prior 20 completed sessions. Fixed, not selected.",
+  "target": "none.",
+  "exit": "the engine's flat at the 15:55 open, or the stop.",
+  "trades_per_session": "at most one."
+ },
+ "grid": {"base": {"decision_slot": 29, "n_hist": 20, "stop_adr": 0.5, "news_from": 720, "news_to": 955}, "axes": {"z": [0.5, 1.0, 1.5]}},
+ "walk_forward": "fixed: no selection; all three Z judged by the frozen dev gate, each needing its grid neighbours positive.",
+ "expected_trades_per_session": "|z| >= 0.5: ~0.55; >= 1.0: ~0.3; >= 1.5: ~0.12 (after the news and half-day skips). Dev ~1,000 / ~550 / ~230; Z=1.5 may miss the 200-trade minimum.",
+ "costs_note": "Measured base cost 3.6 ticks/RT; here market entry + flat exit = 2 ticks slip + 2 ticks commission = ~4 ticks. Risk 0.5 x ADR20: 2011 (~2,300, ADR ~35 pts) ~17.5 pts = 70 ticks -> ~0.057R; 2024 (~18,000, ADR ~230 pts) ~115 pts = 460 ticks -> ~0.009R; dev average (ADR ~55 pts) ~0.036R.",
+ "rejection_evidence": "Reject if the frozen dev gate fails for every Z. Report, not gate: mean R by sign of resid (NQ outperforming vs underperforming); correlation of z with the 12:00-15:55 residual itself (computed in the report from the trades, information only); per-year mean R; share of stop exits.",
+ "companion_use": "bar['es'] o/c per slot; ES returns enter only through r_ES and beta."
+}

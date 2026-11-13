@@ -1,0 +1,1132 @@
+{
+ "_doc": "Data-spend ledger seeded 2026-11-02 from the Claude memory files. One row per prior study look. 'families' are the idea families the window is spent for. The controller refuses a candidate whose family overlaps a spent (window, family) pair on the split it would run. 'kind' = discovery (many looks, in-sample) | one_look (holdout/confirmation consumed). Reuse of a window for a DIFFERENT family is allowed but counts toward the multiple-testing disclosure.",
+ "seeded_from": "~/.claude/projects/-Users-sunnychen-Developer-PersonalProjects-azure-market-data/memory/*.md",
+ "rows": [
+  {
+   "study": "orb15_2r_study.py",
+   "date": "2026-10-25",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-01-03",
+   "end": "2021-12-31",
+   "kind": "one_look",
+   "families": [
+    "orb",
+    "opening_range"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "orb15_2r_study.py",
+   "date": "2026-10-25",
+   "market": [
+    "SPY",
+    "QQQ"
+   ],
+   "source": "xnas-1m-proxy",
+   "start": "2022-01-03",
+   "end": "2026-08-14",
+   "kind": "discovery",
+   "families": [
+    "orb",
+    "opening_range"
+   ],
+   "verdict": "PASS (regime luck, failed confirm)"
+  },
+  {
+   "study": "lucid_orb_study.py",
+   "date": "2026-10-14",
+   "market": [
+    "QQQ"
+   ],
+   "source": "xnas-1m-proxy",
+   "start": "2025-03-27",
+   "end": "2026-08-14",
+   "kind": "one_look",
+   "families": [
+    "orb",
+    "opening_range"
+   ],
+   "verdict": "STRUCTURE-ONLY"
+  },
+  {
+   "study": "choch_futures_swing.py / choch_futures_lucid.py",
+   "date": "2026-10-28",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-01-03",
+   "end": "2021-12-31",
+   "kind": "one_look",
+   "families": [
+    "choch",
+    "swing_structure",
+    "market_structure_break"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "choch_nq_confirm.py",
+   "date": "2026-10-28",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2022-01-03",
+   "end": "2026-08-14",
+   "kind": "one_look",
+   "families": [
+    "choch",
+    "swing_structure",
+    "market_structure_break"
+   ],
+   "verdict": "FAIL (NQ); ES p=0.019 treated as noise"
+  },
+  {
+   "study": "vwap_rr_confirm.py",
+   "date": "2026-10-28",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2012-01-03",
+   "end": "2021-12-31",
+   "kind": "one_look",
+   "families": [
+    "vwap_touch",
+    "vwap_fade",
+    "first_pullback_trend_continuation",
+    "prior_day_levels_touch"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "open_ema_trail_study.py --confirm",
+   "date": "2026-10-25",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2016-01-01",
+   "end": "2021-12-31",
+   "kind": "one_look",
+   "families": [
+    "opening_candle_direction",
+    "ema_direction",
+    "trailing_stop_exits"
+   ],
+   "verdict": "WEAK (closed)"
+  },
+  {
+   "study": "orderflow_backtest.py",
+   "date": "2026-10-14",
+   "market": [
+    "ES"
+   ],
+   "source": "es-trades",
+   "start": "2026-04-24",
+   "end": "2026-08-14",
+   "kind": "one_look",
+   "families": [
+    "absorption",
+    "orderflow"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "orderflow_backtest.py",
+   "date": "2026-10-14",
+   "market": [
+    "NQ"
+   ],
+   "source": "nq-trades",
+   "start": "2025-10-24",
+   "end": "2026-08-14",
+   "kind": "one_look",
+   "families": [
+    "absorption",
+    "orderflow",
+    "gex_levels"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "profile_nodes_study.py",
+   "date": "2026-10-21",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "source": "trades",
+   "start": "2025-10-24",
+   "end": "2026-08-07",
+   "kind": "discovery",
+   "families": [
+    "volume_profile_nodes",
+    "poc_hvn_lvn"
+   ],
+   "verdict": "no edge"
+  },
+  {
+   "study": "amt_lucid_study.py / amt_regime_study.py",
+   "date": "2026-10-14",
+   "market": [
+    "QQQ",
+    "SPY"
+   ],
+   "source": "xnas-1m-proxy",
+   "start": "2022-01-03",
+   "end": "2025-03-26",
+   "kind": "discovery",
+   "families": [
+    "amt_value_area",
+    "80pct_rule",
+    "open_outside_value"
+   ],
+   "verdict": "nothing robust"
+  },
+  {
+   "study": "intraday_momentum_study.py / _gamma",
+   "date": "2026-10-16",
+   "market": [
+    "QQQ",
+    "SPY"
+   ],
+   "source": "xnas-1m-proxy",
+   "start": "2022-01-04",
+   "end": "2025-03-26",
+   "kind": "discovery",
+   "families": [
+    "intraday_momentum_into_close",
+    "close_gamma_momentum"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "close_auction_study.py",
+   "date": "2026-10-09",
+   "market": [
+    "QQQ",
+    "SPY"
+   ],
+   "source": "xnas-1m-proxy",
+   "start": "2025-03-27",
+   "end": "2026-08-14",
+   "kind": "one_look",
+   "families": [
+    "overnight_close_fade"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "gex0dte_study.py",
+   "date": "2026-10-21",
+   "market": [
+    "QQQ",
+    "SPY"
+   ],
+   "source": "xnas-1m-proxy+thetadata",
+   "start": "2022-01-03",
+   "end": "2025-03-26",
+   "kind": "discovery",
+   "families": [
+    "gex_levels",
+    "gamma_wall_fade",
+    "gamma_wall_break"
+   ],
+   "verdict": "call-wall break pos-gamma passes discovery; holdout unrun"
+  },
+  {
+   "study": "prop_survey_study.py",
+   "date": "2026-10-17",
+   "market": [
+    "QQQ",
+    "SPY"
+   ],
+   "source": "xnas-1m-proxy",
+   "start": "2022-01-03",
+   "end": "2025-03-26",
+   "kind": "discovery",
+   "families": [
+    "posted_prop_rules",
+    "orb",
+    "range_reclaim",
+    "gap_fill",
+    "vwap_ema",
+    "impulse"
+   ],
+   "verdict": "none beat coin flip"
+  },
+  {
+   "study": "vwap_level_study.py / vwap_rr_study.py",
+   "date": "2026-10-28",
+   "market": [
+    "QQQ",
+    "SPY"
+   ],
+   "source": "xnas-1m-proxy",
+   "start": "2022-01-03",
+   "end": "2025-03-26",
+   "kind": "discovery",
+   "families": [
+    "vwap_touch",
+    "vwap_fade",
+    "prior_day_levels_touch",
+    "opening_range_levels_touch"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "expected_move_study.py",
+   "date": "2026-11-01",
+   "market": [
+    "QQQ",
+    "SPY"
+   ],
+   "source": "xnas-1m-proxy",
+   "start": "2022-01-03",
+   "end": "2025-03-26",
+   "kind": "discovery",
+   "families": [
+    "implied_move_band_fade",
+    "negative_rr_fade"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "iron_condor_study.py",
+   "date": "2026-11-01",
+   "market": [
+    "QQQ",
+    "SPY"
+   ],
+   "source": "thetadata-options",
+   "start": "2022-01-03",
+   "end": "2025-03-26",
+   "kind": "discovery",
+   "families": [
+    "short_premium_0dte",
+    "iron_condor"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "open_ema_trail_study.py",
+   "date": "2026-10-24",
+   "market": [
+    "QQQ",
+    "SPY"
+   ],
+   "source": "xnas-1m-proxy",
+   "start": "2022-01-01",
+   "end": "2026-08-14",
+   "kind": "one_look",
+   "families": [
+    "opening_candle_direction",
+    "ema_direction",
+    "trailing_stop_exits"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "flybrain search",
+   "date": "2026-10-15",
+   "market": [
+    "QQQ"
+   ],
+   "source": "xnas-1m-proxy",
+   "start": "2022-01-03",
+   "end": "2025-03-26",
+   "kind": "discovery",
+   "families": [
+    "rl_agent_bracket",
+    "constant_direction_session_open"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "fill_study.py",
+   "date": "2026-10-14",
+   "market": [
+    "NQ"
+   ],
+   "source": "nq-trades",
+   "start": "2025-10-24",
+   "end": "2026-08-14",
+   "kind": "strategy_free",
+   "families": [],
+   "verdict": "measurement only; spends nothing"
+  },
+  {
+   "study": "research_loop shock_fade (dev)",
+   "date": "2026-11-02",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "short_term_reversal",
+    "liquidity_provision",
+    "shock_fade",
+    "shock_momentum"
+   ],
+   "verdict": "FAIL (all 3 K); mild continuation, costs dominate"
+  },
+  {
+   "study": "research_loop round_cross (dev)",
+   "date": "2026-11-02",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "round_number_levels",
+    "round_number_break",
+    "round_number_fade",
+    "stop_cascade"
+   ],
+   "verdict": "FAIL (all 3 STEP); mild reversion after crosses, no roundness ordering"
+  },
+  {
+   "study": "research_loop release_fade (dev)",
+   "date": "2026-11-02",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "macro_release_reaction",
+    "post_announcement_reversal",
+    "post_announcement_continuation"
+   ],
+   "verdict": "FAIL (both W); too few trades; presser days continued"
+  },
+  {
+   "study": "research_loop_nq smt_divergence (dev)",
+   "date": "2026-11-02",
+   "market": [
+    "NQ"
+   ],
+   "companion": [
+    "ES (information only, same-slot 5m bars)"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "intermarket_divergence",
+    "smt_divergence",
+    "session_extreme_non_confirmation",
+    "session_extreme_follow"
+   ],
+   "verdict": "FAIL (all 3 M): -0.09..-0.16R net, worse than random direction (twin p ~1.0); unconfirmed extremes continue mildly; reverse (follow) ~-0.02R net, post-hoc, not tested"
+  },
+  {
+   "study": "research_loop_nq nq_residual_momentum (dev)",
+   "date": "2026-11-02",
+   "market": [
+    "NQ"
+   ],
+   "companion": [
+    "ES (information only, same-slot 5m bars)"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "residual_momentum",
+    "relative_strength_intraday",
+    "order_flow_persistence",
+    "residual_reversal"
+   ],
+   "verdict": "FAIL (all 3 Z): net ~0R (+0.006/-0.001/+0.010), beat random by ~0.05R = cost; twin p 0.007/0.04/0.16; one year >=98% of P&L; afternoon residual itself did not continue (+0.6bp, hit 50.5%)"
+  },
+  {
+   "study": "research_loop_volsig V1_flow_divergence (dev_opt)",
+   "date": "2026-11-03",
+   "market": [
+    "NQ"
+   ],
+   "companion": [
+    "ES (information only, same-slot 5m bars)"
+   ],
+   "source": "fut-ohlcv-1m-cont + ThetaData iv_5m QQQ (signals from options, research_loop_volsig/features/QQQ.parquet)",
+   "start": "2016-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "options_iv_spread_flow",
+    "put_call_parity_deviation",
+    "implied_vol_innovation_direction"
+   ],
+   "verdict": "FAIL (all 3 Z): net -0.062/-0.080/-0.070R, gross -0.026/-0.043/-0.033R, twin p 0.58/0.71/0.56; corr(z, 12:00-15:55 return) -0.049; signals from QQQ options"
+  },
+  {
+   "study": "research_loop_volsig V2_skew_shock (dev_opt; INVALID run)",
+   "date": "2026-11-03",
+   "market": [
+    "NQ"
+   ],
+   "companion": [
+    "ES (information only, same-slot 5m bars)"
+   ],
+   "source": "fut-ohlcv-1m-cont + ThetaData iv_5m QQQ (signals from options, research_loop_volsig/features/QQQ.parquet)",
+   "start": "2016-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "options_skew_shock",
+    "option_demand_pressure_reversal",
+    "dealer_hedging_pressure"
+   ],
+   "verdict": "FAIL but INVALID: strategy skipped storing history while in a position (beta/RMS path-dependent); K 2.0/2.5/3.0 -0.039/-0.058/-0.065R, twin p 0.61/0.80/0.82; still a look at the window; signals from QQQ options"
+  },
+  {
+   "study": "research_loop_volsig V2_skew_shock_fix (dev_opt)",
+   "date": "2026-11-03",
+   "market": [
+    "NQ"
+   ],
+   "companion": [
+    "ES (information only, same-slot 5m bars)"
+   ],
+   "source": "fut-ohlcv-1m-cont + ThetaData iv_5m QQQ (signals from options, research_loop_volsig/features/QQQ.parquet)",
+   "start": "2016-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "options_skew_shock",
+    "option_demand_pressure_reversal",
+    "dealer_hedging_pressure"
+   ],
+   "verdict": "FAIL (K 2.5, 1 config): net -0.017R, gross +0.020R vs cost 0.037R, twin p 0.30, stress -0.054R; signals from QQQ options"
+  },
+  {
+   "study": "research_loop_volsig V3_term_slope (dev)",
+   "date": "2026-11-03",
+   "market": [
+    "ES"
+   ],
+   "companion": [
+    "NQ (information only, same-slot 5m bars)"
+   ],
+   "source": "fut-ohlcv-1m-cont + Cboe VIX / VIX3M daily closes (signals from index options, research_loop_volsig/cboe)",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "vix_term_structure_slope_change",
+    "variance_risk_price_direction"
+   ],
+   "verdict": "FAIL (Z 0/0.5/1.0): net -0.044/-0.032/-0.036R, gross 0.000/+0.012/+0.008R, twin p 0.44/0.29/0.34; post-hoc inverted-prior-close subset +0.17..0.24R (n 61-115) is the level, not tested; signals from Cboe VIX/VIX3M"
+  },
+  {
+   "study": "research_loop_straddle hedged 0DTE straddle confirm (window A)",
+   "date": "2026-11-03",
+   "market": [
+    "QQQ options 0DTE",
+    "SPY options 0DTE"
+   ],
+   "companion": [],
+   "source": "ThetaData iv_5m QQQ/SPY (data/thetadata/iv_5m), delta_hedge.py frozen",
+   "start": "2016-01-04",
+   "end": "2018-12-31",
+   "kind": "confirmation",
+   "families": [
+    "short_vol_0dte",
+    "variance_risk_premium",
+    "delta_hedged_straddle"
+   ],
+   "verdict": "FAIL (5m both symbols required): QQQ 5m net +$0.28/straddle (SE 1.51, p 0.43), SPY 5m -$2.58 (SE 2.05, p 0.90); gross ~= costs, IV-RV +0.2 (SPY) / +2.1 (QQQ) vol pts, 2018 negative everywhere; SPY 2017-01..2018-12, QQQ 2016-01..2018-12; window B 2019-21 never opened"
+  },
+  {
+   "study": "research_loop_crypto k1_cb_premium (train)",
+   "date": "2026-11-03",
+   "market": [
+    "BTC",
+    "ETH"
+   ],
+   "companion": [
+    "Coinbase BTC-USD / ETH-USD / USDT-USD 5m spot, Binance premium index 1m (signals only)"
+   ],
+   "source": "Binance UM klines-1m + data/research_loop_crypto/raw (coinbase, premiumIndexKlines)",
+   "start": "2021-05-04",
+   "end": "2024-06-30",
+   "kind": "discovery",
+   "families": [
+    "cross_venue_premium",
+    "spot_flow_continuation"
+   ],
+   "verdict": "FAIL (z 0.5/1.0): BTC net +0.030/+0.014R p 0.12/0.33, ETH +0.015/-0.001R p 0.18/0.36; session CI low < 0 in all four; validation 2024-07-08+ not opened"
+  },
+  {
+   "study": "research_loop_crypto k2_oi_backed (train)",
+   "date": "2026-11-03",
+   "market": [
+    "BTC",
+    "ETH"
+   ],
+   "companion": [
+    "SOL (report only, 2022-05+)",
+    "Binance metrics sum_open_interest 5m (signals only)"
+   ],
+   "source": "Binance UM klines-1m + data/research_loop_crypto/raw/metrics",
+   "start": "2020-09-01",
+   "end": "2024-06-30",
+   "kind": "discovery",
+   "families": [
+    "oi_conditioned_momentum",
+    "positioning_flow"
+   ],
+   "verdict": "FAIL (k 1.0/1.5): BTC +0.058/+0.122R p 0.121/0.028 (k1.5 fails p and year share 0.42), ETH (2021-12+) +0.046/+0.082R p 0.139/0.076, k1.5 n=160<200; BTC driven by longs; validation 2024-07-08+ not opened"
+  },
+  {
+   "study": "research_loop_crypto k3_taker_flow (train)",
+   "date": "2026-11-03",
+   "market": [
+    "BTC",
+    "ETH"
+   ],
+   "companion": [
+    "SOL (report only, 2022-05+)",
+    "Binance premium index 1m (filter only)"
+   ],
+   "source": "Binance UM klines-1m (taker_buy_volume) + data/research_loop_crypto/raw/premiumIndexKlines",
+   "start": "2020-01-01",
+   "end": "2024-06-30",
+   "kind": "discovery",
+   "families": [
+    "order_flow_imbalance_continuation",
+    "taker_flow"
+   ],
+   "verdict": "FAIL (Z 2/3): Z2 BTC +0.005R p 0.049, ETH +0.016R p 0.014, stress <= 0, CI low < 0; Z3 n 110/97 < 200, ETH -0.057R; validation 2024-07-08+ not opened"
+  },
+  {
+   "study": "research_loop_crypto k4_dvol_regime (train)",
+   "date": "2026-11-03",
+   "market": [
+    "BTC",
+    "ETH"
+   ],
+   "companion": [
+    "Deribit DVOL hourly BTC/ETH (signals only)"
+   ],
+   "source": "Binance UM klines-1m + data/research_loop_crypto/raw/dvol",
+   "start": "2021-03-24",
+   "end": "2024-06-30",
+   "kind": "discovery",
+   "families": [
+    "implied_vs_realized_regime",
+    "regime_conditioned_breakout_fade"
+   ],
+   "verdict": "FAIL (N 5/10): n 98/105 and 69/72 < 200; BTC +0.113/+0.055R, ETH -0.069/+0.003R; twin p 0.17-0.50; validation 2024-07-08+ not opened"
+  },
+  {
+   "study": "research_loop_crypto k2_oi_backed (validation, user override)",
+   "date": "2026-11-03",
+   "market": [
+    "BTC",
+    "ETH"
+   ],
+   "companion": [
+    "SOL (report only)",
+    "Binance metrics sum_open_interest 5m (signals only)"
+   ],
+   "source": "Binance UM klines-1m + data/research_loop_crypto/raw/metrics",
+   "start": "2024-07-08",
+   "end": "2025-07-01",
+   "kind": "one_look",
+   "families": [
+    "oi_conditioned_momentum",
+    "positioning_flow"
+   ],
+   "verdict": "FAIL one look (user override of a train FAIL, K=2): k1.0 BTC -0.038R p 0.68, ETH -0.011R p 0.43; k1.5 BTC -0.116R p 0.87 (n=77), ETH -0.078R p 0.72 (n=71); EV below twins on every cell; BTC shorts lost again and longs did not win (k1.5 long -0.12R) despite the bull year"
+  },
+  {
+   "study": "overnight_nodes_study.py (prereg overnight_nodes_prereg.json, sha cbc0df5b)",
+   "date": "2026-11-03",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "source": "fut-ohlcv-1m-cont (back-adjusted, Globex hours)",
+   "start": "2011-01-03",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "volume_profile_nodes",
+    "overnight_profile_levels",
+    "composite_profile_poc_hvn_lvn"
+   ],
+   "verdict": "FAIL all 48 cells x 2 products: no cell net > 0 on both; mean random-level excess ES -0.004R / NQ 0.000R; 3/96 random-level p < 0.05 (chance ~5); ES vs NQ excess corr 0.02; val1/val2 unopened"
+  },
+  {
+   "study": "vwap_ema_3m_study.py (spec vwap_ema_3m_spec.md)",
+   "date": "2026-11-03",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "source": "fut-ohlcv-1m-cont (unadjusted .v.0, Globex 18:00-16:55 ET, 3m bars)",
+   "start": "2011-01-03",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "vwap_cross_ema_exit"
+   ],
+   "verdict": "FAIL all 72 variants x 2 products (mode x EMA 9/13/21/34 x stop x warm-up; arm_exit == none under flips): net < 0 in every cell (ES -3.65 to -4.01, NQ -1.95 to -2.15 $/trade per micro), gross ~0 (ES -0.42 to -0.15, NQ -0.11 to +0.05), 10-29 trades/day, 0/8 positive years, best twin p ES 0.98 / NQ 0.10; opposite side over same windows also net < 0; no prereg, 2022+ unopened"
+  },
+  {
+   "date": "2026-11-03",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "families": [
+    "vwap_cross_ema_exit"
+   ],
+   "source": "fut-ohlcv-1m-cont (unadjusted .v.0, 3m bars; Globex 18:00-16:55 and RTH 09:30-15:55 ET)",
+   "study": "vwap_ema_3m_study.py --grid v2 (spec vwap_ema_3m_v2_spec.md)",
+   "start": "2011-01-03",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "verdict": "FAIL 0/64 v2 cells (entry price/EMA-cross x flip/noflip x globex/rth x EMA x stop none/ATR): no cell net > 0 on either product; best NQ ema-cross RTH gross +0.35..+0.88 $/trade, p 0.00-0.07, net -1.1..-1.9"
+  },
+  {
+   "date": "2026-11-03",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "families": [
+    "vwap_cross_ema_exit"
+   ],
+   "source": "fut-ohlcv-1m-cont (unadjusted .v.0, 3m bars; Globex 18:00-16:55 and RTH 09:30-15:55 ET)",
+   "study": "vwap_ema_3m_study.py --confirm (prereg vwap_ema_3m_prereg.json, all 136 v1+v2 cells, user-approved)",
+   "start": "2019-01-02",
+   "end": "2021-12-31",
+   "kind": "one_look",
+   "verdict": "FAIL 0/136 (alpha 0.05/136 per product): net > 0 in 0 ES / 2 NQ cells, min p ES 0.024 / NQ 0.002"
+  },
+  {
+   "date": "2026-11-03",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "families": [
+    "vwap_cross_ema_exit"
+   ],
+   "source": "fut-ohlcv-1m-cont (unadjusted .v.0, 3m bars; Globex 18:00-16:55 and RTH 09:30-15:55 ET)",
+   "study": "vwap_ema_3m_study.py --confirm (prereg vwap_ema_3m_prereg.json, all 136 v1+v2 cells, user-approved)",
+   "start": "2022-01-03",
+   "end": "2026-08-14",
+   "kind": "one_look",
+   "verdict": "FAIL 0/136, none robust: net > 0 in 1 ES / 15 NQ cells; best NQ ema-cross noflip RTH ema34 +6.14 $/trade (p 0.037 vs alpha 0.00037, top-5 days 94% of net, 2022-23 negative, ES +0.02); NQ gross > 0 in 126/136 cells (2024-26 ranges vs fixed $ costs)"
+  },
+  {
+   "date": "2026-11-03",
+   "market": [
+    "NQ"
+   ],
+   "families": [
+    "vwap_cross_ema_exit"
+   ],
+   "source": "fut-ohlcv-1m-cont NQ.v.0, bought 2026-11-03 ($0.28) after the freeze; 3m bars, RTH 09:30-15:55 ET",
+   "study": "vwap_ema_3m_fresh.py --run (prereg vwap_ema_3m_fresh_prereg.json: 1 NQ cell v2|ema|flip|rth|ema34|none, chosen after seeing 2022-26; user-approved)",
+   "start": "2026-08-17",
+   "end": "2026-11-02",
+   "kind": "one_look",
+   "verdict": "PASS on the frozen rule (net > 0 and > always-long twin): +$2,030 on 1 MNQ, 62 trades, +$32.75/trade, daily Sharpe 2.37 over 54 sessions. Weak: twin p 0.13, all profit from shorts in a falling NQ (long every session -$4,240), net without the 5 best days -$1,300. Sanity check only."
+  },
+  {
+   "study": "research_loop_daily D1_daily_reversal (dev)",
+   "date": "2026-11-04",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "daily_close_to_close_reversal",
+    "index_serial_dependence",
+    "short_term_reversal"
+   ],
+   "verdict": "FAIL (all 3 configs L1Z1.5/L1Z1/L5Z1): net -0.070/-0.073/-0.087R, gross ~0 vs 0.069R cost, twin p 0.42-0.49; high-VIX tercile worst; val1/val2 unopened"
+  },
+  {
+   "study": "prop_realtape (prop_realtape/run_plan.py, 9 prop plans, coin-flip direction)",
+   "date": "2026-11-04",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "source": "fut-ohlcv-1m-cont ES.v.0 / NQ.v.0 1m (NQ to 2026-11-03), Cboe VIX_History.csv",
+   "start": "2011-01-03",
+   "end": "2026-11-03",
+   "kind": "strategy_free",
+   "families": [],
+   "verdict": "measurement only; spends nothing. Seeded coin direction per date, so no entry edge is tested. Synthetic prop EVs match the real tape in 2022-26 for EOD-drawdown plans; intraday trail overstated (Apex Intraday +53 vs +80); pooled 2011-26 lower for all plans (LucidDirect/Alpha Direct not positive). Report: functions/ml/prop_realtape/REPORT.md"
+  },
+  {
+   "study": "research_loop_daily D2_monthend_rebalance (dev)",
+   "date": "2026-11-04",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont+ust10y",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "monthend_rebalancing_flow",
+    "calendar_rebalancing",
+    "balanced_fund_flow_pressure"
+   ],
+   "verdict": "FAIL (all 3 configs N3/N5/N5-z0.43): net -0.038/-0.041/-0.009R, gross +0.03..+0.06R vs 0.069R cost, twin p 0.10-0.18; large-gap tercile worst; val1/val2 unopened"
+  },
+  {
+   "study": "research_loop_daily E1_tsmom_daily (dev)",
+   "date": "2026-11-05",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "time_series_momentum",
+    "trend_following_daily",
+    "index_serial_dependence"
+   ],
+   "verdict": "FAIL (both configs L20/L40): net -0.067/-0.075R, gross +0.002/-0.006R vs 0.069R cost, twin p 0.28/0.43, 0/3 folds positive; val1/val2 unopened"
+  },
+  {
+   "study": "research_loop_daily E2_opex_week (dev)",
+   "date": "2026-11-05",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "option_expiration_calendar",
+    "opex_week_drift",
+    "dealer_hedging_pressure"
+   ],
+   "verdict": "FAIL (both configs full_weeks/3_sessions): net -0.060/-0.046R, gross +0.009/+0.023R vs 0.069R cost, twin p 0.24/0.14, 0/3 folds positive; both legs negative; val1/val2 unopened"
+  },
+  {
+   "study": "research_loop_free F1_news_gap (dev)",
+   "date": "2026-11-05",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "news_gap_continuation",
+    "overnight_gap",
+    "post_announcement_continuation",
+    "macro_release_reaction"
+   ],
+   "verdict": "FAIL all 3 configs (g 0.15/0.30/0.50 x ATR20): net -0.233/-0.176/-0.180R, gross -0.041/+0.010/+0.021R vs ~0.19R cost, twin p 0.53/0.32/0.33, n 255/153/81 (2012-18 only: news calendar starts 2012); quiet-day control gross -0.036/-0.021/-0.009R (no news-day difference); val1/val2 unopened"
+  },
+  {
+   "study": "research_loop_free F2_friday_squaring (dev)",
+   "date": "2026-11-05",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "weekend_risk_squaring",
+    "weekly_reversal",
+    "friday_afternoon_flow"
+   ],
+   "verdict": "FAIL all 3 configs (w 0.5/1.0/1.5 x ATR20): net -0.132/-0.133/-0.213R, gross -0.057/-0.058/-0.138R vs 0.075R cost, twin p 0.95/0.91/0.996 (worse than random: Friday afternoons continue the week), 8/8 years negative; Mon-Thu control gross +0.016/+0.004/+0.013R; both VIX halves negative; post-hoc reversal (follow WTD Friday 14:00) logged as idea only, not run; val1/val2 unopened"
+  },
+  {
+   "study": "research_loop_free F3_yield_shock (dev)",
+   "date": "2026-11-05",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont + UST 10y par yield",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "rates_shock_spillover",
+    "bond_equity_lead_lag",
+    "yield_change_signal"
+   ],
+   "verdict": "FAIL all 3 configs (|z| >= 1.0/1.5/2.0 of prior-day \u039410y vs 60-session sd, trade -sign(z) 09:35->15:55 1:1 0.5xATR20): net -0.087/-0.129/-0.220R, gross -0.019/-0.063/-0.154R vs 0.067R cost, twin p 0.67/0.87/0.98, 2/8 years positive, Z=2 weakest (wrong sign, worst on the long leg after yield drops); post-hoc 'follow the yield move' logged as idea only, not run; val1/val2 unopened"
+  },
+  {
+   "study": "research_loop_free F6_funding_print (train)",
+   "date": "2026-11-05",
+   "market": [
+    "BTC",
+    "ETH",
+    "SOL"
+   ],
+   "source": "binance um klines-1m + funding",
+   "start": "2020-01-01",
+   "end": "2024-06-30",
+   "kind": "discovery",
+   "families": [
+    "funding_print_positioning",
+    "funding_settlement_flow",
+    "perp_funding_intraday"
+   ],
+   "verdict": "FAIL all 3 configs (|rate| strictly > q-quantile of prior 30d, q 0.80/0.90/0.95; enter print+1m with the crowded side, 1.5% 1R, 4h): BTC net -0.093/-0.115/-0.163R (p 0.94/0.99/0.998), ETH -0.097/-0.094/-0.057R (p 0.95/0.80/0.37), gross -0.005..-0.111R vs ~0.052R cost; mechanism check: BTC pre-print drift against the crowded side +5/+9/+17bps (present) but it CONTINUES after the print (-7/-12/-18bps over 4h), ETH no pre-print drift; validation unopened"
+  },
+  {
+   "study": "research_loop_free F7_liq_cascade_fade (train)",
+   "date": "2026-11-05",
+   "market": [
+    "BTC",
+    "ETH",
+    "SOL"
+   ],
+   "source": "binance um klines-1m",
+   "start": "2020-01-01",
+   "end": "2024-06-30",
+   "kind": "discovery",
+   "families": [
+    "liquidation_cascade_fade",
+    "forced_flow_overshoot",
+    "crypto_1m_shock_fade"
+   ],
+   "verdict": "FAIL all 3 configs (1m abs(ret) >= 6/8/10 x trailing-1440 sd and volume >= 5x median, fade next open, 1.5% 1R, 6h): BTC net -0.048/-0.076/-0.082R (p 0.25/0.73/0.69), ETH -0.064/-0.074/-0.063R (p 0.68/0.76/0.59), gross -0.03..+0.005R vs 0.053R cost; no-spike control has 1-21 trades (nearly every >=6sd 1m move already has >=5x volume): the volume filter is inert, so this is a generic 1m shock fade; validation unopened"
+  },
+  {
+   "study": "research_loop_free b2 G1_vix9d_inversion (dev)",
+   "date": "2026-11-05",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont + Cboe VIX/VIX9D",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "vix9d_vix_term_inversion_level",
+    "short_term_fear_capitulation",
+    "vol_term_structure_level"
+   ],
+   "verdict": "FAIL all 3 configs (ln(VIX9D/VIX) prior close in top/bottom 25/20/10% of trailing 250 sessions -> long/short ES 09:35->15:55 1:1 0.5xATR20): net -0.069/-0.074/-0.074R, gross -0.002/-0.008/-0.007R vs 0.067R cost, twin p 0.43/0.52/0.49, 0/8 years positive; long leg -0.02..-0.04R, short leg -0.10..-0.13R; VIX-level control gross -0.02..-0.04R (also nothing); val1/val2 unopened"
+  },
+  {
+   "study": "research_loop_free b2 G4_vrp_direction (dev)",
+   "date": "2026-11-05",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont + Cboe VIX",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "variance_risk_premium_level",
+    "vol_targeting_flow",
+    "implied_vs_realized_vol"
+   ],
+   "verdict": "FAIL all 3 configs (VRP = VIX - RV20 in top/bottom 33/20/10% of trailing 250 -> long/short ES 09:35->15:55 1:1 0.5xATR20): net -0.101/-0.129/-0.166R, gross -0.035/-0.065/-0.105R vs ~0.064R cost, twin p 0.88/0.97/0.99 (wrong sign, worse in tails), 1-2/8 years positive, both legs negative; VIX-level control gross +0.002..-0.040R, -RV20 control -0.006..-0.047R; post-hoc reversal logged only; val1/val2 unopened"
+  },
+  {
+   "study": "research_loop_free b2 G2_toptrader_fade (train)",
+   "date": "2026-11-05",
+   "market": [
+    "BTCUSDT",
+    "ETHUSDT"
+   ],
+   "source": "binance um klines-1m + UM metrics 5m (count_toptrader_long_short_ratio)",
+   "start": "2020-01-01",
+   "end": "2024-06-30",
+   "kind": "discovery",
+   "families": [
+    "top_trader_positioning_contrarian",
+    "crowded_positioning_unwind",
+    "perp_sentiment_ratio"
+   ],
+   "verdict": "FAIL Z=1.0/1.5 (Z=2.0 dropped on count: ETH 146 non-overlapping < 200), fade z-scored ln(top-trader account L/S) at UTC 4h grid, 1.5% 1:1, 8h exit: BTC net +0.017/+0.031R (gross +0.071/+0.085 vs 0.054R cost), twin p 0.0005 both, but session CI low < 0, stress < 0, year share 0.61/0.68; ETH net -0.026/-0.013R, twin p 0.11/0.12; SOL report-only negative; 24h split: BTC edge only when prior 24h return agrees with the lean (+0.06/+0.11R vs -0.00/+0.01R) = price-reversal proxy; ETH the other way; validation unopened"
+  },
+  {
+   "study": "research_loop_free b2 G5_smart_vs_retail (train)",
+   "date": "2026-11-05",
+   "market": [
+    "BTCUSDT",
+    "ETHUSDT"
+   ],
+   "source": "binance um klines-1m + UM metrics 5m (sum_toptrader_long_short_ratio, count_long_short_ratio)",
+   "start": "2020-01-01",
+   "end": "2024-06-30",
+   "kind": "discovery",
+   "families": [
+    "top_trader_vs_retail_divergence",
+    "smart_money_positioning_follow",
+    "perp_sentiment_ratio"
+   ],
+   "verdict": "FAIL all 3 (follow d = z(ln top-trader position L/S) - z(ln all-accounts L/S), 30d z on UTC 4h grid, |d| >= 1.0/1.5/2.0, 1.5% 1:1, 8h exit): BTC net -0.017/-0.008/+0.014R (gross +0.037/+0.047/+0.068 vs 0.054R cost), twin p 0.018/0.011/0.0045, D=2.0 fails session CI, stress, year share 0.52; ETH net -0.063/-0.042/-0.037R, p 0.69/0.34/0.33; SOL report-only negative; top-only control worse (BTC gross -0.03..+0.02, ETH negative); validation unopened"
+  },
+  {
+   "study": "research_loop_free b2 G3_us_open_fade (train)",
+   "date": "2026-11-05",
+   "market": [
+    "BTCUSDT",
+    "ETHUSDT"
+   ],
+   "source": "binance um klines-1m",
+   "start": "2020-01-01",
+   "end": "2024-06-30",
+   "kind": "discovery",
+   "families": [
+    "us_open_overnight_reversal",
+    "thin_book_move_reversion",
+    "session_handoff_crypto"
+   ],
+   "verdict": "FAIL all 3, wrong sign (fade the 21:30->09:30 ET move at 09:30 ET when |move| >= 0.25/0.5/0.75 x 30d daily sd, 1.5% 1:1, exit 16:00 ET, weekdays): BTC net -0.082/-0.122/-0.073R (gross -0.028/-0.069/-0.020 vs 0.053R cost), twin p 0.81/0.95/0.63; ETH net -0.093/-0.087/-0.131R, p 0.88/0.79/0.90; only 2022 positive; Asia-open control (20:30 ET) gross -0.02..+0.04R (also nothing); SOL report-only mixed, < 200 trades at m 0.5/0.75; validation unopened"
+  },
+  {
+   "study": "research_loop_free b3 H3_crypto_tsmom (train)",
+   "date": "2026-11-05",
+   "market": [
+    "BTCUSDT",
+    "ETHUSDT"
+   ],
+   "source": "binance um klines-1m",
+   "start": "2020-01-01",
+   "end": "2024-06-30",
+   "kind": "discovery",
+   "families": [
+    "crypto_time_series_momentum",
+    "investor_attention_momentum"
+   ],
+   "verdict": "FAIL all 3 (follow sign of trailing L = 7/14/28-day return for one UTC day, 1:1 at max(30d daily sd, 1.5%), ~24h exit): BTC net -0.030/-0.001/+0.006R (gross +0.005/+0.034/+0.041 vs 0.035R cost), twin p 0.41/0.041/0.018; ETH net -0.015/+0.007/+0.010R (gross +0.013/+0.035/+0.038 vs 0.028R), p 0.26/0.040/0.034; session CI low < 0 and stress < 0 everywhere; long legs carry it (short legs net -0.003..-0.044R); always-long control gross +0.014 (BTC) / +0.020 (ETH); truncation check flags 1 edge signal per run (decision bar closing exactly at a cut has no entry bar; not lookahead); SOL report-only +0.03..+0.04R p 0.02-0.04; validation unopened"
+  },
+  {
+   "study": "research_loop_free b3 H2_crypto_hour_periodicity (train)",
+   "date": "2026-11-05",
+   "market": [
+    "BTCUSDT",
+    "ETHUSDT"
+   ],
+   "source": "binance um klines-1m",
+   "start": "2020-01-01",
+   "end": "2024-06-30",
+   "kind": "discovery",
+   "families": [
+    "same_slot_return_periodicity",
+    "intraday_seasonality_continuation"
+   ],
+   "verdict": "FAIL all 3 (each UTC hour, follow the mean same-hour log return of the previous N = 1/7/30 days, 1.5% 1:1, 59-min exit; ~39k trades per asset): BTC net -0.058/-0.051/-0.049R, ETH -0.061/-0.055/-0.048R, gross -0.011..+0.003R vs 0.051R cost, twin p 0.11-1.00; every UTC hour negative net, funding hours no different; previous-hour control gross +0.002/-0.000R (also nothing); truncation check 1 edge mismatch per run (known artifact); validation unopened"
+  },
+  {
+   "study": "research_loop_free b3 H1_es_hour_periodicity (dev)",
+   "date": "2026-11-05",
+   "market": [
+    "ES"
+   ],
+   "source": "fut-ohlcv-1m-cont (5m RTH bars)",
+   "start": "2011-02-01",
+   "end": "2018-12-31",
+   "kind": "discovery",
+   "families": [
+    "same_slot_return_periodicity",
+    "intraday_seasonality_continuation"
+   ],
+   "verdict": "FAIL all 3 (each RTH hour 10:00-15:00, follow the mean same-hour return of the previous N = 1/5/20 sessions, 1:1 at the hour's 20-session mean range, 55-min hold): net -0.132/-0.128/-0.124R, gross -0.014/-0.010/-0.006R vs 0.118R cost, twin p 0.96/0.81/0.55, 0 folds positive; both legs and all six hours negative; previous-hour (1h momentum) control: gross +0.019R, twin p 2e-5, net -0.098R (real but ~1/6 of cost); val1/val2 unopened"
+  },
+  {
+   "study": "iv_wall_study.py (prereg iv_wall_prereg.json)",
+   "date": "2026-11-05",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2011-01-03",
+   "end": "2018-12-31",
+   "kind": "one_look",
+   "families": [
+    "implied_move_band",
+    "iv_wall_fade",
+    "volatility_band_reversal"
+   ],
+   "verdict": "FAIL"
+  },
+  {
+   "study": "iv_wall_study.py --mode break (prereg iv_wall_break_prereg.json)",
+   "date": "2026-11-05",
+   "market": [
+    "ES",
+    "NQ"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2019-01-02",
+   "end": "2021-12-31",
+   "kind": "one_look",
+   "families": [
+    "implied_move_band",
+    "iv_wall_break",
+    "volatility_band_breakout"
+   ],
+   "verdict": "FAIL (NQ near miss: +0.10/+0.14/+0.15R, twin p 0.02, year share 2020)"
+  },
+  {
+   "study": "iv_wall_grid.py final (prereg iv_wall_grid_prereg.json, pick touch/fixed/0.4)",
+   "date": "2026-11-05",
+   "market": [
+    "NQ"
+   ],
+   "source": "fut-ohlcv-1m-cont",
+   "start": "2022-01-03",
+   "end": "2026-08-14",
+   "kind": "one_look",
+   "families": [
+    "implied_move_band",
+    "iv_wall_break",
+    "volatility_band_breakout"
+   ],
+   "verdict": "FAIL on year share only (+0.115R, CI [+0.017,+0.219], stress +0.104, twin p 0.025, 2022 = 63% of USD)"
+  }
+ ],
+ "loop_splits_exposure": {
+  "dev_2011_2018": "ES seen by: orb (one_look 2011-21), choch (2011-21), vwap_touch/first_pullback (2012-21), opening_candle/ema (2016-18 part). Unused by any study: 2011-2015 for families other than orb/choch/vwap.",
+  "val1_2019_2021": "ES seen by: orb, choch, vwap_touch/first_pullback, opening_candle/ema.",
+  "val2_2022_2026_08_14": "ES seen by: choch (one_look). ETF proxies SPY covering the same dates seen by ~10 discovery/holdout runs.",
+  "holdout_after_2026_08_14": "ES not on disk; untouched. NQ 2026-08-15..11-03 bought 2026-11-03 and spent one_look for vwap_cross_ema_exit only."
+ },
+ "prior_study_count": 23
+}

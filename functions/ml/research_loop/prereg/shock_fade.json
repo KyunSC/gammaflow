@@ -1,0 +1,30 @@
+{
+  "id": "shock_fade",
+  "created": "2026-11-02T18:16:00-0500",
+  "family": ["short_term_reversal", "liquidity_provision", "shock_fade"],
+  "hypothesis": "An unusually large 5-minute ES move in the middle of the RTH session that is not caused by a scheduled release partly reverses over the next 30 minutes, so fading it beats random-direction trades taken at the same times with the same brackets.",
+  "mechanism": "Non-informational liquidity-demand shocks (large market orders, forced deleveraging, stop cascades) push price past where liquidity suppliers will hold inventory; suppliers are paid by the subsequent reversal (Grossman-Miller; Nagel 2012). Excluding bars at scheduled releases removes the main informational shocks, which should not revert.",
+  "sources": [
+    {"url": "https://ideas.repec.org/a/eee/jbfina/v29y2005i5p1311-1327.html", "summary": "Grant, Wolf & Yu (2005, JBF 29(5)): highly significant intraday reversals after large price changes at the open in S&P 500 futures, Nov 1987-Sep 2002, stronger after large positive moves; significance sharply reduced after a bid-ask transaction-cost proxy. Evidence is for the OPEN, not mid-session; costs are the known killer."},
+    {"url": "https://www.nber.org/papers/w17653", "summary": "Nagel (2012, RFS 25(7)): short-term reversal returns proxy the return to liquidity provision; expected returns rise strongly with VIX. Evidence is daily cross-sectional equities, not intraday index futures."},
+    {"url": "https://joim.com/downloads/nasdaq-100-index-futures-intraday-momentum-reversal", "summary": "JOIM article on NASDAQ-100 futures intraday momentum vs reversal (title only checked; not used for parameters)."}
+  ],
+  "closed_ideas_check": "Not on CLOSED_IDEAS.md. Differs from the closed implied-move band fade (a daily level from VIX with a far stop and negative RR) and the VWAP/level fades (fixed price levels): this trigger is a time-local return shock scaled by same-slot volatility, with a symmetric bracket and a 30-minute time stop, and no price level. Differs from opening-range / gap ideas by excluding the first 30 minutes. Families not in data_spend_ledger for ES.",
+  "rules": {
+    "bars": "5m RTH bars from the frozen evaluator; decisions at bar close, fills from the next bar.",
+    "move": "r_k = c_k - c_{k-1} in points, using the previous 5m bar of the same session (no first-bar signal).",
+    "scale": "sigma_slot = mean |r| at the same 5m slot over the previous 20 sessions that have that slot (strategy keeps its own history; needs >= 15 observations, else no signal). Causal: today's bar is added to the history only after it is used.",
+    "signal": "|r_k| >= K * sigma_slot and |r_k| >= 3.0 points, for bars with ET start time 10:00 <= mod <= 15:15 (slots 6..69).",
+    "news_filter": "no signal if a scheduled RTH high-impact release time m satisfies bar_end - news_after <= m <= bar_end + news_before (minutes, bar_end = bar_start + 5; news_after = 30, news_before = 5), i.e. a release fell inside the shock bar or the 25 minutes before it, or one is due within 5 minutes of the decision. Uses bar['news'] (scheduled calendar). [Corrected 2026-11-02 18:17 before any code or run: the first draft's formula 'bar_start - 5 <= m <= bar_start + 30' contradicted this sentence and the mechanism.]",
+    "entry": "market, side = -sign(r_k), only when flat with no pending order.",
+    "bracket": "risk = |r_k| points. Stop at c_k - side*risk (beyond the shock bar's close by the shock size), target at c_k + side*risk (1:1 about the decision close); the engine snaps prices to the tick and measures R from the actual fill.",
+    "time_stop": "exit at market after the position has been held 6 completed 5m bars (30 minutes) without hitting the stop or the target.",
+    "session": "engine flat at the last bar; no entries decided after slot 69.",
+    "trades_per_session_cap": "none beyond one position at a time"
+  },
+  "grid": {"base": {"min_points": 3.0, "lookback": 20, "min_obs": 15, "hold_bars": 6, "news_before": 5, "news_after": 30, "first_slot": 6, "last_slot": 69}, "axes": {"K": [2.5, 3.0, 3.5]}},
+  "walk_forward": "fixed: no parameter is selected; all three K values are judged by the frozen dev gate, and each needs its neighbours positive. Any K that passes dev goes to val1, then val2.",
+  "expected_trades_per_session": "0.2-1.0 (unknown before running; the dev gate needs >= 200 trades)",
+  "rejection_evidence": "Reject if the frozen dev gate fails for every K (mean net R <= 0, CI low <= 0, stress <= 0, side-matched twin p >= 0.005, one year > 40% of P&L, top-5 removal <= 0, < 2 of 3 folds positive, or a neighbour <= 0). Also count against it (report, not gate): a positive result that disappears outside 2011 (high-VIX year) or that is driven by shorts only.",
+  "costs_note": "Risk floor 3.0 pts on MES: base cost about $3.25 per trade = <= 0.22R at the floor, typically ~0.12-0.16R. Grant et al. say costs erased the open-reversal effect, so this is the main threat."
+}

@@ -1,0 +1,30 @@
+{
+  "id": "round_cross",
+  "created": "2026-11-02T18:26:00-0500",
+  "family": ["round_number_levels", "round_number_break", "stop_cascade"],
+  "hypothesis": "When ES closes a 5m bar through a round-number level (a multiple of STEP points) mid-session, price keeps moving in the crossing direction over the next hour more than random-direction trades taken at the same times with the same brackets.",
+  "mechanism": "Stop-loss orders cluster just beyond round numbers (Osler 2003). A cross triggers them, and the resulting market orders push price further (a stop cascade). Take-profit orders cluster AT the round number, so the edge, if any, should appear only after a decisive cross, not on a touch.",
+  "sources": [
+    {"url": "https://econpapers.repec.org/RePEc:bla:jfinan:v:58:y:2003:i:5:p:1791-1819", "summary": "Osler (2003, JF 58(5)): ~9,700 stop-loss and take-profit orders at one FX dealing bank, 1999-2000. Take-profits cluster at round numbers, stop-losses just beyond them; trends tend to reverse at round numbers and run faster after crossing them. FX, not equity futures."},
+    {"url": "https://econpapers.repec.org/RePEc:cup:jfinqa:v:28:y:1993:i:03:p:313-330_00", "summary": "Donaldson & Kim (1993, JFQA 28(3)): price barriers at round 100s in the DJIA (1974-1990 per a secondary summary; full text not checked)."},
+    {"url": "https://ideas.repec.org/p/wpa/wuwpfi/9401002.html", "summary": "Ley & Varian (1994), 'Are there psychological barriers in the Dow-Jones index?': the usual sceptical reference, little predictive power from barrier digits. Prior is therefore weak and mixed."}
+  ],
+  "closed_ideas_check": "Not on CLOSED_IDEAS.md. Closest closed families are level touches and breaks at VWAP / prior-day high-low / opening-range levels (vwap_rr_*) and profile nodes; all failed, and VWAP 'rejected' about as often as placebo levels. Round numbers are a different level type with an order-placement mechanism specific to the number itself; the closed results still make the prior unfavourable, and the report must say so. Families not in data_spend_ledger for ES.",
+  "rules": {
+    "bars": "5m RTH bars; decision at bar close, fills from the next bar.",
+    "levels": "L = STEP * n for integers n (STEP in points).",
+    "cross": "Up-cross on bar k: c_{k-1} < L and c_k >= L + 0.5 (2 ticks through) for some level L; down-cross: c_{k-1} > L and c_k <= L - 0.5. If several levels are crossed in one bar, use the farthest one. No signal from the first bar of the session.",
+    "once_per_level": "Each level L is traded at most once per session (after its first qualifying cross, later crosses of the same L that day are ignored).",
+    "window": "bars with ET start 10:00 <= mod <= 14:50 (slots 6..64), so the 60-minute time stop ends before the 15:55 flat.",
+    "news_filter": "no signal if a scheduled RTH high-impact release time m satisfies bar_end <= m <= bar_end + 5 (a release due before the entry fills). Crosses caused by releases are allowed: the stop-cascade mechanism does not depend on the cause.",
+    "entry": "market at the next bar's open, side = crossing direction, only when flat with no pending order.",
+    "bracket": "stop at L - side*STOP_BEYOND (back through the level by STOP_BEYOND points); target at c_k + side*(c_k - stop) i.e. 1:1 about the decision close. Engine snaps prices and measures R from the actual fill.",
+    "time_stop": "exit at market after 12 completed 5m bars held (60 minutes) without stop or target.",
+    "trades_per_session_cap": "none beyond one position at a time"
+  },
+  "grid": {"base": {"stop_beyond": 8.0, "through": 0.5, "hold_bars": 12, "first_slot": 6, "last_slot": 64, "news_before": 5}, "axes": {"step": [25, 50, 100]}},
+  "walk_forward": "fixed: no selection; all three STEP values judged by the frozen dev gate, each needing its grid neighbours positive.",
+  "expected_trades_per_session": "STEP 25: ~0.5-1.0; STEP 50: ~0.3-0.5; STEP 100: ~0.1-0.25 (STEP 100 may miss the 200-trade dev minimum, which then fails it).",
+  "rejection_evidence": "Reject if the frozen dev gate fails for every STEP. Report, not gate: whether the effect weakens as the level becomes less 'round' (100 > 50 > 25 is the mechanism's ordering; the reverse ordering counts against it), and the share of trades ending at the time stop.",
+  "costs_note": "Risk = (c_k - L) + 8 pts, about 8.5-10 pts = $42-50 on MES; base cost ~$3.25 = ~0.07R. Lesson from shock_fade: 4 pt risk gave 0.15R costs."
+}

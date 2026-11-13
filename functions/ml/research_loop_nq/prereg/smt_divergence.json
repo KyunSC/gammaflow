@@ -1,0 +1,69 @@
+{
+ "id": "smt_divergence",
+ "created": "2026-11-02T22:05:00-0500",
+ "market": "NQ (traded as MNQ); ES used as information only via bar['es']",
+ "family": [
+  "intermarket_divergence",
+  "smt_divergence",
+  "session_extreme_non_confirmation"
+ ],
+ "hypothesis": "When exactly one of NQ and ES takes out an established RTH session high (low) on a 5m bar and the other does not, NQ moves against that extreme (down after a high, up after a low) over the next hour more than random-direction trades at the same times with the same brackets.",
+ "mechanism": "The two indices share ~0.9 of their intraday variance through common index/ETF flow. A new session extreme that the other index does not confirm is, by construction, driven by flow specific to one basket (e.g. mega-cap tech in NQ, or non-tech in ES), not by broad demand; resting liquidity above an established high (stops plus breakout orders) is consumed without broad follow-through, so the extreme is more likely to fail. This is the intraday form of the Dow-theory 'confirmation' principle and of the retail 'SMT divergence' setup.",
+ "sources": [
+  {
+   "url": "https://econpapers.repec.org/RePEc:fth:nystfi:98-013",
+   "summary": "Brown, Goetzmann & Kumar (1998, JF 53(4) 1311-1333), 'The Dow Theory: William Peter Hamilton's Track Record Reconsidered': Hamilton's Dow-theory calls (which require the Industrials and Rails to confirm each other) had positive alpha 1902-1929; neural-net replication beat buy-and-hold out of sample per a secondary summary. Daily/weekly horizon, not intraday; abstract-level check only."
+  },
+  {
+   "url": "https://www.luxalgo.com/library/indicator/PH9fxHqo-smt-divergence/",
+   "summary": "Retail 'SMT divergence' definition for ES/NQ: one market makes a higher high while the correlated one makes a lower high = bearish (mirror for lows). Practitioner indicator, no tested evidence."
+  },
+  {
+   "url": "https://es.tradingview.com/scripts/smtdivergence/",
+   "summary": "Retail SMT divergence script on NQ vs ES pivots. Practitioner, untested."
+  }
+ ],
+ "prior": "Weak. No peer-reviewed intraday evidence; the academic source is a different horizon. Closed families nearby (shock fade, VWAP/level fades, CHoCH) all failed and did worse than random direction on ES.",
+ "closed_ideas_check": "Not on CLOSED_IDEAS.md. Nearest closed: (a) shock_fade fades a large 5m move regardless of level or the other market; here the trigger is a level event (new session extreme vs an established high) conditioned on cross-market non-confirmation, and the move size is irrelevant. (b) CHoCH/swing-structure trades a break of structure in its direction; this fades an extreme and needs the companion. (c) prior-day/OR level touches use fixed external levels; here the level is the developing session extreme. The ES results still make the prior unfavourable, and the report must say so. Family not in data_spend_ledger for NQ or ES.",
+ "rules": {
+  "bars": "5m RTH bars; decision at bar close, fills from the next bar.",
+  "session_extremes": "For each market m in {NQ, ES}: HI_m(k) = max high of slots 0..k-1 of today, with t_HI_m(k) the slot where it was set (first occurrence); LO_m, t_LO_m likewise. ES values come from bar['es']; a slot with bar['es'] None is skipped for ES extremes and no signal is taken on it.",
+  "established": "an extreme is established at bar k if it was set at least 6 slots (30 min) before k: k - t_HI_m(k) >= 6.",
+  "bearish_signal": "at bar k: exactly one market m makes a new high, h_m(k) >= HI_m(k) + 1 tick (0.25 NQ / 0.25 ES), with HI_m(k) established; and the other market m' has h_m'(k) < HI_m'(k). Side = short NQ.",
+  "bullish_signal": "mirror with lows: exactly one market has l_m(k) <= LO_m(k) - 1 tick with LO_m(k) established, the other has l_m'(k) > LO_m'(k). Side = long NQ.",
+  "both": "if a bar produces both a bearish and a bullish signal, skip it.",
+  "window": "signal bars with ET start 10:30 <= mod <= 14:40 (slots 12..62), so the 60-minute time stop ends by 15:45, before the 15:55 flat. In general: slots first_slot..min(last_slot, flat_slot - 15) (half days: 12..26).",
+  "news_filter": "no signal if a scheduled RTH high-impact release time m satisfies bar_end <= m <= bar_end + 5, as in the ES loop.",
+  "once_per_side": "at most one bearish and one bullish trade per session. A signal qualifies only if the strategy is flat with no pending order, no exit is being sent on that bar, and the news filter passes; the first qualifying signal of each side is traded, later ones that day are ignored.",
+  "entry": "market at the next bar's open.",
+  "risk": "ADR20 = mean of NQ's (RTH high - RTH low) over the prior 20 completed sessions (warmup provides them). Short: stop = c_k + max(HI_NQ_today_incl_k - c_k + 1 tick, M * ADR20), where HI_NQ_today_incl_k is NQ's session high including bar k; long mirrored with the session low. So the stop is always beyond the session extreme and never closer than M * ADR20.",
+  "target": "1:1 about the decision close: target = c_k + side * |stop - c_k| (side = +1 long, -1 short).",
+  "time_stop": "exit at market after 12 completed 5m bars held (60 minutes) without stop or target.",
+  "roll_days": "no special handling needed: ADR20 uses ranges (contract-invariant) and extremes are intraday."
+ },
+ "grid": {
+  "base": {
+   "est_slots": 6,
+   "first_slot": 12,
+   "last_slot": 62,
+   "hold_bars": 12,
+   "news_before": 5,
+   "adr_n": 20
+  },
+  "axes": {
+   "m": [
+    0.25,
+    0.35,
+    0.5
+   ]
+  }
+ },
+ "walk_forward": "fixed: no selection; all three M judged by the frozen dev gate, each needing its grid neighbours positive.",
+ "expected_trades_per_session": "~0.3-1.0 (divergent extreme events after 10:30 are common on trend-less days); dev ~600-2000 trades per M.",
+ "costs_note": "Measured base cost 3.6 ticks per round trip on MNQ (step 3). NQ ADR20 ~1.3-1.6% of price. M=0.25: 2011 (~2,300, ADR ~35 pts) risk >= 8.8 pts = 35 ticks -> <= ~0.10R; 2024 (~18,000, ADR ~230 pts) risk >= 57 pts -> ~0.016R. M=0.35: 2011 ~0.074R, 2024 ~0.011R. M=0.5: 2011 ~0.051R, 2024 ~0.008R. Dev-average (~4,500, ADR ~55 pts) M=0.35 -> ~0.047R.",
+ "rejection_evidence": "Reject if the frozen dev gate fails for every M. Report, not gate: NQ-led vs ES-led divergences (which market made the extreme); longs vs shorts; share of time-stop exits; per-year mean R. A positive result driven only by one of the two cases is a post-hoc split and would need a new pre-registered id.",
+ "companion_use": "bar['es'] (h, l) per slot; bar['es_roll'] irrelevant (intraday extremes only).",
+ "corrections_before_code": [
+  "2026-11-02 22:04, before any code or run: window rule said half days use 'flat_slot - 14' and the time stop 'ends by 15:40'; the normal-day window (slot 62, flat_slot 77) implies flat_slot - 15 and an exit at 15:45. Text corrected to match slot 62. once_per_side wording made explicit (signals while in a position or news-filtered do not use up the side)."
+ ]
+}

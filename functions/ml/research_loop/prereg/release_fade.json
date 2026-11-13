@@ -1,0 +1,30 @@
+{
+  "id": "release_fade",
+  "created": "2026-11-02T18:37:00-0500",
+  "family": ["macro_release_reaction", "post_announcement_reversal"],
+  "hypothesis": "The first ES move after a scheduled in-session high-impact release (FOMC decision, FOMC minutes, ISM at 10:00) partly reverses over the next two hours, so fading the W-minute reaction beats random-direction trades at the same times with the same brackets.",
+  "mechanism": "Fast algorithmic reaction to headline numbers overshoots, then reverses as the full statement, presser or report is digested (overreaction/noise in announcement returns). The queued idea was to FOLLOW the move; the direction was switched to FADE in this pre-registration, before any data, because the sources below point to reversal.",
+  "sources": [
+    {"url": "https://www.scribd.com/document/704531555/SSRN-id4131740", "summary": "Boguth, Fisher, Gregoire & Martineau (working paper, SSRN 4131740; read via a Scribd copy, not the SSRN original): about 60% of the market return in the four days from an FOMC announcement reverses before the next meeting; post-announcement moves look like noise or overreaction. Multi-day horizon."},
+    {"url": "https://quantpedia.com/are-fomc-announcements-really-informative/", "summary": "Quantpedia summary of the same line of work; also mentions an E-mini 1-minute study with a ~60bp reversal lasting hours on press-conference days and none on non-presser days (secondary; original not checked)."},
+    {"url": "https://research.library.fordham.edu/gabelli_thesis/161", "summary": "Fordham thesis on SPY 1-minute returns in the 90 minutes after FOMC announcements, 1997-2025 (abstract only)."},
+    {"note": "Lucca & Moench pre-FOMC drift: average post-announcement return about zero (cited in the search summaries). No source found for ISM 10:00 reversals: those events are included on the general overreaction argument only, which is weaker."}
+  ],
+  "closed_ideas_check": "Not on CLOSED_IDEAS.md. shock_fade excluded release bars and found mild continuation for non-release shocks; this tests the excluded set with a different trigger (fixed clock times from the scheduled calendar). Intraday momentum into the close (closed) is a different window and signal. Families not in data_spend_ledger for ES.",
+  "data_caveats": "news.json RTH events 2011-2021 = FOMC decision/presser/minutes (official dates) + ISM by rule (first/third business day, NOT verified), so some 10:00 'events' may be non-release days, which dilutes any effect. 2020-03-03 unscheduled cut is excluded. Event-days: dev 304, val1 113, val2 178.",
+  "rules": {
+    "event": "E = the earliest scheduled RTH release minute today (bar['news']); one event per session. Skip if E < 09:40 or E + W > 15:00.",
+    "reference": "ref = close of the 5m bar that ends at E (the bar starting E - 5); skip if that bar is missing.",
+    "reaction": "move = close of the bar ending at E + W minus ref, decided at that bar's close.",
+    "signal": "|move| >= MIN_MOVE points; side = -sign(move).",
+    "entry": "market at the next bar's open, only when flat.",
+    "bracket": "risk = max(|move|, MIN_RISK) points; stop at c - side*risk, target at c + side*risk (1:1 about the decision close).",
+    "time_stop": "exit at market after 24 completed 5m bars held (120 minutes); the engine's 15:55 flat applies first if sooner.",
+    "news_filter": "none beyond the event itself (a later same-day release, e.g. a 14:30 presser after a 14:00 decision, does not cancel the trade)."
+  },
+  "grid": {"base": {"min_move": 2.0, "min_risk": 8.0, "hold_bars": 24, "first_event_mod": 580, "last_entry_mod": 900}, "axes": {"window": [5, 15]}},
+  "walk_forward": "fixed: no selection; both W values are judged by the frozen dev gate and are each other's neighbour, so both must be positive for either to pass.",
+  "expected_trades_per_session": "~0.12 overall (about 1 per event-day with |move| >= 2); dev needs >= 200 trades, val >= 100, so val1 (113 event-days) is near the floor.",
+  "rejection_evidence": "Reject if the frozen dev gate fails for both W. Report, not gate: the FOMC-only subset vs the ISM-only subset (the sources cover FOMC; an ISM-driven pass would not match the mechanism), and press-conference days vs others.",
+  "costs_note": "risk >= 8 pts ($40 on MES); base cost ~$3.25 = <= 0.08R."
+}
