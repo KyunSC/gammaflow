@@ -88,20 +88,33 @@ test('break long fills on the upper-wall touch and books 2R at the target', () =
   assert.ok(Math.abs(s[0].r - 2) < 1e-9)
 })
 
-test('break short stops out at −1R; a touch before 09:35 uses the wall up', () => {
+test('break short stops out at −1R', () => {
   const closes = history()
   const w = wallsFor('2026-11-02', closes, vols)
   const o = breakOrders(w)
   const flat = w.pc
-  const cols = session(k => (k === 0 ? { o: flat, h: w.upper + 1, l: flat, c: flat }   // upper touched at 09:30–09:35
-    : k < 10 ? { o: flat, h: flat + 1, l: flat - 1, c: flat }
-      : k === 10 ? { o: flat, h: flat, l: w.lower - 1, c: w.lower }
+  const cols = session(k => (k < 10 ? { o: flat - 1, h: flat, l: flat - 2, c: flat - 1 }   // nearer the lower wall
+      : k === 10 ? { o: flat - 1, h: flat - 1, l: w.lower - 1, c: w.lower }
         : { o: w.lower, h: o.short.stop + 1, l: w.lower - 1, c: o.short.stop }))
   const s = ivWallSeries(cols, closes, vols).signals
   assert.equal(s.length, 1)
   assert.equal(s[0].side, -1)
   assert.equal(s[0].exitKind, 'stop')
   assert.ok(Math.abs(s[0].r + 1) < 1e-9)
+})
+
+test('orders are live from 09:30: a touch in the opening bar fills and the trade holds to the flat', () => {
+  const closes = history()
+  const w = wallsFor('2026-11-02', closes, vols)
+  const near = w.upper - 2
+  const cols = session(k => (k === 0 ? { o: near, h: w.upper + 1, l: near, c: near }   // upper touched 09:30–09:35
+    : { o: near, h: near + 1, l: near - 1, c: near }))
+  const s = ivWallSeries(cols, closes, vols).signals
+  assert.equal(s.length, 1)
+  assert.equal(s[0].side, 1)
+  assert.equal(s[0].entry, w.upper)
+  assert.equal(s[0].entryTime, etNov(9, 30))
+  assert.equal(s[0].exitKind, 'flat')
 })
 
 test('no trades on a session that opens outside the band', () => {

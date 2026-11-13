@@ -19,7 +19,10 @@ export const IV_WALL_DEFAULTS = { stopSigma: 0.4, targetR: 2, hvDays: 20 }
 
 const RTH_OPEN = 9 * 60 + 30
 const RTH_CLOSE = 16 * 60
-const FIRST_ORDER = 9 * 60 + 35   // first order rests after the 09:30 bar closes
+// Orders are live from the 09:30 open. The frozen backtest pick started at 09:35 (first order after the 09:30 bar
+// closes); changed 2026-11-12 at the user's request on the iv_wall_open930 result (09:30-09:35 fills +0.105R, n 77,
+// 2019-26, about equal to the 09:35 rule). The Python studies still replay 09:35.
+const FIRST_ORDER = 9 * 60 + 30
 const ORDER_END = 15 * 60 + 35    // the last order (placed at 15:30) lives until 15:35
 const HALF_CLOSE = 13 * 60        // NYSE early close; CME holiday sessions halt at 13:00 too, but end before it
 const GLOBEX_OPEN = 18 * 60
@@ -224,12 +227,14 @@ function sessionSignals(key, rth, cols, w, opts) {
       } else if (pos.side > 0 ? high[i] >= pos.target : low[i] <= pos.target) {
         closePos(pos, i, pos.target, 'target', time); out.push(pos); pos = null
       }
-    } else if (m >= FIRST_ORDER && m < ORDER_END && m < flatMin && Number.isFinite(prevClose)) {
+    } else if (m >= FIRST_ORDER && m < ORDER_END && m < flatMin) {
       // One resting order, at the nearer untouched wall to the last close (the backtest re-places it on each
       // 5-minute close).
+      // On the 09:30 bar there is no earlier close: the session open (inside the walls) is the reference.
+      const ref = Number.isFinite(prevClose) ? prevClose : open[i]
       const cand = []
-      if (!used.U && prevClose < w.upper) cand.push([w.upper - prevClose, 'U'])
-      if (!used.L && prevClose > w.lower) cand.push([prevClose - w.lower, 'L'])
+      if (!used.U && ref < w.upper) cand.push([w.upper - ref, 'U'])
+      if (!used.L && ref > w.lower) cand.push([ref - w.lower, 'L'])
       cand.sort((a, b) => a[0] - b[0])
       const wall = cand[0]?.[1]
       const hit = wall === 'U' ? high[i] >= w.upper : wall === 'L' ? low[i] <= w.lower : false
