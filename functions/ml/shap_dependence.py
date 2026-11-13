@@ -22,12 +22,11 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import shap
 from sklearn.ensemble import RandomForestRegressor
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from eval import FEATURES_BASELINE_PLUS_GEX, FEATURES_GEX, TARGET  # noqa: E402
+from eval import FEATURES_BASELINE_PLUS_GEX, TARGET  # noqa: E402
 from holdout import load_research
 
 DATA_DIR = Path(__file__).resolve().parent / "data"

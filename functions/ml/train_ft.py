@@ -28,7 +28,7 @@ from rtdl_revisiting_models import FTTransformer  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from eval import (  # noqa: E402
     walk_forward, summarize,
-    FEATURES_BASELINE, FEATURES_BASELINE_PLUS_GEX, TARGET,
+    FEATURES_BASELINE, FEATURES_BASELINE_PLUS_GEX,
 )
 from holdout import load_research
 

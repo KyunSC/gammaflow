@@ -24,7 +24,6 @@ import logging
 import sys
 from pathlib import Path
 
-import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -32,7 +31,6 @@ from eval import (
     walk_forward, summarize,
     FEATURES_BASELINE, FEATURES_BASELINE_PLUS_GEX,
     FEATURES_BASELINE_PLUS_GEX_PLUS_0DTE, FEATURES_0DTE,
-    TARGET,
 )
 from holdout import load_research
 
