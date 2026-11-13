@@ -1,0 +1,14 @@
+{
+  "id": "iv_wall_breakeven",
+  "created": "2026-11-09",
+  "family": ["iv_wall_break"],
+  "status": "INFO ONLY: NQ 2011-2026 is spent for the IV-wall family, and be1 (BE at 1R) was already tried in iv_wall_grid on 2011-21 (lost to fixed). No gate, no adoption from this run.",
+  "origin": "User: 'does doing break even at some point of the trade help the strategy'",
+  "base": "frozen IV-wall break, IVGrid touch / fixed 2R / 0.4 sigma (VXN), NQ, frozen research_loop_nq.eval (MNQ base/stress costs, side-matched random twin)",
+  "cells": {
+    "fixed": "control: stop never moves",
+    "be_T for T in {0.5, 0.75, 1.0, 1.25, 1.5}": "once the 5m high (long) / low (short) since entry reaches entry fill + T x initial risk, move the stop to the entry fill at the first 5m decision whose close is beyond the fill (iv_wall_grid be1 mechanics with the trigger varied; T=1.0 is be1)"
+  },
+  "windows": "dev 2011-2018, val1 2019-2021, val2 2022-2026-08-14, fresh 2026-08-17..2026-09-26; reported separately and pooled",
+  "reports": "n, net R, gross R, CI, stress R, twin p, USD at 1 MNQ, win rate, exit mix, by year; per-trade pairing vs fixed on (day, side): saved = fixed stopped at -1R but BE exited at ~0, killed = BE scratched a trade that fixed closed positive (target or 15:55 flat)"
+}

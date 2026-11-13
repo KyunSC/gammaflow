@@ -1,0 +1,27 @@
+{
+  "id": "iv_wall_chase",
+  "created": "2026-11-11",
+  "family": ["iv_wall_break", "order_timing"],
+  "origin": "User: 'what am i supposed to do if price crosses the entry before 9:30' then 'can you test what happens if i enter anyways'. Written before any chase trade was computed. Already known from iv_wall_hours: OCO resting overnight (entry at the cross itself) = -0.037R, no edge.",
+  "status": "SPENT DATA, INFORMATION ONLY. NQ 2011-2026 picked the strategy; the frozen rule (skip days that open outside the walls, orders 09:35-15:30, flat 15:55) is not changed by anything here.",
+  "base": "frozen IV-wall break walls (prior RTH close +/- sigma, 0.4 sigma stop, 2R target, VXN), NQ, frozen research_loop_nq.eval costs (market entry: 1 tick base / 2 ticks stress), random-direction twins with 40 coin seeds",
+  "chase": {
+    "entry": {
+      "E0900": "at the open of the 09:00 ET 1m bar, if that price is beyond a wall: market entry in the break direction",
+      "E0930": "at the 09:30 open, if it is beyond a wall (= every day the frozen rule skips as 'opened outside'): market entry in the break direction",
+      "E0935": "day opened outside a wall and the 09:35 open is still beyond that wall: market entry in the break direction"
+    },
+    "bracket": {
+      "printed": "the stop and target the morning printout shows for that wall (stop = wall -/+ 0.4 sigma, target = wall +/- 0.8 sigma, tick-snapped as the engine). Risk = entry to printed stop, so RR is below 2. No trade if the entry is already at or past the printed target.",
+      "same_size": "stop 0.4 sigma from the entry price, target 0.8 sigma from the entry price (the usual risk and 2R, re-anchored on the fill)"
+    },
+    "exits": "stop / target / flat at the open of the last 5m bar (15:55, 12:55 half days), engine check_bar rules on 1m bars (stop wins ties, target needs a tick through). One chase trade per session. E0900 runs on Globex 1m bars until 09:30, then the RTH bars.",
+    "cells": 6
+  },
+  "split_of_frozen_trades": "the frozen rule's own trades (days that open inside), split by whether the traded wall had already been crossed in Globex between 18:00 ET and 09:30 (price came back inside before the open) or not. Information on whether an overnight cross that reverses 'doesn't count'.",
+  "windows": "dev 2011-2018, val1 2019-2021, val2 2022-2026-08-14; reported separately and pooled",
+  "reading": {
+    "chase": "Entering anyway is worth doing only if a cell has pooled mean net R > 0 with trade-bootstrap 95% CI low > 0, stress > 0, edge over coin > 0 and a positive mean in all three splits. Six cells are read, so one passing cell alone is weak. Otherwise: keep skipping.",
+    "either_way": "the frozen rule stays as it is; anything that passes here is a forward-journal tag, not a rule change"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "iv_wall_cases",
+  "created": "2026-11-11",
+  "family": ["iv_wall_break", "order_timing"],
+  "origin": "User, after a real 2026-11-11 trade on a wall touched 09:30-09:35: 'check the strat from 2021 using the different cases then show me the difference every year'. Written before any per-year number or any re-break trade was computed. Known already (pooled): iv_wall_chase, iv_wall_open930, iv_wall_hours.",
+  "status": "SPENT DATA, INFORMATION ONLY. NQ 2011-2026 picked the strategy; the frozen rule is not changed by anything here.",
+  "cases": {
+    "frozen_no_cross": "frozen trades on sessions where neither wall was reached in Globex 18:00 ET -> 09:30 (iv_wall_chase split)",
+    "frozen_crossed": "frozen trades on a wall that was reached in Globex 18:00 ET -> 09:30 with the day opening inside (iv_wall_chase split)",
+    "early_0930": "the 09:30-09:35 stop-entry trade of iv_wall_open930 (order live from 09:30, open-inside days), unchanged",
+    "rebreak": "NEW. Open-inside days where a wall was touched in 09:30-09:35 (the early_0930 days, same wall). A stop entry at that wall with the frozen bracket (stop 0.4 sigma inside, target 0.8 sigma beyond, tick-snapped) becomes live after the first 5m bar close at or after 09:35 that is back inside the wall, and fills on the first later 1m bar that touches it before 15:30. Fill = max(open, wall) for longs / min for shorts (engine entry_fill), stop checked on the entry bar and target not unless filled at the open, stop wins ties, flat at the open of the last 5m bar. One trade per session, standalone (it ignores any frozen trade on the other wall).",
+    "chase_0930": "iv_wall_chase E0930|printed (day opened outside, market at 09:30, printed bracket), unchanged",
+    "chase_0935": "iv_wall_chase E0935|printed, unchanged",
+    "overnight_rest": "iv_wall_hours overnight_sim (OCO resting 18:00 ET -> 09:30, held to the flat), unchanged"
+  },
+  "windows": "val1 2019-2021 and val2 2022-01..2026-08-14 are computed; the report shows calendar years 2021..2026 (2026 is partial) and their total.",
+  "report": "per case and year: trades, total net R, mean net R (frozen research_loop_nq base costs). Pooled 2021-26 mean with a trade-bootstrap 95% CI.",
+  "reading": "Description only. Per-year cells have 0-30 trades for every case but frozen_no_cross, so no single year is evidence. 'rebreak' is one new cell on spent data: a pooled CI low > 0 would make it a forward-journal tag, nothing more. The frozen rule stays."
+}

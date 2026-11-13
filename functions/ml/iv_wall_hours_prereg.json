@@ -1,0 +1,26 @@
+{
+  "id": "iv_wall_hours",
+  "created": "2026-11-10",
+  "family": ["iv_wall_break", "order_timing"],
+  "origin": "User: 'does the frozen IV wall trade work all day or only in RTH, can you check if it makes a difference restricting the hours'. Written before any hour split or overnight trade was computed.",
+  "status": "SPENT DATA, INFORMATION ONLY. NQ 2011-2026 picked the strategy; the frozen rule (orders 09:35-15:30 decisions, flat 15:55) is not changed by anything here.",
+  "base": "frozen IV-wall break, IVGrid touch / fixed 2R / 0.4 sigma (VXN), NQ, frozen research_loop_nq.eval (MNQ base/stress costs, random-direction twins, 40 coin seeds)",
+  "part_a_inside_rth": {
+    "buckets": "frozen trades grouped by entry time: 09:35-10:30, 10:30-11:30, 11:30-12:30, 12:30-13:30, 13:30-14:30, 14:30-15:35. Mean net R, trade-bootstrap CI, edge over coin, and one permutation p (labels shuffled within calendar year, statistic = n-weighted variance of bucket means).",
+    "windows": "exact engine reruns where an order may only be placed inside a window; a wall first touched outside the window is dead for the day as in the frozen rule. Stop placing at 10:30 / 11:30 / 12:30 / 13:30 / 14:30; start placing at 10:00 / 10:30 / 11:30 / 12:30 / 13:30.",
+    "compare": "per-session R sum, window minus frozen, session bootstrap 95% CI; R per year; sign per split"
+  },
+  "part_b_overnight": {
+    "rule": "same walls (prior RTH close +/- sigma, sigma known at the prior close; sessions whose VXN print is dated after the prior session are skipped for this leg). OCO stop entries at both walls rest from 18:00 ET on the prior session's date until 09:30, on every non-roll session (days that end up opening outside the walls included: the break happened overnight). Stop 0.4 sigma inside, target 2R from the wall, one trade per wall, no entry while in a position. Fills on 1m Globex bars by the engine's rules (stop entry at max(open, wall), stop checked on the entry bar and target not, stop wins ties, targets need a tick through).",
+    "exits": "HOLD: stop / target / flat at 15:55 of the RTH session (the frozen exit). FLAT930: same, but any open position is closed at the 09:30 open.",
+    "splits": "by entry time 18:00-02:00 / 02:00-08:00 / 08:00-09:30 ET, and by whether RTH then opened inside or outside the walls",
+    "all_day": "overnight HOLD trades plus the frozen RTH trades of the same session that are on a wall not used overnight and enter in a 5m bar after the overnight trade's exit. Orders are not live 09:30-09:35 (as frozen). Compared with the frozen rule by per-session R sum, session bootstrap 95% CI.",
+    "costs": "base costs are the RTH-measured ones (1 tick stop slip); overnight liquidity is thinner, so the stress scenario is the more honest read for this leg"
+  },
+  "windows": "dev 2011-2018, val1 2019-2021, val2 2022-2026-08-14; reported separately and pooled",
+  "reading": {
+    "hour_filter": "An RTH window is worth tagging on forward trades only if its paired difference vs frozen has a 95% CI above 0 on pooled 2011-26 AND the same sign in all three splits. Otherwise: no hour filter.",
+    "all_day": "The trade 'works overnight' only if the overnight HOLD leg has mean net R > 0 with trade-bootstrap CI low > 0 pooled, stress > 0, edge over coin > 0 and a positive mean in all three splits. Otherwise it is an RTH trade and orders should not rest overnight.",
+    "either_way": "the frozen rule stays as it is; anything that passes here is a forward-journal tag, not a rule change"
+  }
+}

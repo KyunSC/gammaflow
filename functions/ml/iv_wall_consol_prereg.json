@@ -1,0 +1,13 @@
+{
+  "id": "iv_wall_consol",
+  "created": "2026-11-09",
+  "family": ["iv_wall_break", "exit_management"],
+  "origin": "The user was in a +1.3R IV-wall long on 2026-11-09 that ranged for hours below the 2R target and asked whether taking profit near the peak once price consolidates would do better. Written before any variant was computed.",
+  "status": "SPENT DATA, INFORMATION ONLY. All NQ 2011-2026-08-14 is spent for the IV-wall family; the frozen rule (2R target or flat 15:55) is not changed by anything here.",
+  "baseline": "Frozen IV-wall break: touch entry (stop order at the wall, 09:35-15:30), stop 0.4 sigma back inside, 2R target, flat at the open of the last 5m bar. research_loop_nq engine and costs, unchanged.",
+  "variant": "Same entries. At each 5m bar close while in a trade, exit at the next bar's open (market) when all of: (a) open profit at the close >= P x initial risk; (b) the last N hours of 5m bars all started after the entry bar and their high-low range <= W x sigma; (c) the trade's best price so far (MFE extreme) is within W x sigma of that window's extreme in the trade's direction (the range sits near the peak). Stop and 2R target stay live until then.",
+  "grid": {"P_R": [0.5, 1.0], "N_hours": [1, 2], "W_sigma": [0.15, 0.25]},
+  "windows": "NQ dev 2011-2018, val1 2019-2021, val2 2022-2026-08-14; pooled and per window.",
+  "report": "Every cell: n trades, mean net R (base and stress), R per year, how many trades the rule cut and how those trades ended under the baseline (target / flat / stop), paired per-session difference vs the baseline with a session bootstrap 95% CI.",
+  "reading": "A cell helps only if its paired CI sits above 0 pooled AND the difference is positive in all three windows, AND its neighbours (one grid step away) are positive too. With 8 cells and spent data, even that is a hint for forward logging, not a rule change."
+}

@@ -1,0 +1,61 @@
+{
+  "id": "iv_wall_candle_scalp",
+  "created": "2026-11-07",
+  "family": ["iv_wall_break", "scalp"],
+  "origin": "The user asked for a scalping version of the frozen NQ IV-wall break: the same wall-break trigger, held for a single candle. On 2026-11-07 the user chose 1m and 5m candles, with no stop and with a 0.10 sigma stop, no RTY look and no stop/target/hold grid. An earlier draft of this file (an 18-cell grid plus an RTY look) was replaced before anything was computed. Written before any scalp variant or tick replay of these trades was computed. Looked at beforehand: NQ 1m bar ranges by year (2026 RTH median 14.8 pts, p90 33.2), data coverage, and a Databento RTY quote (not bought).",
+  "status": {
+    "nq_2011_01_to_2026_08_14": "SPENT for the IV-wall break family (dev, val1, val2 all used). Every result on it is INFORMATION ONLY.",
+    "nq_2026_08_17_to_2026_11_02": "fresh 1m bars on disk, but only ~12 trigger days. Reported as information; no gate.",
+    "forward": "the only evidence: all four variants are journalled forward from 2026-08-17 and judged only at the forward gate below",
+    "rty": "not used; RTY stays unchecked for the family"
+  },
+  "frozen_strategy_not_changed": "walls, sigma, the 09:35-15:30 order window, one trade per wall per day, skip open-outside and roll sessions, 0.4 sigma / 2R / flat 15:55, data/iv_wall/paper/*, the real-trade artifact. The candle scalp is a separate variant; switching to it is the user's call.",
+
+  "trigger": "identical to IVGrid('touch', 'fixed', 0.4) in iv_wall_grid.py: sigma = 0.5 x (VXN-implied daily move + 20-day HV), walls = prior RTH close +/- 1 sigma, days that open outside the band are skipped, roll sessions skipped. On each 5m close from 09:35 to 15:30 ET (slots 0..71) with no position, a stop entry rests for the next 5m bar at the nearer fresh wall (buy stop at the upper wall, sell stop at the lower). A wall touched while flat and before a fill is dead; a wall that filled is used. After a scalp closes, the other wall can still trigger on a later 5m decision (frozen state machine unchanged).",
+  "variants": {
+    "C1_nostop": "fill in 1m candle j; exit at the open of 1m bar j+1 (a market order sent at candle j's close)",
+    "C1_stop10": "as C1_nostop, plus a stop at wall - d x 0.10 sigma",
+    "C5_nostop": "fill in 5m candle k; exit at the open of the first 1m bar of 5m candle k+1 (a market order sent at candle k's close)",
+    "C5_stop10": "as C5_nostop, plus a stop at wall - d x 0.10 sigma",
+    "count": 4,
+    "common": "no target. If the exit bar would be the session's flat bar (15:55, or 12:55 on half days), it is the flat exit at that open. Prices snap to the 0.25 tick grid. Today 0.10 sigma at sigma 590 = 59 pts = $118 per MNQ."
+  },
+  "R_unit": "risk_pts = |fill - (wall - d x 0.10 sigma)| for all four variants (for the no-stop variants a notional stop, never placed), so R is comparable across variants and with the frozen rule's sizing. Also reported in points and dollars per MNQ.",
+
+  "engine_1m": {
+    "code": "new iv_wall_scalp.py. The research_loop_nq engine loop is copied with one addition, the candle-close exit. It reuses engine.entry_fill, engine.check_bar, engine.snap, costs.apply and twins.twin_test unchanged.",
+    "fills": "stop entry at max(open, wall) on the 1m bar that touches it (frozen engine rule). Candle exit at the stated 1m open, costed as a market exit. With a stop: the stop is checked over the whole entry bar unless the fill was at its open (worst case), and from the next 1m bar on as the engine does; a stop at or through the open fills at the open.",
+    "exactness": "the no-stop variants depend only on the fill and one later 1m open, so 1m bars give them exactly up to slippage. The stop variants carry the worst-case entry-bar bias (a 59-pt stop is ~4 median 2026 1m bars, and breakout bars are wider); the tick replay measures it.",
+    "parity_check_first": "before any scalp variant: the same script with the frozen exits (0.4 sigma stop, 2R wall-referenced target, flat 15:55) on NQ val2 must reproduce grid_NQ_val2.json exactly (n 392, mean net R +0.115). If not, stop and fix; nothing else is reported until it does."
+  },
+  "tick_replay": {
+    "data": "Databento NQ trades on disk, 2025-10-24 -> 2026-08-14, 09:25-16:00 ET (same NQ.v.0 contract as the 1m bars). Spent window: information and bias measurement only.",
+    "method": "the same trigger and state machine on the same 5m decisions. Entry = the first print at or through the stop price while the order is live, filled at that print's price. Stop = the first later print at or through the stop, filled at that print's price. Candle exit = the first print at or after the next candle's start time (next minute for C1, next 5m boundary for C5), filled at that print. Same costs on top (base still adds 1 tick on stop entries and stop exits: conservative).",
+    "outputs": "per variant: n, mean net R on ticks vs on 1m over the same window, paired bias b = (sum tick net R - sum 1m net R) / n of 1m trades (session-matched), session-bootstrap 95% CI of b, and the share of trades whose exit kind differs. Expected: b near 0 for the no-stop variants (a check of the 1m model); b > 0 for the stop variants."
+  },
+  "costs": {
+    "model": "research_loop_nq/eval/config.py and costs.py unchanged: MNQ $2/pt, tick 0.25, $0.50/side (stress $1.00); base slip 1 tick on the stop entry, stop exits, market (candle) and flat exits; stress 2 ticks on market/flat, and 1 tick + a draw from stop_slip_pmf.json by ET clock bucket on stop entries and stop exits.",
+    "size_today": "a base round trip costs $2 per MNQ = 1 pt = 0.017R at today's 0.10 sigma (59 pts). In 2019 sigma was ~70 pts, so 0.10 sigma was ~7 pts and the same round trip was ~0.14R.",
+    "today_cost_R": "information column: gross R minus the trade's base cost in dollars divided by 0.10 x sigma_today x $2 (what the trade nets at today's size). sigma_today = sigma of the latest session in data/iv_wall/paper/sessions.csv when the script runs, written to the output."
+  },
+  "twins": "random-direction twins, side-matched permutation (50,000 draws, gate p) plus the 50/50 coin p, via twins.twin_test. Each trade's long and short outcome: same entry minute, price and kind, same exit time; with a stop, the opposite side gets the mirrored stop at the same distance and is checked with engine.check_bar (as twins._one); without a stop the opposite side is the same move with the sign flipped. Same costs. Edge over twins = real mean net R - twin mean.",
+
+  "report_every_variant": {
+    "splits": "NQ dev 2011-01..2018-12, val1 2019-01..2021-12, val2 2022-01..2026-08-14, pooled 2011-26 and 2019-26 (all information), the tick window on 1m and on ticks, fresh 2026-08-17..2026-11-02 (information)",
+    "metrics": "n, trades per year, gross R and gross pts, net R base, net R stress, today-cost R, win rate, exit-kind shares (candle / stop / flat), mean hold seconds (ticks) or minutes (1m), long and short R, twin mean, edge over twins, twin p and coin p, bootstrap 95% CI of mean net R, per-year n and net R, max drawdown in R and its dates, longest losing streak. The frozen rule's same-day numbers alongside for comparison."
+  },
+  "lucid_flex_50k": {
+    "method": "as iv_wall_lucid_today.py: run_prop on resolve_plan('flex', '50k', True), 2,000 paths of 5-day block bootstrap, 40 random-direction seeds as the baseline, list price $115. Each trade's dollars = net R x N x 0.10 x sigma_today x $2 (trades scaled to today's size).",
+    "sizes": "1 MNQ, and 4 MNQ (same dollar risk as the frozen trade at 1 MNQ). Flex 50K allows 4 minis = 40 MNQ.",
+    "trades_used": "NQ val2 trades of each variant (spent: information)",
+    "report": "EV, pass rate, payout probability, max drawdown in $, each vs the random-direction baseline; edge = EV - baseline EV"
+  },
+
+  "forward": {
+    "data": "Databento NQ 1m bars when on disk; otherwise yfinance NQ=F 1m (free, reaches back ~30 days, so run at least every 4 weeks). Sessions where the two sources disagree on a trade are flagged.",
+    "journal": "data/iv_wall/scalp_paper/trades.csv, append-only from 2026-08-17, all four variants, the same code as the backtest",
+    "gate": "judged once each variant has >= 100 forward trades (about 15 months). A variant is worth trading only if: forward mean net R base > 0, stress > 0, twin p < 0.05 / 4, and its 1m-vs-tick bias b (stop variants) does not turn the mean negative. Before then, forward numbers are information.",
+    "no_peeking_rule": "forward results may be shown at any time, but the variants, costs and gate are not changed after seeing them"
+  },
+  "outputs": "data/iv_wall/scalp_nq.json, scalp_ticks.json, scalp_lucid.json (+ .log), scalp_paper/trades.csv"
+}
