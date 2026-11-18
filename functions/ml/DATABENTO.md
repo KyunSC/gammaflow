@@ -11,6 +11,7 @@ without explicit approval of a quote.
 |---|---|---|---|---:|
 | `fut-ohlcv-1m` | ohlcv-1m | `ES.FUT`, `NQ.FUT` (every outright) | month | ~$1.74 |
 | `fut-bbo-1s` | bbo-1s, 09:25–16:00 ET | `ES.v.0`, `NQ.v.0` | weekday | < ~$23 (quoted over full days) |
+| `nq-ohlcv-1m` | ohlcv-1m, all hours | `NQ.v.0` | month, explicit dates only | not quoted yet; 2022-01-01 → 2026-08-15 for `red_day_nq_study.py --confirm` (expect roughly $10) |
 | `nq-mbo` | mbo (L3) | `NQ.v.0` | month, explicit dates only | ~$235 full window; pilot first |
 | `es-trades` | trades, 09:25–16:00 ET | `ES.v.0` | weekday, explicit dates only | ~$35.72 for 2026-04-24 → 2026-08-15 |
 

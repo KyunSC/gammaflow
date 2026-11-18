@@ -63,6 +63,9 @@ JOBS = {
     "fut-ohlcv-1m": Job("ohlcv-1m", "parent", "outrights"),  # every contract: roll-aware basis vs. index GEX levels
     "fut-bbo-1s": Job("bbo-1s", "continuous", "continuous", every="day", et_window=("09:25", "16:00")),
     "nq-mbo": Job("mbo", "continuous", "continuous", products=("NQ",), whole_window_only=True),
+    # NQ 1m bars, all hours, volume-rolled front contract, for any explicit window (red_day_nq_study.py reads
+    # 2022-01-01 -> 2026-08-15 as its one-look confirmation set). 2012-2021 lives in nq-ohlcv-1m-early (PR #16).
+    "nq-ohlcv-1m": Job("ohlcv-1m", "continuous", "continuous", products=("NQ",), whole_window_only=True),
     # Aggressor-side prints for delta bubbles / exact volume profile (orderflow_backtest.py).
     "nq-trades": Job("trades", "continuous", "continuous", products=("NQ",), whole_window_only=True,
                      every="day", et_window=("09:25", "16:00")),
